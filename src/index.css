@@ -1,0 +1,28 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #f9fafb;
+  --text: #1f2937;
+  --card-bg: #ffffff;
+  --border: #e5e7eb;
+}
+
+.dark {
+  --background: #04d7f3;
+  --text: #f9fafb;
+  --card-bg: #1f2937;
+  --border: #374151;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--text);
+}
+
+.card {
+  background-color: var(--card-bg);
+  border-color: var(--border);
+}
