@@ -60,6 +60,8 @@ import { Line, Doughnut, Bar } from "react-chartjs-2";
 import { v4 as uuidv4 } from 'uuid';
 import ExportContrat from "../compoments/ExportContrat";
 import ExportPaySlip from "../compoments/ExportPaySlip";
+import Autocomplete from '@mui/material/Autocomplete';
+import TextField from '@mui/material/TextField';
 
 ChartJS.register(
   ArcElement,
@@ -473,13 +475,13 @@ const ContractGenerator = ({ employee, companyData, onSave, onCancel, actionLoad
         >
           Annuler
         </button>
-        <button
+        {/* <button
           type="submit"
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           disabled={actionLoading}
         >
           {actionLoading ? "Enregistrement..." : "Enregistrer"}
-        </button>
+        </button> */}
       </div>
       
       {/* Composant ExportContrat pour générer le PDF */}
@@ -990,6 +992,66 @@ const CompanyAdminDashboard = () => {
   const [selectedPaySlip, setSelectedPaySlip] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   
+  // Ajout des hooks pour suggestions
+  const [allResidences, setAllResidences] = useState([]);
+  const [allLieuNaissance, setAllLieuNaissance] = useState([]);
+
+  // Dans le composant CompanyAdminDashboard, juste avant le JSX du formulaire d'employé :
+  const [dateNaissanceError, setDateNaissanceError] = useState("");
+
+  // ... autres hooks d'état ...
+  const [villeResidence, setVilleResidence] = useState("");
+  const [quartierResidence, setQuartierResidence] = useState("");
+  // ... reste du composant ...
+
+  function formatDateNaissanceInput(value) {
+    // Si l'utilisateur tape 8 chiffres d'affilée, on formate automatiquement
+    const onlyDigits = value.replace(/\D/g, "");
+    if (onlyDigits.length === 8) {
+      return onlyDigits.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
+    }
+    // Ajoute les / automatiquement
+    let v = value.replace(/[^\d]/g, "");
+    if (v.length > 2 && v.length <= 4) v = v.slice(0,2) + "/" + v.slice(2);
+    else if (v.length > 4) v = v.slice(0,2) + "/" + v.slice(2,4) + "/" + v.slice(4,8);
+    return v;
+  }
+
+  function validateDateNaissance(value) {
+    // Format attendu : JJ/MM/AAAA
+    if (!value) return "";
+    const regex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/(19|20)\d\d$/;
+    if (!regex.test(value)) return "Format attendu : JJ/MM/AAAA";
+    // Vérifie que la date existe
+    const [jour, mois, annee] = value.split("/").map(Number);
+    const d = new Date(annee, mois - 1, jour);
+    if (d.getFullYear() !== annee || d.getMonth() !== mois - 1 || d.getDate() !== jour) return "Date invalide";
+    return "";
+  }
+
+  useEffect(() => {
+    // Collecte toutes les adresses et lieux de naissance uniques (insensible à la casse)
+    if (employees && employees.length > 0) {
+      const residencesSet = new Map();
+      const lieuNaissanceSet = new Map();
+      employees.forEach(emp => {
+        if (emp.residence && emp.residence.trim()) {
+          const key = emp.residence.trim().toLowerCase();
+          if (!residencesSet.has(key)) residencesSet.set(key, emp.residence.trim());
+        }
+        if (emp.lieuNaissance && emp.lieuNaissance.trim()) {
+          const key = emp.lieuNaissance.trim().toLowerCase();
+          if (!lieuNaissanceSet.has(key)) lieuNaissanceSet.set(key, emp.lieuNaissance.trim());
+        }
+      });
+      setAllResidences(Array.from(residencesSet.values()));
+      setAllLieuNaissance(Array.from(lieuNaissanceSet.values()));
+    } else {
+      setAllResidences([]);
+      setAllLieuNaissance([]);
+    }
+  }, [employees]);
+
   // Effet pour fermer showPaySlip quand showPaySlipForm s'ouvre
   useEffect(() => {
     if (showPaySlipForm) {
@@ -1135,6 +1197,7 @@ const deletePaySlip = async (employeeId, payslipId) => {
   // Charger les données depuis Firebase
   useEffect(() => {
     const fetchData = async () => {
+      console.log('[DEBUG] useEffect fetchData: auth.currentUser =', auth.currentUser);
       const user = auth.currentUser;
       if (!user) {
         setErrorMessage("Utilisateur non authentifié.");
@@ -1243,7 +1306,9 @@ const addEmployee = async (e) => {
   e.preventDefault();
   setActionLoading(true);
   try {
+    console.log('[DEBUG] addEmployee: auth.currentUser =', auth.currentUser);
     if (!companyData?.id) {
+      console.error('[DEBUG] addEmployee: companyData.id manquant', companyData);
       throw new Error("ID de l'entreprise manquant.");
     }
     if (!newEmployee.name) throw new Error("Le nom est requis.");
@@ -1275,6 +1340,7 @@ const addEmployee = async (e) => {
     };
     let employeeId;
     if (newEmployee.id) {
+      console.log('[DEBUG] addEmployee: updateDoc for employee', newEmployee.id);
       await updateDoc(doc(db, "clients", companyData.id, "employees", newEmployee.id), {
         ...newEmployee,
         contract: contractData,
@@ -1283,6 +1349,7 @@ const addEmployee = async (e) => {
       employeeId = newEmployee.id;
       toast.success("Employé modifié avec succès !");
     } else {
+      console.log('[DEBUG] addEmployee: addDoc for new employee', newEmployee);
       const docRef = await addDoc(collection(db, "clients", companyData.id, "employees"), {
         ...newEmployee,
         contract: contractData,
@@ -1750,6 +1817,16 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
       </div>
     );
   }
+
+  // Liste des villes et quartiers connus du Cameroun
+  const villesCameroun = [
+    "Douala", "Yaoundé", "Garoua", "Bamenda", "Maroua", "Bafoussam", "Ngaoundéré", "Bertoua", "Ebolowa", "Kumba"
+  ];
+  const quartiersParVille = {
+    "Douala": ["Akwa", "Bonapriso", "Bonamoussadi", "Deido", "Makepe", "Logbaba", "Bali", "New Bell", "Cité des Palmiers", "Bonabéri"],
+    "Yaoundé": ["Bastos", "Melen", "Mvog Ada", "Nlongkak", "Essos", "Emana", "Mokolo", "Biyem-Assi", "Etoudi", "Ekounou"],
+    // Les autres villes peuvent être complétées au besoin
+  };
 
   return (
     <div className="min-h-screen flex bg-gradient-to-br from-slate-50 to-blue-50">
@@ -2398,22 +2475,38 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
           <div>
             <label className="block text-sm font-medium text-gray-600">Date de naissance</label>
             <input
-              type="date"
+              type="text"
+              placeholder="JJ/MM/AAAA (ex: 25/12/1990)"
               value={newEmployee.dateNaissance}
-              onChange={(e) => setNewEmployee({ ...newEmployee, dateNaissance: e.target.value })}
-              className="p-2 border border-blue-200 rounded-lg w-full"
+              onChange={e => {
+                const formatted = formatDateNaissanceInput(e.target.value);
+                setNewEmployee({ ...newEmployee, dateNaissance: formatted });
+                setDateNaissanceError(validateDateNaissance(formatted));
+              }}
+              className={`p-2 border ${dateNaissanceError ? 'border-red-400' : 'border-blue-200'} rounded-lg w-full`}
+              maxLength={10}
+              autoComplete="off"
             />
+            {dateNaissanceError && (
+              <span className="text-red-500 text-xs">{dateNaissanceError}</span>
+            )}
           </div>
           
           <div>
             <label className="block text-sm font-medium text-gray-600">Lieu de naissance</label>
             <input
               type="text"
+              list="lieuxNaissance"
               placeholder="Lieu de naissance"
               value={newEmployee.lieuNaissance}
               onChange={(e) => setNewEmployee({ ...newEmployee, lieuNaissance: e.target.value })}
               className="p-2 border border-blue-200 rounded-lg w-full"
             />
+            <datalist id="lieuxNaissance">
+              {allLieuNaissance.map((lieu, idx) => (
+                <option key={idx} value={lieu} />
+              ))}
+            </datalist>
           </div>
           
           <div>
@@ -2442,11 +2535,17 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
             <label className="block text-sm font-medium text-gray-600">Lieu de résidence habituelle</label>
             <input
               type="text"
+              list="adressesResidence"
               placeholder="Adresse de résidence"
               value={newEmployee.residence}
               onChange={(e) => setNewEmployee({ ...newEmployee, residence: e.target.value })}
               className="p-2 border border-blue-200 rounded-lg w-full"
             />
+            <datalist id="adressesResidence">
+              {allResidences.map((addr, idx) => (
+                <option key={idx} value={addr} />
+              ))}
+            </datalist>
           </div>
           
           <div>
@@ -2488,15 +2587,33 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
         </div>
       </div>
       
-      <ContractGenerator
-        employee={newEmployee.id ? newEmployee : { ...newEmployee, id: "new" }}
-        company={companyData}
-        onSave={(contractData) => {
-          setNewEmployee({ ...newEmployee, contract: contractData, contractFile: contractData.fileUrl });
-          toast.success("Contrat généré avec succès !");
+      <Autocomplete
+        options={villesCameroun}
+        value={villeResidence}
+        onChange={(event, newValue) => {
+          setVilleResidence(newValue || "");
+          setQuartierResidence(""); // reset quartier si ville change
         }}
-        actionLoading={actionLoading}
+        onInputChange={(event, newInputValue) => {
+          setVilleResidence(newInputValue);
+        }}
+        renderInput={(params) => (
+          <TextField {...params} label="Ville de résidence" placeholder="Ville (ex: Douala)" variant="outlined" />
+        )}
+        freeSolo
       />
+      
+      <div>
+        <label className="block text-sm font-medium text-gray-600">Quartier</label>
+        <input
+          type="text"
+          placeholder="Quartier"
+          value={quartierResidence}
+          onChange={(e) => setQuartierResidence(e.target.value)}
+          className="p-2 border border-blue-200 rounded-lg w-full"
+        />
+      </div>
+      
       <Button type="submit" icon={Plus} disabled={actionLoading}>
         {newEmployee.id ? "Modifier" : "Ajouter"}
       </Button>

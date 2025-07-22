@@ -12,6 +12,9 @@ import Papa from "papaparse";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
+import ExportPaySlip from '../compoments/ExportPaySlip';
+import ExportContrat from '../compoments/ExportContrat';
+import { createRoot } from 'react-dom/client';
 
 // Configurer pdfjs
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
@@ -505,504 +508,525 @@ const EmployeeDashboard = () => {
           </div>
         </header>
         <main className="flex-1 p-6 overflow-auto animate-fade-in">
-          <ToastContainer
-            position="top-right"
-            autoClose={3000}
-            hideProgressBar={false}
-            newestOnTop
-            closeOnClick
-            rtl={false}
-            pauseOnFocusLoss
-            draggable
-            pauseOnHover
-            theme="light"
-          />
-          <ReactTooltip id="tooltip" place="top" effect="solid" />
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+      />
+      <ReactTooltip id="tooltip" place="top" effect="solid" />
 
-          {activeTab === "dashboard" && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-slide-in">
-              <Card title="Résumé Congés">
-                <p className="text-2xl font-bold text-blue-500">
-                  {employeeData.leaves.balance} jour(s) restant(s)
-                </p>
-                <Button
-                  onClick={() => setActiveTab("leaves")}
-                  className="mt-4"
-                  icon={FiCalendar}
-                >
-                  Gérer les congés
-                </Button>
-              </Card>
-              <Card title="Dernière Fiche de Paie">
-                {employeeData.payslips?.length > 0 ? (
-                  <div className="flex items-center gap-2">
-                    <a
-                      href={employeeData.payslips[0].url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-500 hover:underline"
-                    >
-                      {new Date(employeeData.payslips[0].date).toLocaleDateString("fr-FR", {
-                        day: "2-digit",
-                        month: "long",
-                        year: "numeric",
-                      })}
-                    </a>
-                    <FiFileText className="h-5 w-5 text-blue-500" />
-                  </div>
-                ) : (
-                  <p className="text-gray-600">Aucune fiche disponible.</p>
-                )}
-              </Card>
-              <Card title="Notifications Récentes">
-                {employeeData.notifications?.length > 0 ? (
-                  <ul className="space-y-2">
-                    {employeeData.notifications.slice(0, 3).map((notif) => (
-                      <li
-                        key={notif.id}
-                        className={`flex items-center gap-2 text-sm ${
-                          notif.read ? "text-gray-500" : "text-gray-800"
-                        }`}
-                      >
-                        <FiBell className="h-4 w-4 text-blue-500" />
-                        <span>{notif.message}</span>
-                        {!notif.read && (
-                          <Button
-                            onClick={() => markNotificationRead(notif.id)}
-                            variant="ghost"
-                            className="text-xs"
-                          >
-                            Marquer comme lu
-                          </Button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-gray-600">Aucune notification disponible.</p>
-                )}
-              </Card>
-            </div>
-          )}
-
-          {activeTab === "profile" && (
-            <Card title="Profil" className="animate-slide-in">
-              {editingProfile ? (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Nom
-                    </label>
-                    <input
-                      type="text"
-                      value={newName}
-                      onChange={(e) => setNewName(e.target.value)}
-                      className="w-full p-3 border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800 placeholder-gray-500"
-                      placeholder="Entrez votre nom"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Poste
-                    </label>
-                    <input
-                      type="text"
-                      value={newPoste}
-                      onChange={(e) => setNewPoste(e.target.value)}
-                      className="w-full p-3 border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800 placeholder-gray-500"
-                      placeholder="Entrez votre poste"
-                    />
-                  </div>
-                  <div className="flex gap-4">
-                    <Button onClick={updateProfile} icon={FiCheck}>
-                      Enregistrer
-                    </Button>
-                    <Button
-                      onClick={() => setEditingProfile(false)}
-                      variant="ghost"
-                      icon={FiAlertTriangle}
-                    >
-                      Annuler
-                    </Button>
-                  </div>
+        {activeTab === "dashboard" && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-slide-in">
+            <Card title="Résumé Congés">
+              <p className="text-2xl font-bold text-blue-500">
+                {employeeData.leaves.balance} jour(s) restant(s)
+              </p>
+              <Button
+                onClick={() => setActiveTab("leaves")}
+                className="mt-4"
+                icon={FiCalendar}
+              >
+                Gérer les congés
+              </Button>
+            </Card>
+            <Card title="Dernière Fiche de Paie">
+              {employeeData.payslips?.length > 0 ? (
+                <div className="flex items-center gap-2">
+                  <a
+                    href={employeeData.payslips[0].url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-500 hover:underline"
+                  >
+                    {new Date(employeeData.payslips[0].date).toLocaleDateString("fr-FR", {
+                      day: "2-digit",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </a>
+                  <FiFileText className="h-5 w-5 text-blue-500" />
                 </div>
               ) : (
-                <div className="flex flex-col sm:flex-row items-center gap-6">
-                  <img
-                    src={employeeData.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(employeeData.name)}&background=3B82F6&color=orange&bold=true`}
-                    alt={`Avatar de ${employeeData.name}`}
-                    className="w-24 h-24 rounded-full shadow-sm"
-                  />
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
-                    <div>
-                      <p className="text-sm text-gray-600">Nom</p>
-                      <p className="text-lg font-medium text-gray-800">
-                        {employeeData.name}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Email</p>
-                      <p className="text-lg font-medium text-gray-800">
-                        {employeeData.email}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Rôle</p>
-                      <p className="text-lg font-medium text-gray-800">
-                        {employeeData.role}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Poste</p>
-                      <p className="text-lg font-medium text-gray-800">
-                        {employeeData.poste}
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    onClick={() => setEditingProfile(true)}
-                    icon={FiEdit}
-                    className="mt-4 sm:mt-0"
-                  >
-                    Modifier
-                  </Button>
-                </div>
+                <p className="text-gray-600">Aucune fiche disponible.</p>
               )}
             </Card>
-          )}
+            <Card title="Notifications Récentes">
+              {employeeData.notifications?.length > 0 ? (
+                <ul className="space-y-2">
+                  {employeeData.notifications.slice(0, 3).map((notif) => (
+                    <li
+                      key={notif.id}
+                      className={`flex items-center gap-2 text-sm ${
+                        notif.read ? "text-gray-500" : "text-gray-800"
+                      }`}
+                    >
+                      <FiBell className="h-4 w-4 text-blue-500" />
+                      <span>{notif.message}</span>
+                      {!notif.read && (
+                        <Button
+                          onClick={() => markNotificationRead(notif.id)}
+                          variant="ghost"
+                          className="text-xs"
+                        >
+                          Marquer comme lu
+                        </Button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-gray-600">Aucune notification disponible.</p>
+              )}
+            </Card>
+          </div>
+        )}
 
-          {activeTab === "leaves" && (
-            <Card title="Gestion des Congés" className="animate-slide-in">
-              <div className="space-y-6">
+        {activeTab === "profile" && (
+          <Card title="Profil" className="animate-slide-in">
+            {editingProfile ? (
+              <div className="space-y-4">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">
-                    Solde de congés
-                  </p>
-                  <p className="text-2xl font-bold text-blue-500">
-                    {employeeData.leaves.balance} jours
-                  </p>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Nom
+                  </label>
+                  <input
+                    type="text"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    className="w-full p-3 border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800 placeholder-gray-500"
+                    placeholder="Entrez votre nom"
+                  />
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="flex-1">
-                    <input
-                      type="number"
-                      min="1"
-                      value={leaveDays}
-                      onChange={(e) => setLeaveDays(e.target.value)}
-                      className={`w-full p-3 border ${
-                        leaveError ? "border-red-400" : "border-gray-200"
-                      } rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800 placeholder-gray-500`}
-                      placeholder="Nombre de jours"
-                      aria-label="Nombre de jours de congé"
-                      data-tooltip-id="tooltip"
-                      data-tooltip-content="Entrez le nombre de jours de congé souhaités"
-                    />
-                    {leaveError && (
-                      <p className="text-red-500 text-sm mt-1">
-                        {leaveError}
-                      </p>
-                    )}
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Poste
+                  </label>
+                  <input
+                    type="text"
+                    value={newPoste}
+                    onChange={(e) => setNewPoste(e.target.value)}
+                    className="w-full p-3 border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800 placeholder-gray-500"
+                    placeholder="Entrez votre poste"
+                  />
+                </div>
+                <div className="flex gap-4">
+                  <Button onClick={updateProfile} icon={FiCheck}>
+                    Enregistrer
+                  </Button>
                   <Button
-                    onClick={requestLeave}
-                    disabled={!!leaveError || !leaveDays}
-                    icon={FiCalendar}
-                    aria-label="Demander un congé"
+                    onClick={() => setEditingProfile(false)}
+                    variant="ghost"
+                    icon={FiAlertTriangle}
                   >
-                    Demander un congé
+                    Annuler
                   </Button>
                 </div>
-                <div>
-                  <div className="flex flex-col sm:flex-row justify-between items-center mb-3">
-                    <h3 className="text-lg font-medium text-gray-700">
-                      Historique des demandes
-                    </h3>
-                    <div className="flex gap-2">
-                      <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="p-2 border border-gray-200 rounded-full bg-gray-100 text-gray-800"
-                      >
-                        <option>Tous</option>
-                        <option>En attente</option>
-                        <option>Approuvé</option>
-                        <option>Refusé</option>
-                      </select>
-                      <Button onClick={exportLeavesToCSV} icon={FiDownload} variant="ghost">
-                        Exporter CSV
-                      </Button>
-                    </div>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row items-center gap-6">
+                <img
+                  src={employeeData.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(employeeData.name)}&background=3B82F6&color=orange&bold=true`}
+                  alt={`Avatar de ${employeeData.name}`}
+                  className="w-24 h-24 rounded-full shadow-sm"
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+                  <div>
+                    <p className="text-sm text-gray-600">Nom</p>
+                    <p className="text-lg font-medium text-gray-800">
+                      {employeeData.name}
+                    </p>
                   </div>
-                  {leaveHistory.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-100">
-                          <tr>
-                            <th
-                              onClick={() => setSortBy("date")}
-                              className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer"
-                            >
-                              Date {sortBy === "date" && "↓"}
-                            </th>
-                            <th
-                              onClick={() => setSortBy("days")}
-                              className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer"
-                            >
-                              Jours {sortBy === "days" && "↓"}
-                            </th>
-                            <th
-                              onClick={() => setSortBy("status")}
-                              className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer"
-                            >
-                              Statut {sortBy === "status" && "↓"}
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-100">
-                          {leaveHistory.map((req) => (
-                            <tr
-                              key={req.id}
-                              className="hover:bg-gray-50 transition-colors"
-                            >
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-800">
-                                {req.date}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-800">
-                                {req.days}
-                              </td>
-                              <td className="px-2 py-2 whitespace-nowrap text-sm">
-                                <span
-                                  className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                    req.status === "En attente"
-                                      ? "bg-yellow-100 text-yellow-600"
-                                      : req.status === "Approuvé"
-                                      ? "bg-green-100 text-green-600"
-                                      : "bg-red-100 text-red-600"
-                                  }`}
-                                >
-                                  {req.status}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <p className="text-gray-600 text-sm">
-                      Aucune demande de congé.
+                  <div>
+                    <p className="text-sm text-gray-600">Email</p>
+                    <p className="text-lg font-medium text-gray-800">
+                      {employeeData.email}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Rôle</p>
+                    <p className="text-lg font-medium text-gray-800">
+                      {employeeData.role}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Poste</p>
+                    <p className="text-lg font-medium text-gray-800">
+                      {employeeData.poste}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => setEditingProfile(true)}
+                  icon={FiEdit}
+                  className="mt-4 sm:mt-0"
+                >
+                  Modifier
+                </Button>
+              </div>
+            )}
+          </Card>
+        )}
+
+        {activeTab === "leaves" && (
+          <Card title="Gestion des Congés" className="animate-slide-in">
+            <div className="space-y-6">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">
+                  Solde de congés
+                </p>
+                <p className="text-2xl font-bold text-blue-500">
+                  {employeeData.leaves.balance} jours
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                  <input
+                    type="number"
+                    min="1"
+                    value={leaveDays}
+                    onChange={(e) => setLeaveDays(e.target.value)}
+                    className={`w-full p-3 border ${
+                      leaveError ? "border-red-400" : "border-gray-200"
+                    } rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800 placeholder-gray-500`}
+                    placeholder="Nombre de jours"
+                    aria-label="Nombre de jours de congé"
+                    data-tooltip-id="tooltip"
+                    data-tooltip-content="Entrez le nombre de jours de congé souhaités"
+                  />
+                  {leaveError && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {leaveError}
                     </p>
                   )}
                 </div>
-                <div>
-                  <h3 className="text-lg font-medium text-gray-700 mb-4">
-                    Statistiques des congés
-                  </h3>
-                  {leaveChartData && (
-                    <div className="h-64">
-                      <Line
-                        data={leaveChartData}
-                        options={{
-                          responsive: true,
-                          maintainAspectRatio: false,
-                          plugins: {
-                            legend: { position: "top", labels: { color: "#4B5563" } },
-                            title: { display: true, text: "Congés pris par mois", color: "#1F2937" },
-                            tooltip: { mode: "index", intersect: false },
-                          },
-                          scales: {
-                            y: {
-                              beginAtZero: true,
-                              title: { display: true, text: "Jours", color: "#4B5563" },
-                              ticks: { color: "#4B5563" },
-                              grid: { color: "#F3F4F6" },
-                            },
-                            x: {
-                              title: { display: true, text: "Mois", color: "#4B5563" },
-                              ticks: { color: "#4B5563" },
-                              grid: { color: "#F3F4F6" },
-                            },
-                          },
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
+                <Button
+                  onClick={requestLeave}
+                  disabled={!!leaveError || !leaveDays}
+                  icon={FiCalendar}
+                  aria-label="Demander un congé"
+                >
+                  Demander un congé
+                </Button>
               </div>
-            </Card>
-          )}
+              <div>
+                <div className="flex flex-col sm:flex-row justify-between items-center mb-3">
+                  <h3 className="text-lg font-medium text-gray-700">
+                    Historique des demandes
+                  </h3>
+                  <div className="flex gap-2">
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="p-2 border border-gray-200 rounded-full bg-gray-100 text-gray-800"
+                    >
+                      <option>Tous</option>
+                      <option>En attente</option>
+                      <option>Approuvé</option>
+                      <option>Refusé</option>
+                    </select>
+                    <Button onClick={exportLeavesToCSV} icon={FiDownload} variant="ghost">
+                      Exporter CSV
+                    </Button>
+                  </div>
+                </div>
+                {leaveHistory.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th
+                            onClick={() => setSortBy("date")}
+                            className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer"
+                          >
+                            Date {sortBy === "date" && "↓"}
+                          </th>
+                          <th
+                            onClick={() => setSortBy("days")}
+                            className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer"
+                          >
+                            Jours {sortBy === "days" && "↓"}
+                          </th>
+                          <th
+                            onClick={() => setSortBy("status")}
+                            className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer"
+                          >
+                            Statut {sortBy === "status" && "↓"}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-100">
+                        {leaveHistory.map((req) => (
+                          <tr
+                            key={req.id}
+                            className="hover:bg-gray-50 transition-colors"
+                          >
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-800">
+                              {req.date}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-800">
+                              {req.days}
+                            </td>
+                            <td className="px-2 py-2 whitespace-nowrap text-sm">
+                              <span
+                                className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                  req.status === "En attente"
+                                    ? "bg-yellow-100 text-yellow-600"
+                                    : req.status === "Approuvé"
+                                    ? "bg-green-100 text-green-600"
+                                    : "bg-red-100 text-red-600"
+                                }`}
+                              >
+                                {req.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-gray-600 text-sm">
+                    Aucune demande de congé.
+                  </p>
+                )}
+              </div>
+              <div>
+                <h3 className="text-lg font-medium text-gray-700 mb-4">
+                  Statistiques des congés
+                </h3>
+                {leaveChartData && (
+                  <div className="h-64">
+                    <Line
+                      data={leaveChartData}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                          legend: { position: "top", labels: { color: "#4B5563" } },
+                          title: { display: true, text: "Congés pris par mois", color: "#1F2937" },
+                          tooltip: { mode: "index", intersect: false },
+                        },
+                        scales: {
+                          y: {
+                            beginAtZero: true,
+                            title: { display: true, text: "Jours", color: "#4B5563" },
+                            ticks: { color: "#4B5563" },
+                            grid: { color: "#F3F4F6" },
+                          },
+                          x: {
+                            title: { display: true, text: "Mois", color: "#4B5563" },
+                            ticks: { color: "#4B5563" },
+                            grid: { color: "#F3F4F6" },
+                          },
+                        },
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </Card>
+        )}
 
-          {activeTab === "payslips" && (
-            <Card title="Fiches de Paie" className="animate-slide-in">
-              <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                  <h3 className="text-lg font-medium text-gray-700">Historique des fiches de paie</h3>
+        {activeTab === "payslips" && (
+          <Card title="Fiches de Paie" className="animate-slide-in">
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <h3 className="text-lg font-medium text-gray-700">Historique des fiches de paie</h3>
                   <Button onClick={exportPaySlipsToCSV} icon={FiDownload} variant="ghost">
                     Exporter CSV
                   </Button>
                 </div>
-                <div className="overflow-x-auto">
+                  <div className="overflow-x-auto">
                   <table className="w-full table-auto">
                     <thead>
-                      <tr>
+                        <tr>
                         <th>Date</th>
                         <th>Salaire Net</th>
                         <th>Actions</th>
-                      </tr>
-                    </thead>
+                        </tr>
+                      </thead>
                     <tbody>
-                      {paySlipHistory.map((slip) => (
+                        {paySlipHistory.map((slip) => (
                         <tr key={slip.id}>
                           <td>{slip.formattedDate}</td>
                           <td>{slip.netSalary !== "Non disponible" ? `${slip.netSalary} FCFA` : "N/A"}</td>
                           <td>
                             <Button onClick={() => setSelectedPaySlip(slip)} icon={FiEye} variant="ghost">Voir</Button>
-                            {slip.url ? (
+                              {slip.url ? (
                               <a href={slip.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 ml-2">Télécharger</a>
-                            ) : (
+                              ) : (
                               <span className="text-gray-400 ml-2">PDF non dispo</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 {/* Pagination si besoin */}
-              </div>
+                    </div>
               {/* Modale détails fiche de paie */}
-              {selectedPaySlip && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-                  <div className="bg-white p-6 rounded-lg shadow-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                    <h3 className="text-lg font-medium text-gray-700 mb-4">
-                      Détails de la fiche de paie - {selectedPaySlip.formattedDate || selectedPaySlip.payPeriod || ''}
-                    </h3>
-                    <div className="space-y-6">
+        {selectedPaySlip && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <h3 className="text-lg font-medium text-gray-700 mb-4">
+                      Détails de la fiche de paie - {selectedPaySlip.payPeriod || selectedPaySlip.formattedDate || selectedPaySlip.date || 'N/A'}
+              </h3>
+              <div className="space-y-6">
                       {/* Informations de l'employé */}
                       <div className="bg-blue-50 p-4 rounded-lg">
                         <h3 className="text-lg font-semibold text-blue-900 mb-3">Informations de l'Employé</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-sm text-gray-600">Nom complet</p>
-                            <p className="font-medium">{employeeData.name}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-600">Matricule</p>
-                            <p className="font-medium">{employeeData.matricule || 'N/A'}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-600">Poste</p>
-                            <p className="font-medium">{employeeData.poste}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-600">Département</p>
-                            <p className="font-medium">{employeeData.department || 'N/A'}</p>
-                          </div>
-                        </div>
-                      </div>
+                    <div>
+                            <p className="text-sm text-gray-600">Nom: {employeeData.name}</p>
+                            <p className="text-sm text-gray-600">Matricule: {employeeData.matricule || 'N/A'}</p>
+                            <p className="text-sm text-gray-600">Poste: {employeeData.poste}</p>
+                            <p className="text-sm text-gray-600">Catégorie: {employeeData.professionalCategory || 'N/A'}</p>
+                            <p className="text-sm text-gray-600">Numéro CNPS: {employeeData.cnpsNumber || 'N/A'}</p>
+                            <p className="text-sm text-gray-600">Email: {employeeData.email || 'N/A'}</p>
+                    </div>
+                    </div>
+                    </div>
                       {/* Informations de la fiche de paie */}
                       <div className="bg-gray-50 p-4 rounded-lg">
                         <h3 className="text-lg font-semibold text-gray-900 mb-3">Informations de la Fiche de Paie</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-sm text-gray-600">Période</p>
-                            <p className="font-medium">{selectedPaySlip.payPeriod || selectedPaySlip.formattedDate || 'N/A'}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-600">Date de génération</p>
-                            <p className="font-medium">
-                              {selectedPaySlip.generatedAt ? new Date(selectedPaySlip.generatedAt).toLocaleDateString('fr-FR') : (selectedPaySlip.date ? new Date(selectedPaySlip.date).toLocaleDateString('fr-FR') : 'N/A')}
-                            </p>
-                          </div>
+                  <div>
+                            <p className="text-sm text-gray-600">Période: {selectedPaySlip.payPeriod || selectedPaySlip.formattedDate || selectedPaySlip.date || 'N/A'}</p>
                         </div>
-                      </div>
+                  <div>
+                            <p className="text-sm text-gray-600">Généré le: {selectedPaySlip.generatedAt ? new Date(selectedPaySlip.generatedAt).toLocaleDateString('fr-FR') : selectedPaySlip.date ? new Date(selectedPaySlip.date).toLocaleDateString('fr-FR') : 'N/A'}</p>
+                        </div>
+                    </div>
+                  </div>
                       {/* Rémunération */}
-                      <div className="bg-green-50 p-4 rounded-lg">
-                        <h3 className="text-lg font-semibold text-green-900 mb-3">Rémunération</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div>
-                            <p className="text-sm text-gray-600">Salaire de base</p>
-                            <p className="font-medium text-lg">
-                              {selectedPaySlip.salaryDetails?.baseSalary?.toLocaleString() || selectedPaySlip.grossSalary?.toLocaleString() || 'N/A'} FCFA
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-600">Jours travaillés</p>
-                            <p className="font-medium">{selectedPaySlip.remuneration?.workedDays || 'N/A'} jours</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-600">Heures supplémentaires</p>
-                            <p className="font-medium">{selectedPaySlip.remuneration?.overtime?.toLocaleString() || '0'} FCFA</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-600">Indemnité transport</p>
-                            <p className="font-medium">{selectedPaySlip.salaryDetails?.transportAllowance?.toLocaleString() || '0'} FCFA</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-600">Total brut</p>
-                            <p className="font-medium text-lg text-green-700">
-                              {selectedPaySlip.remuneration?.total?.toLocaleString() || selectedPaySlip.grossSalary?.toLocaleString() || 'N/A'} FCFA
-                            </p>
-                          </div>
-                        </div>
-                      </div>
+                      <h3 className="font-semibold mt-4">Rémunération</h3>
+                      <table className="w-full border-collapse">
+                        <tbody>
+                          <tr className="border-b border-blue-100">
+                            <td className="py-2 px-4">Salaire de base</td>
+                            <td className="py-2 px-4">{(selectedPaySlip.salaryDetails?.baseSalary || 0).toLocaleString()} FCFA</td>
+                          </tr>
+                          <tr className="border-b border-blue-100">
+                            <td className="py-2 px-4">Taux journalier</td>
+                            <td className="py-2 px-4">{(selectedPaySlip.salaryDetails?.dailyRate || 0).toLocaleString()} FCFA</td>
+                          </tr>
+                          <tr className="border-b border-blue-100">
+                            <td className="py-2 px-4">Taux horaire</td>
+                            <td className="py-2 px-4">{(selectedPaySlip.salaryDetails?.hourlyRate || 0).toLocaleString()} FCFA</td>
+                          </tr>
+                          <tr className="border-b border-blue-100">
+                            <td className="py-2 px-4">Indemnité transport</td>
+                            <td className="py-2 px-4">{(selectedPaySlip.salaryDetails?.transportAllowance || 0).toLocaleString()} FCFA</td>
+                          </tr>
+                          <tr className="border-b border-blue-100">
+                            <td className="py-2 px-4">Jours travaillés</td>
+                            <td className="py-2 px-4">{selectedPaySlip.remuneration?.workedDays || 0}</td>
+                          </tr>
+                          <tr className="border-b border-blue-100">
+                            <td className="py-2 px-4">Heures supplémentaires</td>
+                            <td className="py-2 px-4">{(selectedPaySlip.remuneration?.overtime || 0).toLocaleString()} FCFA</td>
+                          </tr>
+                          <tr className="border-b border-blue-100 bg-blue-50">
+                            <td className="py-2 px-4 font-semibold">TOTAL RÉMUNÉRATION</td>
+                            <td className="py-2 px-4 font-semibold">{(selectedPaySlip.remuneration?.total || 0).toLocaleString()} FCFA</td>
+                          </tr>
+                        </tbody>
+                      </table>
                       {/* Déductions */}
-                      <div className="bg-red-50 p-4 rounded-lg">
-                        <h3 className="text-lg font-semibold text-red-900 mb-3">Déductions</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div>
-                            <p className="text-sm text-gray-600">PVIS</p>
-                            <p className="font-medium">{selectedPaySlip.deductions?.pvis?.toLocaleString() || '0'} FCFA</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-600">IRPP</p>
-                            <p className="font-medium">{selectedPaySlip.deductions?.irpp?.toLocaleString() || '0'} FCFA</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-600">CAC</p>
-                            <p className="font-medium">{selectedPaySlip.deductions?.cac?.toLocaleString() || '0'} FCFA</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-600">CFC</p>
-                            <p className="font-medium">{selectedPaySlip.deductions?.cfc?.toLocaleString() || '0'} FCFA</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-600">RAV</p>
-                            <p className="font-medium">{selectedPaySlip.deductions?.rav?.toLocaleString() || '0'} FCFA</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-600">TDL</p>
-                            <p className="font-medium">{selectedPaySlip.deductions?.tdl?.toLocaleString() || '0'} FCFA</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-600">Total déductions</p>
-                            <p className="font-medium text-lg text-red-700">
-                              {selectedPaySlip.deductions?.total?.toLocaleString() || '0'} FCFA
-                            </p>
-                          </div>
-                        </div>
-                      </div>
+                      <h3 className="font-semibold mt-4">Déductions</h3>
+                      <table className="w-full border-collapse">
+                        <tbody>
+                          <tr className="border-b border-blue-100">
+                            <td className="py-2 px-4">PVIS</td>
+                            <td className="py-2 px-4">{(selectedPaySlip.deductions?.pvis || 0).toLocaleString()} FCFA</td>
+                          </tr>
+                          <tr className="border-b border-blue-100">
+                            <td className="py-2 px-4">IRPP</td>
+                            <td className="py-2 px-4">{(selectedPaySlip.deductions?.irpp || 0).toLocaleString()} FCFA</td>
+                          </tr>
+                          <tr className="border-b border-blue-100">
+                            <td className="py-2 px-4">CAC</td>
+                            <td className="py-2 px-4">{(selectedPaySlip.deductions?.cac || 0).toLocaleString()} FCFA</td>
+                          </tr>
+                          <tr className="border-b border-blue-100">
+                            <td className="py-2 px-4">CFC</td>
+                            <td className="py-2 px-4">{(selectedPaySlip.deductions?.cfc || 0).toLocaleString()} FCFA</td>
+                          </tr>
+                          <tr className="border-b border-blue-100">
+                            <td className="py-2 px-4">RAV</td>
+                            <td className="py-2 px-4">{(selectedPaySlip.deductions?.rav || 0).toLocaleString()} FCFA</td>
+                          </tr>
+                          <tr className="border-b border-blue-100">
+                            <td className="py-2 px-4">TDL</td>
+                            <td className="py-2 px-4">{(selectedPaySlip.deductions?.tdl || 0).toLocaleString()} FCFA</td>
+                          </tr>
+                          <tr className="border-b border-blue-100 bg-red-50">
+                            <td className="py-2 px-4 font-semibold">TOTAL DÉDUCTIONS</td>
+                            <td className="py-2 px-4 font-semibold">{(selectedPaySlip.deductions?.total || 0).toLocaleString()} FCFA</td>
+                          </tr>
+                        </tbody>
+                      </table>
                       {/* Net à payer */}
-                      <div className="bg-purple-50 p-6 rounded-lg border-2 border-purple-200">
-                        <div className="text-center">
-                          <h3 className="text-xl font-bold text-purple-900 mb-2">NET À PAYER</h3>
-                          <p className="text-3xl font-bold text-purple-700">
-                            {(() => {
-                              const remunerationTotal = selectedPaySlip.remuneration?.total || selectedPaySlip.grossSalary || 0;
-                              const deductionsTotal = selectedPaySlip.deductions?.total || 0;
-                              const netToPay = Math.max(0, remunerationTotal - deductionsTotal);
-                              return netToPay.toLocaleString();
-                            })()} FCFA
-                          </p>
+                      <div className="bg-green-50 p-4 rounded-lg">
+                        <h3 className="font-bold text-lg">NET À PAYER: {(() => {
+                          const remunerationTotal = selectedPaySlip.remuneration?.total || 0;
+                          const deductionsTotal = selectedPaySlip.deductions?.total || 0;
+                          const netToPay = Math.max(0, remunerationTotal - deductionsTotal);
+                          return netToPay.toLocaleString();
+                        })()} FCFA</h3>
                         </div>
-                      </div>
                       {/* Boutons d'action en bas */}
                       <div className="flex justify-center gap-4 mt-8">
                         <Button onClick={() => setSelectedPaySlip(null)} variant="outline">Fermer</Button>
+                        <Button
+                          onClick={() => {
+                            // Export PDF fiche de paie
+                            const employerData = {
+                              companyName: employeeData.companyName || employeeData.employerName || 'N/A',
+                              address: employeeData.companyAddress || 'N/A',
+                              cnpsNumber: employeeData.companyCNPS || 'N/A',
+                              id: employeeData.companyId || '',
+                            };
+                            const tempDiv = document.createElement('div');
+                            tempDiv.style.display = 'none';
+                            document.body.appendChild(tempDiv);
+                            const root = createRoot(tempDiv);
+                            root.render(
+                              <ExportPaySlip
+                                employee={employeeData}
+                                employer={employerData}
+                                salaryDetails={selectedPaySlip.salaryDetails}
+                                remuneration={selectedPaySlip.remuneration}
+                                deductions={selectedPaySlip.deductions}
+                                payPeriod={selectedPaySlip.payPeriod}
+                                generatedAt={selectedPaySlip.generatedAt}
+                                auto={true}
+                                onExported={() => {
+                                  setTimeout(() => {
+                                    root.unmount();
+                                    document.body.removeChild(tempDiv);
+                                  }, 500);
+                                }}
+                              />
+                            );
+                          }}
+                          variant="success"
+                        >
+                          Exporter PDF
+                        </Button>
                       </div>
                     </div>
                   </div>
-                </div>
+              </div>
               )}
             </Card>
           )}
@@ -1018,166 +1042,198 @@ const EmployeeDashboard = () => {
                   {employeeData.contract.fileUrl && (
                     <a href={employeeData.contract.fileUrl} download className="text-blue-600 hover:underline mt-2 block">
                       Télécharger le contrat PDF
-                    </a>
-                  )}
-                </div>
+                  </a>
+                )}
+                <Button
+                    onClick={() => {
+                      // Export PDF contrat
+                      const employerData = {
+                        companyName: employeeData.companyName || employeeData.employerName || 'N/A',
+                        address: employeeData.companyAddress || 'N/A',
+                        cnpsNumber: employeeData.companyCNPS || 'N/A',
+                        id: employeeData.companyId || '',
+                      };
+                      const tempDiv = document.createElement('div');
+                      tempDiv.style.display = 'none';
+                      document.body.appendChild(tempDiv);
+                      const root = createRoot(tempDiv);
+                      root.render(
+                        <ExportContrat
+                          employee={employeeData}
+                          employer={employerData}
+                          contractData={employeeData.contract}
+                          auto={true}
+                          onExported={() => {
+                            setTimeout(() => {
+                              root.unmount();
+                              document.body.removeChild(tempDiv);
+                            }, 500);
+                          }}
+                        />
+                      );
+                    }}
+                    variant="success"
+                  >
+                    Exporter PDF
+                </Button>
+              </div>
               ) : (
                 <div>
                   <p className="text-gray-500">Aucun contrat trouvé.</p>
                   {/* Optionnel : bouton pour demander la création */}
-                </div>
+          </div>
               )}
             </Card>
-          )}
+        )}
 
-          {activeTab === "overtime" && (
-            <Card title="Heures Supplémentaires" className="animate-slide-in">
-              <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="flex-1">
-                    <input
-                      type="number"
-                      min="1"
-                      max="8"
-                      value={overtimeHours}
-                      onChange={(e) => setOvertimeHours(e.target.value)}
-                      className={`w-full p-3 border ${
-                        overtimeError ? "border-red-400" : "border-gray-200"
-                      } rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800 placeholder-gray-500`}
-                      placeholder="Nombre d'heures"
-                      aria-label="Nombre d'heures supplémentaires"
-                      data-tooltip-id="tooltip"
-                      data-tooltip-content="Entrez le nombre d'heures supplémentaires (max 8)"
-                    />
-                    {overtimeError && (
-                      <p className="text-red-500 text-sm mt-1">
-                        {overtimeError}
-                      </p>
-                    )}
-                  </div>
-                  <Button
-                    onClick={requestOvertime}
-                    disabled={!!overtimeError || !overtimeHours}
-                    icon={FiClock}
-                    aria-label="Demander des heures supplémentaires"
-                  >
-                    Demander
-                  </Button>
-                </div>
-                <div>
-                  <h3 className="text-lg font-medium text-gray-700 mb-4">
-                    Historique des demandes
-                  </h3>
-                  {employeeData.overtime?.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-100">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                              Date
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                              Heures
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                              Statut
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-100">
-                          {employeeData.overtime.map((req, index) => (
-                            <tr
-                              key={index}
-                              className="hover:bg-gray-50 transition-colors"
-                            >
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-800">
-                                {new Date(req.date).toLocaleDateString("fr-FR", {
-                                  day: "2-digit",
-                                  month: "long",
-                                  year: "numeric",
-                                })}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-800">
-                                {req.hours}
-                              </td>
-                              <td className="px-2 py-2 whitespace-nowrap text-sm">
-                                <span
-                                  className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                    req.status === "En attente"
-                                      ? "bg-yellow-100 text-yellow-600"
-                                      : req.status === "Approuvé"
-                                      ? "bg-green-100 text-green-600"
-                                      : "bg-red-100 text-red-600"
-                                  }`}
-                                >
-                                  {req.status}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <p className="text-gray-600 text-sm">
-                      Aucune demande d'heures supplémentaires.
+        {activeTab === "overtime" && (
+          <Card title="Heures Supplémentaires" className="animate-slide-in">
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                  <input
+                    type="number"
+                    min="1"
+                    max="8"
+                    value={overtimeHours}
+                    onChange={(e) => setOvertimeHours(e.target.value)}
+                    className={`w-full p-3 border ${
+                      overtimeError ? "border-red-400" : "border-gray-200"
+                    } rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800 placeholder-gray-500`}
+                    placeholder="Nombre d'heures"
+                    aria-label="Nombre d'heures supplémentaires"
+                    data-tooltip-id="tooltip"
+                    data-tooltip-content="Entrez le nombre d'heures supplémentaires (max 8)"
+                  />
+                  {overtimeError && (
+                    <p className="text-red-500 text-sm mt-1">
+                      {overtimeError}
                     </p>
                   )}
                 </div>
+                <Button
+                  onClick={requestOvertime}
+                  disabled={!!overtimeError || !overtimeHours}
+                  icon={FiClock}
+                  aria-label="Demander des heures supplémentaires"
+                >
+                  Demander
+                </Button>
               </div>
-            </Card>
-          )}
+              <div>
+                <h3 className="text-lg font-medium text-gray-700 mb-4">
+                  Historique des demandes
+                </h3>
+                {employeeData.overtime?.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            Date
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            Heures
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            Statut
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-100">
+                        {employeeData.overtime.map((req, index) => (
+                          <tr
+                            key={index}
+                            className="hover:bg-gray-50 transition-colors"
+                          >
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-800">
+                              {new Date(req.date).toLocaleDateString("fr-FR", {
+                                day: "2-digit",
+                                month: "long",
+                                year: "numeric",
+                              })}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-800">
+                              {req.hours}
+                            </td>
+                            <td className="px-2 py-2 whitespace-nowrap text-sm">
+                              <span
+                                className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                  req.status === "En attente"
+                                    ? "bg-yellow-100 text-yellow-600"
+                                    : req.status === "Approuvé"
+                                    ? "bg-green-100 text-green-600"
+                                    : "bg-red-100 text-red-600"
+                                }`}
+                              >
+                                {req.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-gray-600 text-sm">
+                    Aucune demande d'heures supplémentaires.
+                  </p>
+                )}
+              </div>
+            </div>
+          </Card>
+        )}
 
-          {activeTab === "notifications" && (
-            <Card title="Notifications" className="animate-slide-in">
-              {employeeData.notifications?.length > 0 ? (
-                <ul className="space-y-3">
-                  {employeeData.notifications.map((notif) => (
-                    <li
-                      key={notif.id}
-                      className={`p-4 rounded-lg ${
-                        notif.read
-                          ? "bg-gray-100"
-                          : "bg-blue-50"
-                      } flex justify-between items-center transition-colors`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <FiBell className="h-5 w-5 text-blue-500" />
-                        <div>
-                          <p className="text-sm text-gray-800">
-                            {notif.message}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(notif.date).toLocaleString("fr-FR", {
-                              day: "2-digit",
-                              month: "long",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </p>
-                        </div>
+        {activeTab === "notifications" && (
+          <Card title="Notifications" className="animate-slide-in">
+            {employeeData.notifications?.length > 0 ? (
+              <ul className="space-y-3">
+                {employeeData.notifications.map((notif) => (
+                  <li
+                    key={notif.id}
+                    className={`p-4 rounded-lg ${
+                      notif.read
+                        ? "bg-gray-100"
+                        : "bg-blue-50"
+                    } flex justify-between items-center transition-colors`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <FiBell className="h-5 w-5 text-blue-500" />
+                      <div>
+                        <p className="text-sm text-gray-800">
+                          {notif.message}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {new Date(notif.date).toLocaleString("fr-FR", {
+                            day: "2-digit",
+                            month: "long",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
                       </div>
-                      {!notif.read && (
-                        <Button
-                          onClick={() => markNotificationRead(notif.id)}
-                          variant="ghost"
-                          className="text-xs"
-                        >
-                          Marquer comme lu
-                        </Button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-gray-600 text-sm">
-                  Aucune notification.
-                </p>
-              )}
-            </Card>
-          )}
-        </main>
+                    </div>
+                    {!notif.read && (
+                      <Button
+                        onClick={() => markNotificationRead(notif.id)}
+                        variant="ghost"
+                        className="text-xs"
+                      >
+                        Marquer comme lu
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-gray-600 text-sm">
+                Aucune notification.
+              </p>
+            )}
+          </Card>
+        )}
+      </main>
       </div>
     </div>
   );
