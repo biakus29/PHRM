@@ -19,6 +19,7 @@ import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { ToastContainer, toast } from "react-toastify";
+import { calculateDeductions, getNetToPay } from "../utils/payrollUtils";
 import "react-toastify/dist/ReactToastify.css";
 import {
   Users,
@@ -62,6 +63,14 @@ import ExportContrat from "../compoments/ExportContrat";
 import ExportPaySlip from "../compoments/ExportPaySlip";
 import Autocomplete from '@mui/material/Autocomplete';
 import TextField from '@mui/material/TextField';
+import PrimeIndemniteSelector from "../compoments/PrimeIndemniteSelector";
+import { BadgeModel1, BadgeModel2, BadgeModel3, BadgeModel4, BadgeModel5 } from "../compoments/EmployeeBadgePinterest";
+import jsPDF from "jspdf";
+import QRCode from "qrcode.react";
+import html2canvas from "html2canvas";
+import { toPng } from "html-to-image";
+import ExportBadgePDF from "../compoments/ExportBadgePDF";
+import CotisationCNPS from "../compoments/CotisationCNPS";
 
 ChartJS.register(
   ArcElement,
@@ -99,7 +108,7 @@ const PaySlipGenerator = ({ employee, company, initialData, onSave, onCancel, ac
       transportAllowance: initialData?.salaryDetails?.transportAllowance || 0,
     },
     remuneration: {
-    workedDays: initialData?.remuneration?.workedDays || 30,
+      workedDays: initialData?.remuneration?.workedDays || 30,
       overtime: initialData?.remuneration?.overtime || 0,
       total: initialData?.remuneration?.total || employee?.baseSalary || 0,
     },
@@ -112,6 +121,8 @@ const PaySlipGenerator = ({ employee, company, initialData, onSave, onCancel, ac
       tdl: initialData?.deductions?.tdl || 0,
       total: initialData?.deductions?.total || 0,
     },
+    primes: initialData?.primes || [],
+    indemnites: initialData?.indemnites || [],
     generatedAt: initialData?.generatedAt || new Date().toISOString(),
     month: initialData?.month || '',
     year: initialData?.year || '',
@@ -144,16 +155,17 @@ const PaySlipGenerator = ({ employee, company, initialData, onSave, onCancel, ac
   }, [employee]);
 
   // Calculer les déductions initiales si un salaire de base est fourni
-  React.useEffect(() => {
-    const baseSalary = formData.salaryDetails.baseSalary;
-    if (baseSalary > 0 && (!formData.deductions.pvis || formData.deductions.total === 0)) {
-      const calculatedDeductions = calculateDeductions(baseSalary);
-      setFormData(prev => ({
-        ...prev,
-        deductions: calculatedDeductions,
-      }));
-    }
-  }, [formData.salaryDetails.baseSalary]);
+React.useEffect(() => {
+  const baseSalary = formData.salaryDetails.baseSalary;
+  if (baseSalary > 0 && (!formData.deductions.pvis || formData.deductions.total === 0)) {
+    // Utilisation de la fonction utilitaire centralisée
+    const calculatedDeductions = calculateDeductions({ baseSalary, applyTDL: true });
+    setFormData(prev => ({
+      ...prev,
+      deductions: calculatedDeductions,
+    }));
+  }
+}, [formData.salaryDetails.baseSalary]);
 
   // Handler pour compléter les infos manquantes
   const handleMissingInfoChange = (key, value) => {
@@ -169,50 +181,9 @@ const PaySlipGenerator = ({ employee, company, initialData, onSave, onCancel, ac
     setMissingInfo({});
   };
 
-  const calculateDeductions = (baseSalary) => {
-    const maxCnpsSalary = 750000; // Plafond CNPS
-    const cnpsRate = 0.042; // 4.2%
-    const pvis = Math.min(baseSalary, maxCnpsSalary) * cnpsRate;
-    
-    // SNC pour IRPP (Salaire Net Catégoriel)
-    const snc = baseSalary > 0 ? (baseSalary * 0.7) - pvis - (500000 / 12) : 0;
-    
-    // IRPP progressif selon le barème camerounais
-    let irpp = 0;
-    if (baseSalary >= 62000 && snc > 0) {
-      if (snc <= 166667) irpp = snc * 0.10;
-      else if (snc <= 250000) irpp = 16667 + (snc - 166667) * 0.15;
-      else if (snc <= 416667) irpp = 29167 + (snc - 250000) * 0.25;
-      else irpp = 70833.75 + (snc - 416667) * 0.35;
-    }
-    
-    // CAC = 10% de l'IRPP
-    const cac = irpp * 0.1;
-    
-    // CFC = Contribution Foncière Communale (montant fixe selon la commune)
-    // Pour simplifier, on utilise un montant fixe de 5000 FCFA
-    const cfc = 5000;
-    
-    // RAV = Redevance Audio-Visuelle (montant fixe)
-    // Montant fixe de 5000 FCFA par an, soit ~417 FCFA par mois
-    const rav = 417;
-    
-    // TDL = Taxe de Développement Local (montant fixe selon la commune)
-    // Pour simplifier, on utilise un montant fixe de 3000 FCFA
-    const tdl = 3000;
-    
-    const total = pvis + irpp + cac + cfc + rav + tdl;
-    
-    return {
-      pvis,
-      irpp,
-      cac,
-      cfc,
-      rav,
-      tdl,
-      total,
-    };
-  };
+  // Fonction de calcul des déductions sociales et fiscales selon la législation camerounaise
+  // Le paramètre applyTDL permet d'activer ou non la Taxe de Développement Local (TDL), qui n'est pas systématique
+
 
   const handleSalaryChange = (e) => {
     const baseSalary = parseFloat(e.target.value) || 0;
@@ -224,7 +195,7 @@ const PaySlipGenerator = ({ employee, company, initialData, onSave, onCancel, ac
       ...prev,
       salaryDetails: { ...prev.salaryDetails, baseSalary },
       remuneration: { ...prev.remuneration, total: baseSalary },
-      deductions: calculateDeductions(baseSalary),
+      deductions: calculateDeductions({ baseSalary, applyTDL: true }),
     }));
   };
 
@@ -271,6 +242,8 @@ const PaySlipGenerator = ({ employee, company, initialData, onSave, onCancel, ac
         transportAllowance: Number(formData.salaryDetails.transportAllowance || 0),
       },
       deductions: formData.deductions,
+      primes: formData.primes,
+      indemnites: formData.indemnites,
     });
   };
 
@@ -315,6 +288,15 @@ const PaySlipGenerator = ({ employee, company, initialData, onSave, onCancel, ac
             })
           }
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+        />
+      </div>
+      {/* Sélecteur Primes & Indemnités */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Primes et Indemnités</label>
+        <PrimeIndemniteSelector
+          primes={formData.primes}
+          indemnites={formData.indemnites}
+          onChange={(primes, indemnites) => setFormData(f => ({ ...f, primes, indemnites }))}
         />
       </div>
       <div className="flex justify-end space-x-2">
@@ -574,7 +556,7 @@ const Contract = ({ employee, employer, contract }) => {
   );
 };
 
-const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, payPeriod, generatedAt }) => {
+const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, payPeriod, generatedAt, primes = [], indemnites = [] }) => {
   // État pour gérer la modale et les champs manquants
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [missingFields, setMissingFields] = useState([]);
@@ -686,6 +668,22 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
   // Validation des déductions
   const deductionWarnings = validateDeductions(deductions, baseSalary, formData);
 
+  // Fonction utilitaire pour calculer le net à payer en prenant en compte salaire de base, primes, indemnités et déductions
+  const getNetToPay = (paySlip) => {
+    // Salaire de base
+    const base = Number(paySlip.salaryDetails?.baseSalary || 0);
+    // Primes
+    const primes = Array.isArray(paySlip.primes) ? paySlip.primes.reduce((sum, p) => sum + Number(p.montant || 0), 0) : 0;
+    // Indemnités
+    const indemnites = Array.isArray(paySlip.indemnites) ? paySlip.indemnites.reduce((sum, i) => sum + Number(i.montant || 0), 0) : 0;
+    // Rémunération brute
+    const remunerationBrute = base + primes + indemnites;
+    // Total des déductions
+    const deductions = Number(paySlip.deductions?.total || 0);
+    // Net à payer
+    return Math.max(0, remunerationBrute - deductions);
+  };
+
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold text-center">Fiche de Paie</h2>
@@ -778,8 +776,9 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
         </tbody>
       </table>
       
+      {/* Calcul du net à payer : salaire de base + primes + indemnités - déductions */}
       <div className="bg-green-50 p-4 rounded-lg">
-        <h3 className="font-bold text-lg">NET À PAYER: {netToPay.toLocaleString()} FCFA</h3>
+        <h3 className="font-bold text-lg">NET À PAYER: {getNetToPay({ salaryDetails, primes, indemnites, deductions }).toLocaleString()} FCFA</h3>
       </div>
       
       {/* Avertissements sur les déductions */}
@@ -1003,6 +1002,8 @@ const CompanyAdminDashboard = () => {
   const [villeResidence, setVilleResidence] = useState("");
   const [quartierResidence, setQuartierResidence] = useState("");
   // ... reste du composant ...
+
+  const [selectedBadgeModel, setSelectedBadgeModel] = useState("BadgeModel1");
 
   function formatDateNaissanceInput(value) {
     // Si l'utilisateur tape 8 chiffres d'affilée, on formate automatiquement
@@ -1345,6 +1346,7 @@ const addEmployee = async (e) => {
         ...newEmployee,
         contract: contractData,
         contractFile: null,
+        department: newEmployee.department,
       });
       employeeId = newEmployee.id;
       toast.success("Employé modifié avec succès !");
@@ -1357,6 +1359,7 @@ const addEmployee = async (e) => {
         adminUid: auth.currentUser?.uid || null,
         payslips: [],
         createdAt: new Date().toISOString(),
+        department: newEmployee.department,
       });
       employeeId = docRef.id;
       toast.success("Employé ajouté avec succès !");
@@ -1828,6 +1831,15 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
     // Les autres villes peuvent être complétées au besoin
   };
 
+  // Fonction utilitaire pour générer le badge PDF (exemple simple, à adapter selon besoin)
+  const generateBadgePDF = (employee, companyData, badgeModel) => {
+    const doc = new jsPDF({ orientation: "landscape", unit: "px", format: [320, 210] });
+    // On peut utiliser html2canvas ou doc.html pour capturer le rendu React, ou générer le PDF manuellement
+    // Ici, on met un placeholder
+    doc.text(`Badge pour ${employee.name} (${badgeModel})`, 20, 30);
+    doc.save(`badge_${employee.name.replace(/\s+/g, "_")}.pdf`);
+  };
+
   return (
     <div className="min-h-screen flex bg-gradient-to-br from-slate-50 to-blue-50">
       <ToastContainer position="top-right" autoClose={3000} />
@@ -1878,6 +1890,8 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
               { id: "absences", label: "Absences", icon: Clock },
               { id: "payslips", label: "Paie", icon: CreditCard },
               { id: "notifications", label: "Notifications", icon: Bell },
+              { id: "badges", label: "Badges", icon: Users },
+              { id: "reports", label: "Rapports", icon: Download }, // <-- Ajouté
               { id: "settings", label: "Paramètres", icon: Settings },
             ].map((item) => (
               <li key={item.id} className="relative group">
@@ -3154,6 +3168,11 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
       </div>
     </Card>
 
+    {/* Cotisation CNPS Section */}
+    <Card title="Déclaration CNPS" className="mt-8">
+      {companyData?.id && <CotisationCNPS companyId={companyData.id} />}
+    </Card>
+
     {/* Modale pour afficher les fiches de paie */}
     <Modal isOpen={showPaySlip} onClose={() => setShowPaySlip(false)}>
       <div className="p-6">
@@ -3257,200 +3276,250 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
       <div className="p-6 max-w-4xl mx-auto">
         <h2 className="text-2xl font-bold text-gray-900 mb-6">Détails de la Fiche de Paie</h2>
         {selectedPaySlip && selectedEmployee && (
-          <div className="space-y-6">
-            {/* Informations de l'employé */}
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold text-blue-900 mb-3">Informations de l'Employé</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600">Nom complet</p>
-                  <p className="font-medium">{selectedEmployee.name}</p>
+          (() => {
+            const mainEmployee = employees.find(emp => emp.id === selectedEmployee?.id);
+            return (
+              <div className="space-y-6">
+                {/* Informations de l'employé */}
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold text-blue-900 mb-3">Informations de l'Employé</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-600">Nom complet</p>
+                      <p className="font-medium">{selectedEmployee.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Matricule</p>
+                      <p className="font-medium">{selectedEmployee.matricule || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Poste</p>
+                      <p className="font-medium">{selectedEmployee.poste}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Département</p>
+                      <p className="font-medium">{mainEmployee?.department || 'N/A'}</p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">Matricule</p>
-                  <p className="font-medium">{selectedEmployee.matricule || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Poste</p>
-                  <p className="font-medium">{selectedEmployee.poste}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Département</p>
-                  <p className="font-medium">{selectedEmployee.department || 'N/A'}</p>
-                </div>
-              </div>
-            </div>
 
-            {/* Informations de la fiche de paie */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">Informations de la Fiche de Paie</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600">Période</p>
-                  <p className="font-medium">{selectedPaySlip.payPeriod}</p>
+                {/* Informations de la fiche de paie */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Informations de la Fiche de Paie</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-600">Période</p>
+                      <p className="font-medium">{selectedPaySlip.payPeriod}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Date de génération</p>
+                      <p className="font-medium">
+                        {new Date(selectedPaySlip.generatedAt).toLocaleDateString('fr-FR')}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">Date de génération</p>
-                  <p className="font-medium">
-                    {new Date(selectedPaySlip.generatedAt).toLocaleDateString('fr-FR')}
-                  </p>
-                </div>
-              </div>
-            </div>
 
-            {/* Rémunération */}
-            <div className="bg-green-50 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold text-green-900 mb-3">Rémunération</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600">Salaire de base</p>
-                  <p className="font-medium text-lg">
-                    {selectedPaySlip.salaryDetails?.baseSalary?.toLocaleString()} FCFA
-                  </p>
+                {/* Rémunération */}
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold text-green-900 mb-3">Rémunération</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-600">Salaire de base</p>
+                      <p className="font-medium text-lg">
+                        {selectedPaySlip.salaryDetails?.baseSalary?.toLocaleString()} FCFA
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Jours travaillés</p>
+                      <p className="font-medium">{selectedPaySlip.remuneration?.workedDays} jours</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Heures supplémentaires</p>
+                      <p className="font-medium">{selectedPaySlip.remuneration?.overtime?.toLocaleString()} FCFA</p>
+                    </div>
+                    {/* Indemnité transport supprimée ici */}
+                    <div>
+                      <p className="text-sm text-gray-600">Total brut</p>
+                      <p className="font-medium text-lg text-green-700">
+                        {selectedPaySlip.remuneration?.total?.toLocaleString()} FCFA
+                      </p>
+                    </div>
+                  </div>
+                  {/* Primes */}
+                  <div className="mt-4">
+                    <h4 className="font-semibold text-green-800 mb-1">Primes</h4>
+                    {(selectedPaySlip.primes && selectedPaySlip.primes.length > 0) ? (
+                      <table className="w-full text-sm mb-2">
+                        <thead>
+                          <tr>
+                            <th className="text-left">Type</th>
+                            <th className="text-left">Montant</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedPaySlip.primes.map((prime, idx) => (
+                            <tr key={idx}>
+                              <td>{prime.type}</td>
+                              <td>{Number(prime.montant).toLocaleString()} FCFA</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <p className="text-gray-500">Aucune prime</p>
+                    )}
+                  </div>
+                  {/* Indemnités */}
+                  <div className="mt-2">
+                    <h4 className="font-semibold text-green-800 mb-1">Indemnités</h4>
+                    {(selectedPaySlip.indemnites && selectedPaySlip.indemnites.length > 0) ? (
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr>
+                            <th className="text-left">Type</th>
+                            <th className="text-left">Montant</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedPaySlip.indemnites.map((ind, idx) => (
+                            <tr key={idx}>
+                              <td>{ind.type}</td>
+                              <td>{Number(ind.montant).toLocaleString()} FCFA</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <p className="text-gray-500">Aucune indemnité</p>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">Jours travaillés</p>
-                  <p className="font-medium">{selectedPaySlip.remuneration?.workedDays} jours</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Heures supplémentaires</p>
-                  <p className="font-medium">{selectedPaySlip.remuneration?.overtime?.toLocaleString()} FCFA</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Indemnité transport</p>
-                  <p className="font-medium">{selectedPaySlip.salaryDetails?.transportAllowance?.toLocaleString()} FCFA</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Total brut</p>
-                  <p className="font-medium text-lg text-green-700">
-                    {selectedPaySlip.remuneration?.total?.toLocaleString()} FCFA
-                  </p>
-                </div>
-              </div>
-            </div>
 
-            {/* Déductions */}
-            <div className="bg-red-50 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold text-red-900 mb-3">Déductions</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600">PVIS</p>
-                  <p className="font-medium">{selectedPaySlip.deductions?.pvis?.toLocaleString()} FCFA</p>
+                {/* Déductions */}
+                <div className="bg-red-50 p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold text-red-900 mb-3">Déductions</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-600">PVIS</p>
+                      <p className="font-medium">{selectedPaySlip.deductions?.pvis?.toLocaleString()} FCFA</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">IRPP</p>
+                      <p className="font-medium">{selectedPaySlip.deductions?.irpp?.toLocaleString()} FCFA</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">CAC</p>
+                      <p className="font-medium">{selectedPaySlip.deductions?.cac?.toLocaleString()} FCFA</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">CFC</p>
+                      <p className="font-medium">{selectedPaySlip.deductions?.cfc?.toLocaleString()} FCFA</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">RAV</p>
+                      <p className="font-medium">{selectedPaySlip.deductions?.rav?.toLocaleString()} FCFA</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">TDL</p>
+                      <p className="font-medium">{selectedPaySlip.deductions?.tdl?.toLocaleString()} FCFA</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Total déductions</p>
+                      <p className="font-medium text-lg text-red-700">
+                        {selectedPaySlip.deductions?.total?.toLocaleString()} FCFA
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">IRPP</p>
-                  <p className="font-medium">{selectedPaySlip.deductions?.irpp?.toLocaleString()} FCFA</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">CAC</p>
-                  <p className="font-medium">{selectedPaySlip.deductions?.cac?.toLocaleString()} FCFA</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">CFC</p>
-                  <p className="font-medium">{selectedPaySlip.deductions?.cfc?.toLocaleString()} FCFA</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">RAV</p>
-                  <p className="font-medium">{selectedPaySlip.deductions?.rav?.toLocaleString()} FCFA</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">TDL</p>
-                  <p className="font-medium">{selectedPaySlip.deductions?.tdl?.toLocaleString()} FCFA</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Total déductions</p>
-                  <p className="font-medium text-lg text-red-700">
-                    {selectedPaySlip.deductions?.total?.toLocaleString()} FCFA
-                  </p>
-                </div>
-              </div>
-            </div>
 
-            {/* Net à payer */}
-            <div className="bg-purple-50 p-6 rounded-lg border-2 border-purple-200">
-              <div className="text-center">
-                <h3 className="text-xl font-bold text-purple-900 mb-2">NET À PAYER</h3>
-                <p className="text-3xl font-bold text-purple-700">
-                  {(() => {
-                    const remunerationTotal = selectedPaySlip.remuneration?.total || 0;
-                    const deductionsTotal = selectedPaySlip.deductions?.total || 0;
-                    const netToPay = Math.max(0, remunerationTotal - deductionsTotal);
-                    return netToPay.toLocaleString();
-                  })()} FCFA
-                </p>
+                {/* Net à payer */}
+                <div className="bg-purple-50 p-6 rounded-lg border-2 border-purple-200">
+                  <div className="text-center">
+                    <h3 className="text-xl font-bold text-purple-900 mb-2">NET À PAYER</h3>
+                    <p className="text-3xl font-bold text-purple-700">
+                      {(() => {
+                        const remunerationTotal = selectedPaySlip.remuneration?.total || 0;
+                        const deductionsTotal = selectedPaySlip.deductions?.total || 0;
+                        const netToPay = Math.max(0, remunerationTotal - deductionsTotal);
+                        return netToPay.toLocaleString();
+                      })()} FCFA
+                    </p>
+                  </div>
+                </div>
+                {/* Boutons d'action en bas */}
+                <div className="flex justify-center gap-4 mt-8">
+                  <Button
+                    onClick={() => {
+                      console.log('[ExportPaySlip] Bouton Exporter PDF cliqué');
+                      if (!selectedPaySlip || !selectedEmployee) {
+                        alert('Aucune fiche de paie ou employé sélectionné.');
+                        return;
+                      }
+                      // Vérification des champs essentiels côté bouton (sécurité supplémentaire)
+                      const missing = [];
+                      if (!selectedEmployee.name) missing.push("Nom de l'employé");
+                      if (!selectedEmployee.matricule) missing.push('Matricule');
+                      if (!selectedPaySlip.salaryDetails?.baseSalary) missing.push('Salaire de base');
+                      if (!selectedPaySlip.payPeriod) missing.push('Période de paie');
+                      if (missing.length > 0) {
+                        alert('Impossible de générer le PDF. Champs manquants :\n' + missing.map(f => '- ' + f).join('\n'));
+                        return;
+                      }
+                      const employerData = {
+                        companyName: companyData?.name || companyData?.companyName || "N/A",
+                        address: companyData?.address || "N/A",
+                        cnpsNumber: companyData?.cnpsNumber || "N/A",
+                        id: companyData?.id || "",
+                      };
+                      console.log('employerData:', employerData);
+                      // On monte le composant ExportPaySlip en mode auto
+                      const tempDiv = document.createElement('div');
+                      tempDiv.style.display = 'none';
+                      document.body.appendChild(tempDiv);
+                      const root = createRoot(tempDiv);
+                      root.render(
+                        <ExportPaySlip
+                          employee={selectedEmployee}
+                          employer={employerData}
+                          salaryDetails={selectedPaySlip.salaryDetails}
+                          remuneration={selectedPaySlip.remuneration}
+                          deductions={selectedPaySlip.deductions}
+                          payPeriod={selectedPaySlip.payPeriod}
+                          generatedAt={selectedPaySlip.generatedAt}
+                          auto={true}
+                          onExported={() => {
+                            console.log('[ExportPaySlip] onExported callback déclenché');
+                            setTimeout(() => {
+                              root.unmount();
+                              document.body.removeChild(tempDiv);
+                              console.log('[ExportPaySlip] Composant démonté et div supprimé');
+                            }, 500);
+                          }}
+                        />
+                      );
+                      console.log('[ExportPaySlip] Composant monté dans le DOM temporaire');
+                    }}
+                    icon={Download}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    Exporter PDF
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setPaySlipData(selectedPaySlip);
+                      setShowPaySlipForm(true);
+                      setShowPaySlipDetails(false);
+                    }}
+                    icon={Edit2}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    Modifier
+                  </Button>
+                </div>
               </div>
-            </div>
-            {/* Boutons d'action en bas */}
-            <div className="flex justify-center gap-4 mt-8">
-              <Button
-                onClick={() => {
-                  console.log('[ExportPaySlip] Bouton Exporter PDF cliqué');
-                  if (!selectedPaySlip || !selectedEmployee) {
-                    alert('Aucune fiche de paie ou employé sélectionné.');
-                    return;
-                  }
-                  // Vérification des champs essentiels côté bouton (sécurité supplémentaire)
-                  const missing = [];
-                  if (!selectedEmployee.name) missing.push("Nom de l'employé");
-                  if (!selectedEmployee.matricule) missing.push('Matricule');
-                  if (!selectedPaySlip.salaryDetails?.baseSalary) missing.push('Salaire de base');
-                  if (!selectedPaySlip.payPeriod) missing.push('Période de paie');
-                  if (missing.length > 0) {
-                    alert('Impossible de générer le PDF. Champs manquants :\n' + missing.map(f => '- ' + f).join('\n'));
-                    return;
-                  }
-                  const employerData = {
-                    companyName: companyData?.name || companyData?.companyName || "N/A",
-                    address: companyData?.address || "N/A",
-                    cnpsNumber: companyData?.cnpsNumber || "N/A",
-                    id: companyData?.id || "",
-                  };
-                  console.log('employerData:', employerData);
-                  // On monte le composant ExportPaySlip en mode auto
-                  const tempDiv = document.createElement('div');
-                  tempDiv.style.display = 'none';
-                  document.body.appendChild(tempDiv);
-                  const root = createRoot(tempDiv);
-                  root.render(
-                    <ExportPaySlip
-                      employee={selectedEmployee}
-                      employer={employerData}
-                      salaryDetails={selectedPaySlip.salaryDetails}
-                      remuneration={selectedPaySlip.remuneration}
-                      deductions={selectedPaySlip.deductions}
-                      payPeriod={selectedPaySlip.payPeriod}
-                      generatedAt={selectedPaySlip.generatedAt}
-                      auto={true}
-                      onExported={() => {
-                        console.log('[ExportPaySlip] onExported callback déclenché');
-                        setTimeout(() => {
-                          root.unmount();
-                          document.body.removeChild(tempDiv);
-                          console.log('[ExportPaySlip] Composant démonté et div supprimé');
-                        }, 500);
-                      }}
-                    />
-                  );
-                  console.log('[ExportPaySlip] Composant monté dans le DOM temporaire');
-                }}
-                icon={Download}
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                Exporter PDF
-              </Button>
-              <Button
-                onClick={() => {
-                  setPaySlipData(selectedPaySlip);
-                  setShowPaySlipForm(true);
-                  setShowPaySlipDetails(false);
-                }}
-                icon={Edit2}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                Modifier
-              </Button>
-            </div>
-          </div>
+            );
+          })()
         )}
       </div>
     </Modal>
@@ -3625,6 +3694,97 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                   </Button>
                 </div>
               </Card>
+              <Card title="Badges Employés" className="mt-8">
+                <div className="mb-4 flex flex-col md:flex-row md:items-center gap-4">
+                  <label className="font-semibold">Modèle de badge :</label>
+                  <select
+                    value={selectedBadgeModel}
+                    onChange={e => setSelectedBadgeModel(e.target.value)}
+                    className="border rounded px-2 py-1"
+                  >
+                    <option value="BadgeModel1">Moderne</option>
+                    <option value="BadgeModel2">Bandeau coloré</option>
+                    <option value="BadgeModel3">Minimaliste</option>
+                    <option value="BadgeModel4">Vertical coloré</option>
+                    <option value="BadgeModel5">Photo fond</option>
+                  </select>
+                </div>
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2">Nom</th>
+                      <th className="px-4 py-2">Poste</th>
+                      <th className="px-4 py-2">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {employees.map(emp => (
+                      <tr key={emp.id}>
+                        <td className="px-4 py-2">{emp.name}</td>
+                        <td className="px-4 py-2">{emp.poste}</td>
+                        <td className="px-4 py-2">
+                          <button
+                            className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                            onClick={() => setSelectedEmployee(emp)}
+                          >
+                            Générer badge
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Card>
+            </div>
+          )}
+          {activeTab === "badges" && (
+            <Card title="Badges Employés" className="mt-8">
+              <div className="mb-4 flex flex-col md:flex-row md:items-center gap-4">
+                <label className="font-semibold">Modèle de badge :</label>
+                <select
+                  value={selectedBadgeModel}
+                  onChange={e => setSelectedBadgeModel(e.target.value)}
+                  className="border rounded px-2 py-1"
+                >
+                  <option value="BadgeModel1">Moderne</option>
+                  <option value="BadgeModel2">Bandeau coloré</option>
+                  <option value="BadgeModel3">Minimaliste</option>
+                  <option value="BadgeModel4">Vertical coloré</option>
+                  <option value="BadgeModel5">Photo fond</option>
+                </select>
+              </div>
+              <div className="space-y-8">
+                {employees.map(emp => (
+                  <ExportBadgePDF
+                    key={emp.id}
+                    employee={emp}
+                    companyData={companyData}
+                    qrCodeUrl={`https://prhm.app/employee/${emp.id}`}
+                    initialModel={selectedBadgeModel}
+                    onSaveBadgeImage={async (employeeId, dataUrl) => {
+                      // Exemple de sauvegarde Firestore (à adapter selon ta logique)
+                      try {
+                        await updateDoc(doc(db, "clients", companyData.id, "employees", employeeId), {
+                          badgeImage: dataUrl,
+                          badgeModel: selectedBadgeModel,
+                          badgeUpdatedAt: new Date().toISOString(),
+                        });
+                      } catch (e) {
+                        throw e;
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            </Card>
+          )}
+          {activeTab === "reports" && (
+            <div className="space-y-6">
+              <h1 className="text-3xl font-bold text-gray-900">Rapports & Déclarations</h1>
+              <Card title="Déclaration CNPS">
+                {companyData?.id && <CotisationCNPS companyId={companyData.id} cnpsEmployeur={companyData.cnpsNumber || ""} />}
+              </Card>
+              {/* Ici, vous pouvez ajouter d'autres rapports ou exports globaux à l'avenir */}
             </div>
           )}
         </main>

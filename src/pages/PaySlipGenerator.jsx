@@ -97,6 +97,9 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
     department: employee.department || "",
     service: employee.service || "",
     supervisor: employee.supervisor || "",
+    // Ajout des primes et indemnités
+    primes: [],
+    indemnites: [],
   });
   const [formErrors, setFormErrors] = useState({});
   const [logoData, setLogoData] = useState(localStorage.getItem(`logo_${companyData.id}`));
@@ -216,9 +219,9 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
     return total;
   };
 
-  const calculateDeductions = (salaryBrut, transportAllowance) => {
-    console.log(`[PaySlipGenerator] Calcul des retenues pour salaire brut: ${salaryBrut}, indemnité transport: ${transportAllowance}`);
-    const taxableSalary = salaryBrut + transportAllowance;
+  const calculateDeductions = (salaryBrut) => {
+    console.log(`[PaySlipGenerator] Calcul des retenues pour salaire brut: ${salaryBrut}`);
+    const taxableSalary = salaryBrut;
     const pvidRate = 0.042; // 4.2% à la charge de l'employé
     const pvidCap = 750000;
     const pvid = Math.min(taxableSalary, pvidCap) * pvidRate;
@@ -247,21 +250,9 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
 
     const cac = irpp * 0.10; // 10% de l'IRPP
     const cfc = taxableSalary * 0.01; // 1% du salaire brut
-    const rav = [
-      { max: 50000, amount: 0 },
-      { max: 100000, amount: 750 },
-      { max: 200000, amount: 1950 },
-      { max: 300000, amount: 3250 },
-      { max: 400000, amount: 4550 },
-      { max: 500000, amount: 5850 },
-      { max: 600000, amount: 7150 },
-      { max: 700000, amount: 8450 },
-      { max: 800000, amount: 9750 },
-      { max: 900000, amount: 11050 },
-      { max: 1000000, amount: 12350 },
-      { max: Infinity, amount: 13000 },
-    ].find((r) => taxableSalary <= r.max)?.amount || 13000;
-    const tdl = tdlRates.find((r) => taxableSalary >= r.min && taxableSalary <= r.max)?.amount || 2500;
+    // RAV uniquement si salaire brut > 50000
+    const rav = salaryBrut > 50000 ? 750 : 0; // 750 FCFA ou adapte selon ta règle
+    const tdl = 0; // Toujours 0
     const fne = 0; // À confirmer si applicable
 
     const deductions = {
@@ -290,7 +281,6 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
 
     const {
       salaryBrut,
-      transportAllowance,
       hoursPerMonth,
       daysWorked,
       overtimeHoursRegular,
@@ -309,9 +299,8 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
       overtimeHoursSunday,
       overtimeHoursNight
     );
-    const deductions = calculateDeductions(salaryBrut, transportAllowance);
-    const totalRemuneration = salaryBrut + transportAllowance + overtimePay;
-    const taxableSalary = salaryBrut + transportAllowance;
+    const deductions = calculateDeductions(salaryBrut);
+    const totalRemuneration = salaryBrut + overtimePay;
     const netSalary = totalRemuneration - deductions.total;
 
     const paySlipData = {
@@ -333,7 +322,6 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
       },
       salaryDetails: {
         ...rates,
-        transportAllowance,
       },
       remuneration: {
         workedDays: workedDaysPay,
@@ -350,6 +338,9 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
       },
       generatedAt: new Date().toISOString(),
       payPeriod,
+      // Ajout des primes et indemnités
+      primes: formData.primes,
+      indemnites: formData.indemnites,
     };
     console.log(`[PaySlipGenerator] Données fiche de paie générées: ${JSON.stringify(paySlipData, null, 2)}`);
     return paySlipData;
@@ -660,12 +651,86 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
       doc.setFont("helvetica", "normal");
       doc.text(`Salaire brut: ${paySlipData.salaryDetails.monthlyRate.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
       y += lineHeight;
-      doc.text(`Indemnité transport: ${paySlipData.salaryDetails.transportAllowance.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
-      y += lineHeight;
       doc.text(`Heures supplémentaires: ${paySlipData.remuneration.overtime.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
       y += lineHeight;
       doc.text(`Total rémunération: ${paySlipData.remuneration.total.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
       y += lineHeight * 2;
+
+      // --- Aperçu JSX : à placer juste après la section salaire brut/net ---
+      {!isContractMode && (
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Bloc Primes */}
+          <div>
+            <div className="font-semibold text-gray-700 mb-2">Primes</div>
+            {formData.primes && formData.primes.length > 0 ? (
+              <>
+                {formData.primes.map((prime, idx) => (
+                  <div key={idx} className="flex justify-between py-1">
+                    <span>{prime.label ?? prime.type ?? ""}</span>
+                    <span>{Number(prime.montant || 0).toLocaleString()} FCFA</span>
+                  </div>
+                ))}
+                <div className="font-bold mt-2 flex justify-between border-t pt-2">
+                  <span>Total Primes :</span>
+                  <span>
+                    {formData.primes.reduce((acc, p) => acc + Number(p.montant || 0), 0).toLocaleString()} FCFA
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="text-gray-400 text-sm">Aucune prime</div>
+            )}
+          </div>
+          {/* Bloc Indemnités */}
+          <div>
+            <div className="font-semibold text-gray-700 mb-2">Indemnités</div>
+            {formData.indemnites && formData.indemnites.length > 0 ? (
+              <>
+                {formData.indemnites.map((indem, idx) => (
+                  <div key={idx} className="flex justify-between py-1">
+                    <span>{indem.label ?? indem.type ?? ""}</span>
+                    <span>{Number(indem.montant || 0).toLocaleString()} FCFA</span>
+                  </div>
+                ))}
+                <div className="font-bold mt-2 flex justify-between border-t pt-2">
+                  <span>Total Indemnités :</span>
+                  <span>
+                    {formData.indemnites.reduce((acc, i) => acc + Number(i.montant || 0), 0).toLocaleString()} FCFA
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="text-gray-400 text-sm">Aucune indemnité</div>
+            )}
+          </div>
+        </div>
+      )}
+      // --- Export PDF : après la section rémunération, avant les déductions ---
+      // ... après y += lineHeight * 2; (après total rémunération)
+      const primes = paySlipData.primes || [];
+      const indemnites = paySlipData.indemnites || [];
+      const primesTotal = primes.reduce((acc, p) => acc + Number(p.value || p.montant || 0), 0);
+      const indemnitesTotal = indemnites.reduce((acc, i) => acc + Number(i.value || i.montant || 0), 0);
+
+      doc.setFont("helvetica", "bold");
+      doc.text("Primes :", leftMargin, y);
+      doc.setFont("helvetica", "normal");
+      primes.forEach((p, i) => {
+        doc.text(`${p.label ?? p.type ?? ""} – ${Number(p.value || p.montant || 0).toLocaleString()} FCFA`, leftMargin + 10, y + lineHeight * (i + 1));
+      });
+      doc.setFont("helvetica", "bold");
+      doc.text(`Total Primes : ${primesTotal.toLocaleString()} FCFA`, leftMargin, y + lineHeight * (primes.length + 1));
+      y += lineHeight * (primes.length + 3);
+
+      doc.setFont("helvetica", "bold");
+      doc.text("Indemnités :", leftMargin, y);
+      doc.setFont("helvetica", "normal");
+      indemnites.forEach((indem, j) => {
+        doc.text(`${indem.label ?? indem.type ?? ""} – ${Number(indem.value || indem.montant || 0).toLocaleString()} FCFA`, leftMargin + 10, y + lineHeight * (j + 1));
+      });
+      doc.setFont("helvetica", "bold");
+      doc.text(`Total Indemnités : ${indemnitesTotal.toLocaleString()} FCFA`, leftMargin, y + lineHeight * (indemnites.length + 1));
+      y += lineHeight * (indemnites.length + 3);
 
       doc.setFont("helvetica", "bold");
       doc.text("DÉTAILS DES RETENUES", leftMargin, y);
@@ -767,16 +832,6 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
             error={formErrors.salaryBrut}
             required
             min="36270"
-          />
-          <InputField
-            label="Indemnité de transport (FCFA)"
-            type="number"
-            value={formData.transportAllowance}
-            onChange={(e) =>
-              setFormData({ ...formData, transportAllowance: parseFloat(e.target.value) || 0 })
-            }
-            error={formErrors.transportAllowance}
-            min="0"
           />
           {!isContractMode && (
             <>
