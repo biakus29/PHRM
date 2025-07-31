@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import { displayDateOfBirth, displayContractStartDate, displayDate } from "../utils/displayUtils";
 
 const ExportContrat = ({ employee, employer, contractData, auto = false, onExported }) => {
   const generateContractPDF = () => {
@@ -126,7 +127,7 @@ const ExportContrat = ({ employee, employer, contractData, auto = false, onExpor
       doc.setFontSize(11);
       const employeeDetails = [
         `Nom complet: ${employee?.name || 'N/A'}`,
-        `Né(e) le: ${employee?.dateNaissance || 'N/A'}`,
+        `Né(e) le: ${displayDateOfBirth(employee?.dateOfBirth)}`,
         `À: ${employee?.lieuNaissance || employee?.placeOfBirth || 'N/A'}`,
         `Fils de: ${employee?.pere || 'N/A'}`,
         `Et de: ${employee?.mere || 'N/A'}`,
@@ -189,7 +190,7 @@ const ExportContrat = ({ employee, employer, contractData, auto = false, onExpor
       doc.setFontSize(11);
       const article2 = [
         "1. Type de contrat: " + (contractData?.contractType || 'CDI'),
-        "2. Date d'effet: " + (contractData?.startDate ? new Date(contractData.startDate).toLocaleDateString('fr-FR') : 'N/A'),
+        "2. Date d'effet: " + (contractData?.startDate ? displayContractStartDate(contractData.startDate) : 'N/A'),
         "3. Période d'essai: 2 mois renouvelable une fois",
         "4. Lieu de travail: " + (contractData?.workPlace || 'Yaoundé')
       ];
@@ -289,7 +290,7 @@ const ExportContrat = ({ employee, employer, contractData, auto = false, onExpor
         y = margin;
       }
       
-      const dateEffet = contractData?.startDate ? new Date(contractData.startDate).toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR');
+      const dateEffet = contractData?.startDate ? displayContractStartDate(contractData.startDate) : displayDate(new Date());
       const dateText = `Fait à Yaoundé, le ${dateEffet}`;
       const dateWidth = doc.getTextWidth(dateText);
       doc.text(dateText, pageWidth - margin - dateWidth, y, { align: 'right' });

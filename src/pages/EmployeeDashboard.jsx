@@ -15,6 +15,7 @@ import "react-pdf/dist/esm/Page/TextLayer.css";
 import ExportPaySlip from '../compoments/ExportPaySlip';
 import ExportContrat from '../compoments/ExportContrat';
 import { createRoot } from 'react-dom/client';
+import { displayDate, displayDateWithOptions, displayGeneratedAt, displayContractStartDate } from "../utils/displayUtils";
 
 // Configurer pdfjs
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
@@ -247,11 +248,7 @@ const EmployeeDashboard = () => {
     if (!employeeData || !employeeData.leaves?.history) return [];
     let history = employeeData.leaves.history.map((req, index) => ({
       id: index,
-      date: new Date(req.date).toLocaleDateString("fr-FR", {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      }),
+      date: displayDate(req.date),
       days: req.days,
       status: req.status,
     }));
@@ -290,22 +287,13 @@ const EmployeeDashboard = () => {
     if (!employeeData || !employeeData.payslips?.length) return [];
 
     let history = employeeData.payslips.map((slip, index) => ({
+      ...slip, // Garder toutes les données originales
       id: index,
-      date: slip.date,
       year: new Date(slip.date).getFullYear(),
-      formattedDate: new Date(slip.date).toLocaleDateString("fr-FR", {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      }),
+      formattedDate: displayDateWithOptions(slip.date, { month: "numeric", day: "numeric" }),
       netSalary: slip.salaryDetails?.netSalary || "Non disponible",
       grossSalary: slip.salaryDetails?.grossSalary || "Non disponible",
       hoursPerMonth: slip.salaryDetails?.hoursPerMonth || "N/A",
-      deductions: slip.deductions || {},
-      overtimeHours: slip.overtimeHours || {},
-      bonuses: slip.bonuses || {},
-      benefits: slip.benefits || {},
-      url: slip.url || null,
     }));
 
     if (yearFilter !== "Tous") {
@@ -545,11 +533,7 @@ const EmployeeDashboard = () => {
                     rel="noopener noreferrer"
                     className="text-blue-500 hover:underline"
                   >
-                    {new Date(employeeData.payslips[0].date).toLocaleDateString("fr-FR", {
-                      day: "2-digit",
-                      month: "long",
-                      year: "numeric",
-                    })}
+                    {displayDateWithOptions(employeeData.payslips[0].date, { month: "numeric", day: "numeric" })}
                   </a>
                   <FiFileText className="h-5 w-5 text-blue-500" />
                 </div>
@@ -903,7 +887,7 @@ const EmployeeDashboard = () => {
                             <p className="text-sm text-gray-600">Période: {selectedPaySlip.payPeriod || selectedPaySlip.formattedDate || selectedPaySlip.date || 'N/A'}</p>
                         </div>
                   <div>
-                            <p className="text-sm text-gray-600">Généré le: {selectedPaySlip.generatedAt ? new Date(selectedPaySlip.generatedAt).toLocaleDateString('fr-FR') : selectedPaySlip.date ? new Date(selectedPaySlip.date).toLocaleDateString('fr-FR') : 'N/A'}</p>
+                            <p className="text-sm text-gray-600">Généré le: {displayGeneratedAt(selectedPaySlip.generatedAt)}</p>
                         </div>
                     </div>
                   </div>
@@ -1035,7 +1019,7 @@ const EmployeeDashboard = () => {
               {employeeData.contract ? (
                 <div>
                   <p><strong>Type :</strong> {employeeData.contract.contractType || "N/A"}</p>
-                  <p><strong>Date de début :</strong> {employeeData.contract.startDate ? new Date(employeeData.contract.startDate).toLocaleDateString("fr-FR") : "N/A"}</p>
+                  <p><strong>Date de début :</strong> {displayContractStartDate(employeeData.contract.startDate)}</p>
                   <p><strong>Salaire de base :</strong> {employeeData.contract.baseSalary ? `${employeeData.contract.baseSalary} FCFA` : "N/A"}</p>
                   <p><strong>Poste :</strong> {employeeData.contract.poste || employeeData.poste || "N/A"}</p>
                   {/* ... autres infos ... */}
@@ -1147,11 +1131,7 @@ const EmployeeDashboard = () => {
                             className="hover:bg-gray-50 transition-colors"
                           >
                             <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-800">
-                              {new Date(req.date).toLocaleDateString("fr-FR", {
-                                day: "2-digit",
-                                month: "long",
-                                year: "numeric",
-                              })}
+                              {displayDate(req.date)}
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-800">
                               {req.hours}
@@ -1204,13 +1184,7 @@ const EmployeeDashboard = () => {
                           {notif.message}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {new Date(notif.date).toLocaleString("fr-FR", {
-                            day: "2-digit",
-                            month: "long",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          {displayDateWithOptions(notif.date, { hour: "numeric", minute: "numeric" })}
                         </p>
                       </div>
                     </div>

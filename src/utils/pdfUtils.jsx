@@ -51,9 +51,9 @@ export const generateBadgePDF = async (employee, companyData) => {
     doc.setFontSize(10);
     doc.text(employee.poste, 35, 26);
     doc.text(employee.department || "N/A", 35, 32);
-    doc.text(`Matricule: ${employee.id.slice(0, 8)}`, 35, 38);
+    doc.text(`Matricule: ${employee.matricule || "N/A"}`, 35, 38);
 
-    const qrCanvas = document.getElementById(`qr-${employee.id}`);
+    const qrCanvas = document.getElementById(`qr-${employee.matricule || employee.id}`);
     if (!qrCanvas) {
       throw new Error("Canvas QR code introuvable");
     }

@@ -13,7 +13,10 @@ import {
   query,
   where,
   onSnapshot,
-  addDoc
+  addDoc,
+  getDoc,
+  orderBy,
+  limit
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
@@ -71,6 +74,11 @@ import html2canvas from "html2canvas";
 import { toPng } from "html-to-image";
 import ExportBadgePDF from "../compoments/ExportBadgePDF";
 import CotisationCNPS from "../compoments/CotisationCNPS";
+import { displayDepartment, displayMatricule, displayPhone, displayCNPSNumber, displayProfessionalCategory, displaySalary, displayDate, displayDiplomas, displayEchelon, displayService, displaySupervisor, displayPlaceOfBirth, displayDateOfBirth, displayDateWithOptions, displayGeneratedAt, displayHireDate, displayContractStartDate, displayContractEndDate, displayLicenseExpiry, normalizeEmployeeData } from "../utils/displayUtils";
+import { generateQRCodeUrl, generateUserInfoQRCode, generateVCardQRCode } from "../utils/qrCodeUtils";
+import QRCodeScanner from "../compoments/QRCodeScanner";
+import UserInfoDisplay from "../compoments/UserInfoDisplay";
+import { QRCodeCanvas } from "qrcode.react";
 
 ChartJS.register(
   ArcElement,
@@ -486,7 +494,7 @@ const Contract = ({ employee, employer, contract }) => {
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold text-center">Contrat de Travail</h2>
-      <p className="text-center">Généré le: {new Date(safeContract.generatedAt || Date.now()).toLocaleDateString("fr-FR")}</p>
+              <p className="text-center">Généré le: {displayGeneratedAt(safeContract.generatedAt || Date.now())}</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <h3 className="font-semibold">Employé</h3>
@@ -519,11 +527,11 @@ const Contract = ({ employee, employer, contract }) => {
           </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">Date de début</td>
-            <td className="py-2 px-4">{safeContract.startDate ? new Date(safeContract.startDate).toLocaleDateString("fr-FR") : "N/A"}</td>
+            <td className="py-2 px-4">{displayContractStartDate(safeContract.startDate)}</td>
           </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">Date de fin</td>
-            <td className="py-2 px-4">{safeContract.endDate ? new Date(safeContract.endDate).toLocaleDateString("fr-FR") : "N/A"}</td>
+            <td className="py-2 px-4">{displayContractEndDate(safeContract.endDate)}</td>
           </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">Salaire de base</td>
@@ -688,7 +696,7 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
     <div className="space-y-4">
       <h2 className="text-2xl font-bold text-center">Fiche de Paie</h2>
       <p className="text-center">Période: {payPeriod || 'N/A'}</p>
-      <p className="text-center">Généré le: {new Date(generatedAt || Date.now()).toLocaleDateString("fr-FR")}</p>
+              <p className="text-center">Généré le: {displayGeneratedAt(generatedAt || Date.now())}</p>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
@@ -966,7 +974,7 @@ const CompanyAdminDashboard = () => {
   trialPeriodDuration: "",
     matricule: "",
     // Nouveaux champs pour les informations personnelles
-    dateNaissance: "",
+    dateOfBirth: "",
     lieuNaissance: "",
     pere: "",
     mere: "",
@@ -996,7 +1004,7 @@ const CompanyAdminDashboard = () => {
   const [allLieuNaissance, setAllLieuNaissance] = useState([]);
 
   // Dans le composant CompanyAdminDashboard, juste avant le JSX du formulaire d'employé :
-  const [dateNaissanceError, setDateNaissanceError] = useState("");
+  const [dateOfBirthError, setDateOfBirthError] = useState("");
 
   // ... autres hooks d'état ...
   const [villeResidence, setVilleResidence] = useState("");
@@ -1004,8 +1012,10 @@ const CompanyAdminDashboard = () => {
   // ... reste du composant ...
 
   const [selectedBadgeModel, setSelectedBadgeModel] = useState("BadgeModel1");
+  const [selectedQRType, setSelectedQRType] = useState("userInfo");
+  const [showQRScanner, setShowQRScanner] = useState(false);
 
-  function formatDateNaissanceInput(value) {
+  function formatDateOfBirthInput(value) {
     // Si l'utilisateur tape 8 chiffres d'affilée, on formate automatiquement
     const onlyDigits = value.replace(/\D/g, "");
     if (onlyDigits.length === 8) {
@@ -1018,7 +1028,7 @@ const CompanyAdminDashboard = () => {
     return v;
   }
 
-  function validateDateNaissance(value) {
+  function validateDateOfBirth(value) {
     // Format attendu : JJ/MM/AAAA
     if (!value) return "";
     const regex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/(19|20)\d\d$/;
@@ -1028,6 +1038,26 @@ const CompanyAdminDashboard = () => {
     const d = new Date(annee, mois - 1, jour);
     if (d.getFullYear() !== annee || d.getMonth() !== mois - 1 || d.getDate() !== jour) return "Date invalide";
     return "";
+  }
+
+  // Fonction pour convertir le format français (JJ/MM/AAAA) en format ISO
+  function convertFrenchDateToISO(frenchDate) {
+    if (!frenchDate || !frenchDate.trim()) return null;
+    
+    // Vérifier le format français
+    const regex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/(19|20)\d\d$/;
+    if (!regex.test(frenchDate)) return null;
+    
+    // Convertir en format ISO
+    const [jour, mois, annee] = frenchDate.split("/").map(Number);
+    const date = new Date(annee, mois - 1, jour);
+    
+    // Vérifier que la date est valide
+    if (date.getFullYear() !== annee || date.getMonth() !== mois - 1 || date.getDate() !== jour) {
+      return null;
+    }
+    
+    return date.toISOString();
   }
 
   useEffect(() => {
@@ -1103,7 +1133,7 @@ const ensureEmployeeFields = (employee) => {
     trialPeriodDuration: employee.trialPeriodDuration || '',
     matricule: employee.matricule || '',
     // Nouveaux champs d'informations personnelles
-    dateNaissance: employee.dateNaissance || '',
+            dateOfBirth: employee.dateOfBirth || '',
     lieuNaissance: employee.lieuNaissance || '',
     pere: employee.pere || '',
     mere: employee.mere || '',
@@ -1218,7 +1248,10 @@ const deletePaySlip = async (employeeId, payslipId) => {
           const unsubscribe = onSnapshot(
             collection(db, "clients", companyId, "employees"),
             (snapshot) => {
-              const employeesData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+              const employeesData = snapshot.docs.map((doc) => {
+                const employeeData = { id: doc.id, ...doc.data() };
+                return normalizeEmployeeData(employeeData);
+              });
               setEmployees(employeesData);
               setLoading(false);
             },
@@ -1324,7 +1357,7 @@ const addEmployee = async (e) => {
       throw new Error("Le salaire de base doit être un nombre positif.");
     }
     if (!newEmployee.matricule) {
-      newEmployee.matricule = uuidv4().slice(0, 8).toUpperCase();
+      throw new Error("Le matricule est requis. Veuillez saisir un matricule pour l'employé.");
     }
     // Prépare le contrat à partir des seuls champs utiles pour le PDF
     const contractData = {
@@ -1342,25 +1375,35 @@ const addEmployee = async (e) => {
     let employeeId;
     if (newEmployee.id) {
       console.log('[DEBUG] addEmployee: updateDoc for employee', newEmployee.id);
-      await updateDoc(doc(db, "clients", companyData.id, "employees", newEmployee.id), {
+      
+      // Convertir la date de naissance du format français vers ISO
+      const employeeData = {
         ...newEmployee,
+        dateOfBirth: convertFrenchDateToISO(newEmployee.dateOfBirth),
         contract: contractData,
         contractFile: null,
         department: newEmployee.department,
-      });
+      };
+      
+      await updateDoc(doc(db, "clients", companyData.id, "employees", newEmployee.id), employeeData);
       employeeId = newEmployee.id;
       toast.success("Employé modifié avec succès !");
     } else {
       console.log('[DEBUG] addEmployee: addDoc for new employee', newEmployee);
-      const docRef = await addDoc(collection(db, "clients", companyData.id, "employees"), {
+      
+      // Convertir la date de naissance du format français vers ISO
+      const employeeData = {
         ...newEmployee,
+        dateOfBirth: convertFrenchDateToISO(newEmployee.dateOfBirth),
         contract: contractData,
         contractFile: null,
         adminUid: auth.currentUser?.uid || null,
         payslips: [],
         createdAt: new Date().toISOString(),
         department: newEmployee.department,
-      });
+      };
+      
+      const docRef = await addDoc(collection(db, "clients", companyData.id, "employees"), employeeData);
       employeeId = docRef.id;
       toast.success("Employé ajouté avec succès !");
     }
@@ -1546,7 +1589,7 @@ const saveContract = async (contractData) => {
       doc.text(`Rapport RH - ${companyData.name}`, 10, 10);
       doc.setFontSize(12);
       doc.text(`Employés : ${companyData.currentUsers}/${companyData.licenseMaxUsers}`, 10, 20);
-      doc.text(`Date : ${new Date().toLocaleDateString("fr-FR")}`, 10, 30);
+              doc.text(`Date : ${displayDate(new Date())}`, 10, 30);
       autoTable(doc, {
         startY: 40,
         head: [["Nom", "Rôle", "Poste", "Congés restants", "Statut"]],
@@ -1575,7 +1618,7 @@ const saveContract = async (contractData) => {
           Rôle: emp.role,
           Poste: emp.poste,
           Département: emp.department || "N/A",
-          "Date d'embauche": new Date(emp.hireDate).toLocaleDateString(),
+          "Date d'embauche": displayHireDate(emp.hireDate),
           Statut: emp.status,
           "Solde Congés": emp.leaves.balance,
         }))
@@ -1602,7 +1645,7 @@ const saveContract = async (contractData) => {
         Rôle: emp.role,
         Poste: emp.poste,
         Département: emp.department || "N/A",
-        "Date d'embauche": new Date(emp.hireDate).toLocaleDateString(),
+        "Date d'embauche": displayHireDate(emp.hireDate),
         Statut: emp.status,
         "Solde Congés": emp.leaves.balance,
       }));
@@ -1933,7 +1976,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
           <h1 className="text-2xl font-bold text-gray-900 capitalize">{activeTab}</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500">
-              {new Date().toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+              {displayDateWithOptions(new Date(), { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
             </span>
             <div className="relative">
               <Bell className="w-6 h-6 text-blue-600" />
@@ -2137,7 +2180,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                     {filteredLeaveRequests.slice(0, 5).map((req, index) => (
                       <tr key={index} className="border-b border-gray-100 hover:bg-blue-50">
                         <td className="py-4 px-4">{employees.find((emp) => emp.id === req.employeeId)?.name}</td>
-                        <td className="py-4 px-4">{new Date(req.date).toLocaleDateString("fr-FR")}</td>
+                        <td className="py-4 px-4">{displayDate(req.date)}</td>
                           <td className="py-4 px-4">{req.days} jour(s)</td>
                         <td className="py-4 px-4">
                           <span
@@ -2191,7 +2234,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                               })()}
                             </td>
                             <td className="py-4 px-4 text-sm text-gray-600">
-                              {new Date(payslip.generatedAt).toLocaleDateString("fr-FR")}
+                              {displayGeneratedAt(payslip.generatedAt)}
                             </td>
                           </tr>
                         ));
@@ -2202,7 +2245,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
               </div>
               <Card title="Actions Rapides">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <Button onClick={() => setShowEmployeeModal(true)} className="p-4 bg-blue-50 hover:bg-blue-100 text-left">
+                  <Button onClick={() => setActiveTab("employees")} className="p-4 bg-blue-50 hover:bg-blue-100 text-left">
                     <Users className="w-8 h-8 text-blue-600 mb-2" />
                     <h3 className="font-semibold">Ajouter Employé</h3>
                     <p className="text-sm text-gray-600">Créer un nouveau profil</p>
@@ -2211,6 +2254,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                     setSelectedEmployee(null);
                     setShowPaySlipForm(true);
                     setPaySlipData(null);
+                    setActiveTab("payslips");
                   }} className="p-4 bg-green-50 hover:bg-green-100 text-left">
                     <CreditCard className="w-8 h-8 text-green-600 mb-2" />
                     <h3 className="font-semibold">Générer Fiche</h3>
@@ -2296,7 +2340,15 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                     <td className="py-4 px-4">{emp.poste || "N/A"}</td>
                     <td className="py-4 px-4">{emp.baseSalary ? emp.baseSalary.toLocaleString() : "0"} FCFA</td>
                     <td className="py-4 px-4 flex gap-2">
-                      <Button size="sm" icon={Eye} onClick={() => setSelectedEmployee(emp)}>Voir</Button>
+                      <Button size="sm" icon={Eye} onClick={() => {
+                        console.log('[DEBUG] Clic sur bouton Voir pour employé:', emp);
+                        try {
+                          setSelectedEmployee(emp);
+                        } catch (error) {
+                          console.error('[ERROR] Erreur lors du clic sur Voir:', error);
+                          toast.error('Erreur lors de l\'affichage des détails');
+                        }
+                      }}>Voir</Button>
                       <Button
                         size="sm"
                         icon={Edit}
@@ -2475,9 +2527,11 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
         <label className="block text-sm font-medium text-gray-600">Matricule</label>
         <input
           type="text"
+          placeholder="Entrez le matricule de l'employé"
           value={newEmployee.matricule || ''}
-          className="p-2 border border-blue-200 rounded-lg w-full bg-gray-100 cursor-not-allowed"
-          readOnly
+          onChange={(e) => setNewEmployee({ ...newEmployee, matricule: e.target.value })}
+          className="p-2 border border-blue-200 rounded-lg w-full"
+          required
         />
       </div>
       
@@ -2491,18 +2545,18 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
             <input
               type="text"
               placeholder="JJ/MM/AAAA (ex: 25/12/1990)"
-              value={newEmployee.dateNaissance}
+              value={newEmployee.dateOfBirth}
               onChange={e => {
-                const formatted = formatDateNaissanceInput(e.target.value);
-                setNewEmployee({ ...newEmployee, dateNaissance: formatted });
-                setDateNaissanceError(validateDateNaissance(formatted));
+                const formatted = formatDateOfBirthInput(e.target.value);
+                setNewEmployee({ ...newEmployee, dateOfBirth: formatted });
+                setDateOfBirthError(validateDateOfBirth(formatted));
               }}
-              className={`p-2 border ${dateNaissanceError ? 'border-red-400' : 'border-blue-200'} rounded-lg w-full`}
+              className={`p-2 border ${dateOfBirthError ? 'border-red-400' : 'border-blue-200'} rounded-lg w-full`}
               maxLength={10}
               autoComplete="off"
             />
-            {dateNaissanceError && (
-              <span className="text-red-500 text-xs">{dateNaissanceError}</span>
+            {dateOfBirthError && (
+              <span className="text-red-500 text-xs">{dateOfBirthError}</span>
             )}
           </div>
           
@@ -2636,6 +2690,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
 )}
 
 <Modal isOpen={selectedEmployee && !showPaySlipForm && !showContractForm && !showPaySlip && !showContract} onClose={() => {
+  console.log('[DEBUG] Fermeture modal employé');
   setSelectedEmployee(null);
   setShowPaySlipForm(false);
   setShowContractForm(false);
@@ -2645,29 +2700,31 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
 }}>
   {selectedEmployee && (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Détails de l'Employé</h2>
+      {console.log('[DEBUG] Affichage modal employé:', selectedEmployee)}
+      <h2 className="text-lg font-semibold">Détails de l'Employé - {selectedEmployee.name || 'N/A'}</h2>
       <img
         src={selectedEmployee.profilePicture || "https://ui-avatars.com/api/?name=Inconnu&background=60A5FA&color=fff"}
         alt={selectedEmployee.name || "Employé"}
         className="w-16 h-16 rounded-full mx-auto"
         onError={(e) => (e.target.src = "https://ui-avatars.com/api/?name=Inconnu&background=60A5FA&color=fff")}
       />
-      <p><strong>Nom:</strong> {selectedEmployee.name || "N/A"}</p>
-      <p><strong>Email:</strong> {selectedEmployee.email || "N/A"}</p>
-      <p><strong>Poste:</strong> {selectedEmployee.poste || "N/A"}</p>
-      <p><strong>Département:</strong> {selectedEmployee.department || "N/A"}</p>
-      <p><strong>Date d'embauche:</strong> {selectedEmployee.hireDate ? new Date(selectedEmployee.hireDate).toLocaleDateString("fr-FR") : "N/A"}</p>
-      <p><strong>Statut:</strong> {selectedEmployee.status || "N/A"}</p>
-      <p><strong>Numéro CNPS:</strong> {selectedEmployee.cnpsNumber || "N/A"}</p>
-      <p><strong>Catégorie:</strong> {selectedEmployee.professionalCategory || "N/A"}</p>
-      <p><strong>Salaire de base:</strong> {selectedEmployee.baseSalary ? selectedEmployee.baseSalary.toLocaleString() : "0"} FCFA</p>
-      <p><strong>Diplômes:</strong> {selectedEmployee.diplomas || "N/A"}</p>
-      <p><strong>Échelon:</strong> {selectedEmployee.echelon || "N/A"}</p>
-      <p><strong>Service:</strong> {selectedEmployee.service || "N/A"}</p>
-      <p><strong>Superviseur:</strong> {selectedEmployee.supervisor || "N/A"}</p>
-      <p><strong>Lieu de naissance:</strong> {selectedEmployee.placeOfBirth || "N/A"}</p>
-      <p><strong>Période d'essai:</strong> {selectedEmployee.hasTrialPeriod ? selectedEmployee.trialPeriodDuration || "N/A" : "Non"}</p>
-      <p><strong>Matricule:</strong> {selectedEmployee.matricule || 'N/A'}</p>
+              <p><strong>Nom:</strong> {selectedEmployee.name || "Non renseigné"}</p>
+        <p><strong>Email:</strong> {selectedEmployee.email || "Non renseigné"}</p>
+        <p><strong>Poste:</strong> {selectedEmployee.poste || "Non renseigné"}</p>
+      <p><strong>Département:</strong> {typeof displayDepartment === 'function' ? displayDepartment(selectedEmployee.department) : (selectedEmployee.department || "Non renseigné")}</p>
+      <p><strong>Date d'embauche:</strong> {typeof displayDate === 'function' ? displayDate(selectedEmployee.hireDate) : (selectedEmployee.hireDate || "Non renseigné")}</p>
+      <p><strong>Statut:</strong> {selectedEmployee.status || "Non renseigné"}</p>
+      <p><strong>Numéro CNPS:</strong> {typeof displayCNPSNumber === 'function' ? displayCNPSNumber(selectedEmployee.cnpsNumber) : (selectedEmployee.cnpsNumber || "Non renseigné")}</p>
+      <p><strong>Catégorie:</strong> {typeof displayProfessionalCategory === 'function' ? displayProfessionalCategory(selectedEmployee.professionalCategory) : (selectedEmployee.professionalCategory || "Non renseigné")}</p>
+      <p><strong>Salaire de base:</strong> {typeof displaySalary === 'function' ? displaySalary(selectedEmployee.baseSalary) : (selectedEmployee.baseSalary ? selectedEmployee.baseSalary.toLocaleString() : "Non renseigné")}</p>
+      <p><strong>Diplômes:</strong> {typeof displayDiplomas === 'function' ? displayDiplomas(selectedEmployee.diplomas) : (selectedEmployee.diplomas || "Non renseigné")}</p>
+      <p><strong>Échelon:</strong> {typeof displayEchelon === 'function' ? displayEchelon(selectedEmployee.echelon) : (selectedEmployee.echelon || "Non renseigné")}</p>
+      <p><strong>Service:</strong> {typeof displayService === 'function' ? displayService(selectedEmployee.service) : (selectedEmployee.service || "Non renseigné")}</p>
+      <p><strong>Superviseur:</strong> {typeof displaySupervisor === 'function' ? displaySupervisor(selectedEmployee.supervisor) : (selectedEmployee.supervisor || "Non renseigné")}</p>
+      <p><strong>Date de naissance:</strong> {typeof displayDateOfBirth === 'function' ? displayDateOfBirth(selectedEmployee.dateOfBirth) : (selectedEmployee.dateOfBirth || "Non renseigné")}</p>
+      <p><strong>Lieu de naissance:</strong> {typeof displayPlaceOfBirth === 'function' ? displayPlaceOfBirth(selectedEmployee.placeOfBirth) : (selectedEmployee.placeOfBirth || "Non renseigné")}</p>
+      <p><strong>Période d'essai:</strong> {selectedEmployee.hasTrialPeriod ? selectedEmployee.trialPeriodDuration || "Non renseignée" : "Non"}</p>
+      <p><strong>Matricule:</strong> {typeof displayMatricule === 'function' ? displayMatricule(selectedEmployee.matricule) : (selectedEmployee.matricule || "Non renseigné")}</p>
       <div className="flex gap-4">
         <Button
           onClick={() => {
@@ -2735,7 +2792,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
             <div>
               <p className="text-sm text-gray-600">Date de début</p>
               <p className="font-medium">
-                {selectedEmployee.contract?.startDate ? new Date(selectedEmployee.contract.startDate).toLocaleDateString('fr-FR') : 'Non définie'}
+                {displayContractStartDate(selectedEmployee.contract?.startDate)}
               </p>
             </div>
             <div>
@@ -2881,7 +2938,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                         {filteredLeaveRequests.map((req, index) => (
                           <tr key={index} className="border-b border-blue-100 hover:bg-blue-50">
                             <td className="py-4 px-4">{employees.find((emp) => emp.id === req.employeeId)?.name}</td>
-                            <td className="py-4 px-4">{new Date(req.date).toLocaleDateString("fr-FR")}</td>
+                            <td className="py-4 px-4">{displayDate(req.date)}</td>
                             <td className="py-4 px-4">{req.days} jour(s)</td>
                             <td className="py-4 px-4">{req.reason}</td>
                             <td className="py-4 px-4">
@@ -3061,7 +3118,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                           emp.absences?.map((abs, index) => (
                             <tr key={index} className="border-b border-blue-100 hover:bg-blue-50">
                               <td className="py-4 px-4">{emp.name}</td>
-                              <td className="py-4 px-4">{new Date(abs.date).toLocaleDateString("fr-FR")}</td>
+                              <td className="py-4 px-4">{displayDate(abs.date)}</td>
                               <td className="py-4 px-4">{abs.reason}</td>
                               <td className="py-4 px-4">{abs.duration} jour(s)</td>
                             </tr>
@@ -3206,7 +3263,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                         Fiche de paie - {payslip.payPeriod}
                       </h3>
                       <p className="text-sm text-gray-600">
-                        Générée le {new Date(payslip.generatedAt).toLocaleDateString('fr-FR')}
+                        Générée le {displayGeneratedAt(payslip.generatedAt)}
                       </p>
                       <p className="text-sm text-gray-600">
                         Salaire net: {payslip.deductions?.netToPay?.toLocaleString()} FCFA
@@ -3314,7 +3371,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                     <div>
                       <p className="text-sm text-gray-600">Date de génération</p>
                       <p className="font-medium">
-                        {new Date(selectedPaySlip.generatedAt).toLocaleDateString('fr-FR')}
+                        {displayGeneratedAt(selectedPaySlip.generatedAt)}
                       </p>
                     </div>
                   </div>
@@ -3752,14 +3809,111 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                   <option value="BadgeModel4">Vertical coloré</option>
                   <option value="BadgeModel5">Photo fond</option>
                 </select>
+                
+                <label className="font-semibold">Type de QR code :</label>
+                <select
+                  value={selectedQRType}
+                  onChange={e => setSelectedQRType(e.target.value)}
+                  className="border rounded px-2 py-1"
+                >
+                  <option value="userInfo">Informations utilisateur</option>
+                  <option value="vCard">Carte de contact (vCard)</option>
+                  <option value="url">URL simple</option>
+                </select>
               </div>
+              
+              {/* Section de test QR Code */}
+              <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+                <h3 className="text-lg font-semibold mb-3">Test QR Code</h3>
+                <p className="text-sm text-gray-600 mb-3">
+                  Scannez ce QR code avec votre téléphone pour tester la fonctionnalité :
+                </p>
+                <div className="flex items-center gap-4">
+                  {employees.length > 0 && (
+                    <>
+                      <div className="bg-white p-2 rounded">
+                        <QRCodeCanvas 
+                          value={(() => {
+                            switch(selectedQRType) {
+                              case "userInfo":
+                                return generateUserInfoQRCode(employees[0], companyData);
+                              case "vCard":
+                                return generateVCardQRCode(employees[0], companyData);
+                              case "url":
+                                return generateQRCodeUrl(employees[0], companyData);
+                              default:
+                                return generateUserInfoQRCode(employees[0], companyData);
+                            }
+                          })()} 
+                          size={120} 
+                          level="M"
+                          includeMargin={true}
+                        />
+                      </div>
+                      <div className="text-sm">
+                        <p><strong>Employé test :</strong> {employees[0].name}</p>
+                        <p><strong>Matricule :</strong> {employees[0].matricule || employees[0].id}</p>
+                        <p><strong>Poste :</strong> {employees[0].poste}</p>
+                        <p><strong>Type QR :</strong> {
+                          selectedQRType === "userInfo" ? "Informations utilisateur" :
+                          selectedQRType === "vCard" ? "Carte de contact" :
+                          "URL simple"
+                        }</p>
+                        <div className="mt-2">
+                          <UserInfoDisplay 
+                            userData={(() => {
+                              switch(selectedQRType) {
+                                case "userInfo":
+                                  return {
+                                    nom: employees[0].name,
+                                    matricule: employees[0].matricule || employees[0].id,
+                                    poste: employees[0].poste,
+                                    entreprise: companyData?.name,
+                                    email: employees[0].email,
+                                    telephone: employees[0].phone,
+                                    departement: employees[0].department,
+                                    dateEmbauche: employees[0].hireDate,
+                                    statut: employees[0].status || "Actif"
+                                  };
+                                default:
+                                  return null;
+                              }
+                            })()}
+                            qrType={selectedQRType}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div className="mt-4">
+                  <button
+                    onClick={() => setShowQRScanner(true)}
+                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                  >
+                    Tester le Scanner QR Code
+                  </button>
+                </div>
+              </div>
+              
               <div className="space-y-8">
                 {employees.map(emp => (
                   <ExportBadgePDF
                     key={emp.id}
                     employee={emp}
                     companyData={companyData}
-                    qrCodeUrl={`https://prhm.app/employee/${emp.id}`}
+                    qrCodeUrl={(() => {
+                      switch(selectedQRType) {
+                        case "userInfo":
+                          return generateUserInfoQRCode(emp, companyData);
+                        case "vCard":
+                          return generateVCardQRCode(emp, companyData);
+                        case "url":
+                          return generateQRCodeUrl(emp, companyData);
+                        default:
+                          return generateUserInfoQRCode(emp, companyData);
+                      }
+                    })()}
                     initialModel={selectedBadgeModel}
                     onSaveBadgeImage={async (employeeId, dataUrl) => {
                       // Exemple de sauvegarde Firestore (à adapter selon ta logique)
@@ -3789,6 +3943,18 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
           )}
         </main>
       </div>
+      
+      {/* Scanner QR Code Modal */}
+      {showQRScanner && (
+        <QRCodeScanner
+          onScan={(data) => {
+            console.log('QR Code scanné:', data);
+            toast.success(`QR Code de ${data.employeeName} scanné avec succès !`);
+            setShowQRScanner(false);
+          }}
+          onClose={() => setShowQRScanner(false)}
+        />
+      )}
     </div>
   );
 };

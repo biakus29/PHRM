@@ -1,5 +1,7 @@
 import React from "react";
 import { QrCode, User, BadgeCheck, Building2, AtSign } from "lucide-react";
+import { QRCodeCanvas } from "qrcode.react";
+import { generateQRCodeUrl } from "../utils/qrCodeUtils";
 
 // Utilitaire pour récupérer le logo comme pour les fiches de paie/contrats
 const getCompanyLogo = (companyData) => {
@@ -32,13 +34,20 @@ const LogoCircle = ({ companyData, color }) => {
   );
 };
 
-// Modèle 1 : Moderne (correction QR code)
+// Modèle 1 : Moderne (QR code scannable)
 export const BadgeModel1 = ({ employee, companyData, qrCodeUrl, color = '#3B82F6', showPoste = true, customText = '' }) => (
   <div className="w-80 h-52 rounded-2xl shadow-2xl flex flex-row overflow-hidden">
     {/* Bandeau vertical gauche */}
     <div className="w-16 flex flex-col items-center justify-start py-4 bg-gradient-to-b" style={{ background: `linear-gradient(to bottom, ${color}, #fff)` }}>
       <div className="mb-2"><LogoCircle companyData={companyData} color={color} /></div>
-      <QrCode className="w-10 h-10 mt-2" style={{ color }} />
+      <div className="mt-2 bg-white p-1 rounded">
+        <QRCodeCanvas 
+          value={qrCodeUrl || generateQRCodeUrl(employee, companyData)} 
+          size={40} 
+          level="M"
+          includeMargin={false}
+        />
+      </div>
     </div>
     {/* Contenu principal */}
     <div className="flex-1 bg-white flex flex-col items-center justify-between p-4 rounded-r-2xl min-w-0 pb-2">
@@ -55,14 +64,21 @@ export const BadgeModel1 = ({ employee, companyData, qrCodeUrl, color = '#3B82F6
   </div>
 );
 
-// Modèle 2 : Carte blanche avec bandeau coloré
+// Modèle 2 : Carte blanche avec bandeau coloré (QR code scannable)
 export const BadgeModel2 = ({ employee, companyData, qrCodeUrl, color = '#3B82F6', showPoste = true, customText = '' }) => (
   <div className="w-80 h-52 rounded-xl shadow-lg bg-white border border-blue-200 flex flex-col overflow-hidden">
     {/* Bandeau supérieur */}
     <div className="rounded-t-xl h-14 flex items-center px-4 justify-between min-w-0" style={{ background: color, minHeight: '3.5rem' }}>
       <div className="shrink-0 bg-white rounded-full"><LogoCircle companyData={companyData} color={color} /></div>
       <span className="text-white font-bold text-lg flex-1 text-center truncate whitespace-nowrap">{companyData.name}</span>
-      <QrCode className="w-6 h-6 text-white shrink-0" />
+      <div className="shrink-0 bg-white p-1 rounded">
+        <QRCodeCanvas 
+          value={qrCodeUrl || generateQRCodeUrl(employee, companyData)} 
+          size={24} 
+          level="M"
+          includeMargin={false}
+        />
+      </div>
     </div>
     {/* Contenu principal */}
     <div className="flex flex-1 flex-row items-center px-4 py-2 gap-4 overflow-hidden min-w-0 md:flex-row flex-col md:items-center md:justify-start">
@@ -80,7 +96,7 @@ export const BadgeModel2 = ({ employee, companyData, qrCodeUrl, color = '#3B82F6
   </div>
 );
 
-// Modèle 3 : Minimaliste fond gris (correction débordement)
+// Modèle 3 : Minimaliste fond gris (QR code scannable)
 export const BadgeModel3 = ({ employee, companyData, qrCodeUrl, color = '#3B82F6', showPoste = true, customText = '' }) => (
   <div className="w-80 h-52 rounded-2xl shadow bg-gray-100 flex flex-col items-center justify-between p-6 relative min-w-0 py-3 overflow-hidden">
     {/* Logo en haut à gauche */}
@@ -98,18 +114,30 @@ export const BadgeModel3 = ({ employee, companyData, qrCodeUrl, color = '#3B82F6
       {customText && <p className="text-xs text-gray-700 mt-1 font-semibold max-w-[120px] truncate mx-auto" style={{ color }}>{customText}</p>}
     </div>
     {/* QR code en bas à droite */}
-    <div className="absolute bottom-3 right-3 z-10">
-      <QrCode className="w-8 h-8" style={{ color }} />
+    <div className="absolute bottom-3 right-3 z-10 bg-white p-1 rounded">
+      <QRCodeCanvas 
+        value={qrCodeUrl || generateQRCodeUrl(employee, companyData)} 
+        size={32} 
+        level="M"
+        includeMargin={false}
+      />
     </div>
   </div>
 );
 
-// Modèle 4 : Bandeau vertical coloré
+// Modèle 4 : Bandeau vertical coloré (QR code scannable)
 export const BadgeModel4 = ({ employee, companyData, qrCodeUrl, color = '#A21CAF', showPoste = true, customText = '' }) => (
   <div className="w-80 h-52 rounded-xl shadow-lg flex flex-row overflow-hidden">
     <div className="bg-gradient-to-b from-purple-600 to-pink-400 w-20 flex flex-col items-center justify-between py-4" style={{ background: color }}>
       <LogoCircle companyData={companyData} color={color} />
-      <QrCode className="w-6 h-6 text-white" />
+      <div className="bg-white p-1 rounded">
+        <QRCodeCanvas 
+          value={qrCodeUrl || generateQRCodeUrl(employee, companyData)} 
+          size={24} 
+          level="M"
+          includeMargin={false}
+        />
+      </div>
     </div>
     <div className="flex-1 bg-white flex flex-col justify-center items-center p-4">
       <img src={employee.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(employee.name)}`} alt={employee.name} className="w-16 h-16 rounded-full border-2 border-purple-400 object-cover" />
@@ -121,7 +149,7 @@ export const BadgeModel4 = ({ employee, companyData, qrCodeUrl, color = '#A21CAF
   </div>
 );
 
-// Modèle 5 : Carte colorée avec photo en fond
+// Modèle 5 : Carte colorée avec photo en fond (QR code scannable)
 export const BadgeModel5 = ({ employee, companyData, qrCodeUrl, color = '#059669', showPoste = true, customText = '' }) => (
   <div className="w-80 h-52 rounded-2xl shadow-xl relative overflow-hidden bg-gradient-to-tr from-emerald-400 to-cyan-400">
     <div className="absolute top-4 left-4 z-20">
@@ -131,7 +159,14 @@ export const BadgeModel5 = ({ employee, companyData, qrCodeUrl, color = '#059669
     <div className="relative z-10 flex flex-col h-full justify-between p-4">
       <div className="flex justify-between items-center">
         <div />
-        <QrCode className="w-6 h-6 text-white" />
+        <div className="bg-white p-1 rounded">
+          <QRCodeCanvas 
+            value={qrCodeUrl || generateQRCodeUrl(employee, companyData)} 
+            size={24} 
+            level="M"
+            includeMargin={false}
+          />
+        </div>
       </div>
       <div className="flex flex-col items-center">
         <h3 className="text-white font-bold text-xl drop-shadow" style={{ color }}>{employee.name}</h3>

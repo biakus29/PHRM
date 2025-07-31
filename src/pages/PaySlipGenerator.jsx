@@ -3,6 +3,7 @@ import styled from "styled-components";
 import { FiFileText, FiX, FiFile, FiUpload } from "react-icons/fi";
 import { toast } from "react-toastify";
 import { jsPDF } from "jspdf";
+import { displayDateWithOptions } from "../utils/displayUtils";
 
 // Fonction utilitaire pour échapper le texte
 const escapeText = (str) => (str ? String(str).replace(/[\n\r]/g, " ") : "");
@@ -75,7 +76,7 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
     trialPeriod: employee.contract?.trialPeriod || "1 mois",
     workLocation: employee.contract?.workLocation || "Yaoundé", // Mis à jour avec le PDF
     contractType: employee.contract?.contractType || "CDI",
-    employeeDOB: employee.contract?.employeeDOB || "2025-06-02", // Mis à jour avec le PDF
+    employeeDOB: employee.dateOfBirth || employee.contract?.employeeDOB || "2025-06-02", // Mis à jour avec le PDF
     employeeFather: employee.contract?.employeeFather || "bbb",
     employeeMother: employee.contract?.employeeMother || "bbb",
     employeeResidence: employee.contract?.employeeResidence || "bbb",
@@ -312,7 +313,7 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
       employee: {
         lastName: employee.name?.split(" ")[1] || "TEST123",
         firstName: employee.name?.split(" ")[0] || "",
-        matricule: employee.id || "1229",
+        matricule: employee.matricule || "N/A",
         professionalClassification: employee.poste || "DRH",
         diplomas: formData.diplomas || "Non spécifié",
         echelon: formData.echelon || "Non spécifié",
@@ -760,7 +761,7 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
       doc.setFont("helvetica", "normal");
       doc.text(`Période: ${paySlipData.payPeriod}`, leftMargin, y);
       y += lineHeight;
-      doc.text(`Généré le: ${new Date(paySlipData.generatedAt).toLocaleString("fr-FR")}`, leftMargin, y);
+      doc.text(`Généré le: ${displayDateWithOptions(paySlipData.generatedAt)}`, leftMargin, y);
 
       doc.save(`fiche_paie_${paySlipData.employee.firstName}_${paySlipData.employee.lastName}_${paySlipData.payPeriod}.pdf`);
       console.log("[PaySlipGenerator] Fiche de paie PDF sauvegardée");

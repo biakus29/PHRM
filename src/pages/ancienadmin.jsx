@@ -45,6 +45,7 @@ import {
 } from "react-icons/fi";
 import EmployeeCard from "../compoments/card";
 import PaySlipGenerator from "./PaySlipGenerator";
+import { normalizeEmployeeData } from "../utils/displayUtils";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
@@ -381,10 +382,13 @@ const savePaySlip = useCallback(async (employeeId, paySlipData) => {
           const unsubscribe = onSnapshot(
             collection(db, "clients", companyId, "employees"),
             (snapshot) => {
-              const employeesData = snapshot.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-              }));
+              const employeesData = snapshot.docs.map((doc) => {
+                const employeeData = {
+                  id: doc.id,
+                  ...doc.data(),
+                };
+                return normalizeEmployeeData(employeeData);
+              });
               setEmployees(employeesData);
               console.log(`[fetchData] ${employeesData.length} employés chargés`);
               setLoading(false);

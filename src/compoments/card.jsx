@@ -3,6 +3,7 @@ import React from "react";
 import styled from "styled-components";
 import { FiEdit, FiTrash, FiCalendar, FiUpload, FiFileText, FiFile } from "react-icons/fi";
 import PropTypes from "prop-types";
+import { displayDepartment, displayMatricule, displayPhone, displayGeneratedAt } from "../utils/displayUtils";
 
 const EmployeeCard = ({
   employee,
@@ -61,15 +62,18 @@ const EmployeeCard = ({
             {poste} - {role}
             <p>
               Email: {email} <br />
+              Téléphone: {displayPhone(employee.phone)} <br />
+              Département: {displayDepartment(employee.department)} <br />
+              Matricule: {displayMatricule(employee.matricule)} <br />
               Solde Congés: {leaves.balance} jours <br />
               Dernière Fiche:{" "}
               {payslips.length > 0 && payslips[0]?.date
-                ? new Date(payslips[0].date).toLocaleDateString("fr-FR")
+                ? displayGeneratedAt(payslips[0].date)
                 : "Aucune"}{" "}
               <br />
               Contrat:{" "}
               {contract?.generatedAt
-                ? `Généré le ${new Date(contract.generatedAt).toLocaleDateString("fr-FR")}`
+                ? `Généré le ${displayGeneratedAt(contract.generatedAt)}`
                 : "Aucun"}
             </p>
           </div>

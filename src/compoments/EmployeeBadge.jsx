@@ -5,10 +5,11 @@ import { toast } from "react-toastify";
 import { FiDownload } from "react-icons/fi";
 import { cacheLogo } from "../utils/logoUtils";
 import { generateBadgePDF } from "../utils/pdfUtils";
+import { generateQRCodeUrl } from "../utils/qrCodeUtils";
 import Button from "./Button";
 
 const EmployeeBadge = ({ employee, companyData, animationDelay, actionLoading }) => {
-  const qrCodeUrl = `https://yourapp.com/employee/${employee.id}`;
+  const qrCodeUrl = generateQRCodeUrl(employee, companyData);
   const [logoData] = useState(cacheLogo(companyData.id));
 
   return (
@@ -43,11 +44,11 @@ const EmployeeBadge = ({ employee, companyData, animationDelay, actionLoading })
           <h3 className="text-lg font-semibold">{employee.name}</h3>
           <p className="text-sm text-gray-600">{employee.poste}</p>
           <p className="text-sm text-gray-600">{employee.department || "N/A"}</p>
-          <p className="text-xs text-gray-500">Matricule: {employee.id.slice(0, 8)}</p>
+          <p className="text-xs text-gray-500">Matricule: {employee.matricule || "N/A"}</p>
         </div>
       </div>
       <div className="flex justify-end">
-        <QRCodeCanvas id={`qr-${employee.id}`} value={qrCodeUrl} size={80} />
+        <QRCodeCanvas id={`qr-${employee.matricule || employee.id}`} value={qrCodeUrl} size={80} />
       </div>
       <Button
         onClick={() => generateBadgePDF(employee, companyData)}

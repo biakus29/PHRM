@@ -1,5 +1,5 @@
 // src/components/DocumentGeneration.jsx
-import React, { useState, useCallback } from "react";
+import React, { useState } from "react";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { toast } from "react-toastify";
@@ -8,6 +8,7 @@ import { generateAllBadgesPDF, generatePDFReport } from "../utils/pdfUtils";
 import EmployeeBadge from "../compoments/EmployeeBadge";
 import Button from "../compoments/Button";
 import Card from "../compoments/card";
+import { displayHireDate, displayGeneratedAt } from "../utils/displayUtils";
 
 const DocumentGeneration = ({ companyData, employees, actionLoading, setActionLoading }) => {
   const [progress, setProgress] = useState(0);
@@ -24,14 +25,14 @@ const DocumentGeneration = ({ companyData, employees, actionLoading, setActionLo
           Poste: emp.poste,
           Téléphone: emp.phone || "N/A",
           Département: emp.department || "N/A",
-          "Date d'embauche": new Date(emp.hireDate).toLocaleDateString("fr-FR"),
+          "Date d'embauche": displayHireDate(emp.hireDate),
           Statut: emp.status,
           "Solde Congés": emp.leaves?.balance || 0,
           Absences: emp.absences?.length || 0,
           "Numéro CNPS": emp.cnpsNumber || "N/A",
           "Catégorie Professionnelle": emp.professionalCategory || "N/A",
-          "Dernière Fiche de Paie": emp.payslips?.[0]?.date ? new Date(emp.payslips[0].date).toLocaleDateString("fr-FR") : "Aucune",
-          "Contrat Généré": emp.contract ? new Date(emp.contract.generatedAt).toLocaleDateString("fr-FR") : "Aucun",
+          "Dernière Fiche de Paie": emp.payslips?.[0]?.date ? displayGeneratedAt(emp.payslips[0].date) : "Aucune",
+          "Contrat Généré": emp.contract ? displayGeneratedAt(emp.contract.generatedAt) : "Aucun",
         }))
       );
       const workbook = XLSX.utils.book_new();
@@ -58,14 +59,14 @@ const DocumentGeneration = ({ companyData, employees, actionLoading, setActionLo
         Poste: emp.poste,
         Téléphone: emp.phone || "N/A",
         Département: emp.department || "N/A",
-        "Date d'embauche": new Date(emp.hireDate).toLocaleDateString("fr-FR"),
+        "Date d'embauche": displayHireDate(emp.hireDate),
         Statut: emp.status,
         "Solde Congés": emp.leaves?.balance || 0,
         Absences: emp.absences?.length || 0,
         "Numéro CNPS": emp.cnpsNumber || "N/A",
         "Catégorie Professionnelle": emp.professionalCategory || "N/A",
-        "Dernière Fiche de Paie": emp.payslips?.[0]?.date ? new Date(emp.payslips[0].date).toLocaleDateString("fr-FR") : "Aucune",
-        "Contrat Généré": emp.contract ? new Date(emp.contract.generatedAt).toLocaleDateString("fr-FR") : "Aucun",
+        "Dernière Fiche de Paie": emp.payslips?.[0]?.date ? displayGeneratedAt(emp.payslips[0].date) : "Aucune",
+        "Contrat Généré": emp.contract ? displayGeneratedAt(emp.contract.generatedAt) : "Aucun",
       }));
       const csv = Papa.unparse(csvData);
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });

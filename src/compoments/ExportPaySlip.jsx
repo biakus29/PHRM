@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'react-toastify';
+import { displayGeneratedAt, displayDate } from "../utils/displayUtils";
 
 const REQUIRED_FIELDS = [
   { key: 'employee.name', label: "Nom de l'employé" },
@@ -121,7 +122,7 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
       doc.setFont('times', 'normal');
       doc.setFontSize(8);
       const periodText = `Période: ${payslip.payPeriod}`;
-      const dateText = `Généré le: ${new Date(payslip.generatedAt).toLocaleDateString('fr-FR')}`;
+      const dateText = `Généré le: ${displayDate(payslip.generatedAt)}`;
       const periodWidth = doc.getTextWidth(periodText);
       const dateWidth = doc.getTextWidth(dateText);
       
@@ -250,7 +251,7 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
       // 7. SIGNATURES ET DATE
       doc.setFont('times', 'normal');
       doc.setFontSize(8);
-      const signatureText = `Fait à ${employerAddress || 'Yaoundé'}, le ${new Date().toLocaleDateString('fr-FR')}`;
+      const signatureText = `Fait à ${employerAddress || 'Yaoundé'}, le ${displayDate(new Date())}`;
       doc.text(signatureText, margin, y);
       y += 10;
       
