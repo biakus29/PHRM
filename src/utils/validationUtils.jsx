@@ -10,7 +10,6 @@ export const validateEmployeeData = (employeeData) => {
     { key: "matricule", label: "Matricule" },
     { key: "poste", label: "Poste" },
     { key: "hireDate", label: "Date d'embauche" },
-    { key: "dateOfBirth", label: "Date de naissance" },
     { key: "cnpsNumber", label: "Numéro CNPS" },
     { key: "professionalCategory", label: "Catégorie professionnelle" },
     { key: "baseSalary", label: "Salaire de base" }
@@ -27,27 +26,12 @@ export const validateEmployeeData = (employeeData) => {
     errors.push("L'adresse email n'est pas dans un format valide (exemple: nom@domaine.com).");
   }
 
-  // Validation du téléphone seulement s'il est fourni
-  if (employeeData.phone && employeeData.phone.trim() && !/^\+?\d{7,}$/.test(employeeData.phone)) {
+  if (employeeData.phone && !/^\+?\d{7,}$/.test(employeeData.phone)) {
     errors.push("Le numéro de téléphone doit contenir au moins 7 chiffres et peut commencer par un '+' (exemple: +237612345678).");
   }
 
   if (employeeData.baseSalary && (isNaN(employeeData.baseSalary) || Number(employeeData.baseSalary) <= 0)) {
     errors.push("Le salaire de base doit être un montant valide supérieur à 0 FCFA.");
-  }
-
-  // Validation de la date de naissance
-  if (employeeData.dateOfBirth) {
-    const birthDate = new Date(employeeData.dateOfBirth);
-    if (isNaN(birthDate.getTime())) {
-      errors.push("La date de naissance n'est pas dans un format valide.");
-    } else {
-      const today = new Date();
-      const age = today.getFullYear() - birthDate.getFullYear();
-      if (age < 16 || age > 100) {
-        errors.push("La date de naissance doit correspondre à un âge entre 16 et 100 ans.");
-      }
-    }
   }
 
   if (errors.length > 0) {

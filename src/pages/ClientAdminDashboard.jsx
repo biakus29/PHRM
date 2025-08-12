@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import TemplateSelector from "../components/TemplateSelector";
 import { createRoot } from "react-dom/client";
 import { auth, db } from "../firebase";
 import {
@@ -75,6 +76,7 @@ import { toPng } from "html-to-image";
 import ExportBadgePDF from "../compoments/ExportBadgePDF";
 import CotisationCNPS from "../compoments/CotisationCNPS";
 import { displayDepartment, displayMatricule, displayPhone, displayCNPSNumber, displayProfessionalCategory, displaySalary, displayDate, displayDiplomas, displayEchelon, displayService, displaySupervisor, displayPlaceOfBirth, displayDateOfBirth, displayDateWithOptions, displayGeneratedAt, displayHireDate, displayContractStartDate, displayContractEndDate, displayLicenseExpiry, normalizeEmployeeData } from "../utils/displayUtils";
+import { generatePaySlipData, PAYSLIP_TEMPLATE_CONFIGS } from "../utils/paySlipTemplates";
 import { generateQRCodeUrl, generateUserInfoQRCode, generateVCardQRCode } from "../utils/qrCodeUtils";
 import QRCodeScanner from "../compoments/QRCodeScanner";
 import UserInfoDisplay from "../compoments/UserInfoDisplay";
@@ -106,7 +108,7 @@ function removeUndefined(obj) {
   return obj;
 }
 // Composant PaySlipGenerator (adapté de l'ancien code)
-const PaySlipGenerator = ({ employee, company, initialData, onSave, onCancel, actionLoading, updateEmployee, setSelectedEmployee }) => {
+const PaySlipGenerator = ({ employee, company, initialData, selectedTemplate = "template1", onSave, onCancel, actionLoading, updateEmployee, setSelectedEmployee }) => {
   const [formData, setFormData] = React.useState({
     payPeriod: initialData?.payPeriod || '',
     salaryDetails: {
@@ -935,6 +937,674 @@ const Modal = ({ isOpen, onClose, children }) => {
   );
 };
 
+// Liste des postes d'emploi suggérés
+const POSTES_EMPLOI = [
+  "Ingénieur",
+  "Magasinier",
+  "Auditeur",
+  "Assistant",
+  "Directeur",
+  "Comptable",
+  "Secrétaire",
+  "Technicien",
+  "Chef de projet",
+  "Analyste",
+  "Développeur",
+  "Designer",
+  "Marketing",
+  "Commercial",
+  "RH",
+  "Juriste",
+  "Architecte",
+  "Médecin",
+  "Infirmier",
+  "Pharmacien",
+  "Enseignant",
+  "Formateur",
+  "Conducteur",
+  "Chauffeur",
+  "Garde",
+  "Agent de sécurité",
+  "Cuisinier",
+  "Serveur",
+  "Réceptionniste",
+  "Gestionnaire",
+  "Superviseur",
+  "Coordinateur",
+  "Consultant",
+  "Expert",
+  "Spécialiste",
+  "Responsable",
+  "Chef de service",
+  "Chef de département",
+  "Directeur général",
+  "Directeur technique",
+  "Directeur commercial",
+  "Directeur financier",
+  "Directeur RH",
+  "Directeur marketing",
+  "Directeur opérationnel",
+  "PDG",
+  "Président",
+  "Vice-président",
+  "Administrateur",
+  "Manager",
+  "Team Leader",
+  "Lead Developer",
+  "DevOps",
+  "Data Scientist",
+  "Data Analyst",
+  "Business Analyst",
+  "Product Manager",
+  "Scrum Master",
+  "Agile Coach",
+  "UX/UI Designer",
+  "Graphiste",
+  "Rédacteur",
+  "Traducteur",
+  "Interprète",
+  "Journaliste",
+  "Photographe",
+  "Vidéaste",
+  "Monteur",
+  "Sound Designer",
+  "Architecte d'information",
+  "UX Researcher",
+  "Product Owner",
+  "Business Developer",
+  "Sales Manager",
+  "Account Manager",
+  "Customer Success",
+  "Support technique",
+  "Help Desk",
+  "Système d'information",
+  "Administrateur système",
+  "Network Engineer",
+  "Cybersecurity",
+  "Data Engineer",
+  "Machine Learning Engineer",
+  "AI Engineer",
+  "Blockchain Developer",
+  "Mobile Developer",
+  "Frontend Developer",
+  "Backend Developer",
+  "Full Stack Developer",
+  "QA Engineer",
+  "Test Engineer",
+  "DevOps Engineer",
+  "Site Reliability Engineer",
+  "Cloud Engineer",
+  "Infrastructure Engineer",
+  "Database Administrator",
+  "Data Architect",
+  "Solution Architect",
+  "Enterprise Architect",
+  "Technical Lead",
+  "Engineering Manager",
+  "CTO",
+  "CIO",
+  "CFO",
+  "COO",
+  "CEO"
+];
+
+// Liste des catégories professionnelles suggérées
+const CATEGORIES_PROFESSIONNELLES = [
+  "Cadre supérieur",
+  "Cadre moyen",
+  "Agent de maîtrise",
+  "Employé qualifié",
+  "Employé non qualifié",
+  "Ouvrier qualifié",
+  "Ouvrier non qualifié",
+  "Stagiaire",
+  "Apprenti",
+  "Dirigeant",
+  "Manager",
+  "Superviseur",
+  "Technicien",
+  "Spécialiste",
+  "Expert",
+  "Consultant",
+  "Formateur",
+  "Animateur",
+  "Coordinateur",
+  "Chef d'équipe",
+  "Responsable",
+  "Directeur",
+  "Administrateur",
+  "Gestionnaire",
+  "Assistant",
+  "Secrétaire",
+  "Réceptionniste",
+  "Comptable",
+  "Analyste",
+  "Développeur",
+  "Designer",
+  "Ingénieur",
+  "Architecte",
+  "Médecin",
+  "Infirmier",
+  "Pharmacien",
+  "Enseignant",
+  "Formateur",
+  "Commercial",
+  "Vendeur",
+  "Chauffeur",
+  "Conducteur",
+  "Agent de sécurité",
+  "Garde",
+  "Cuisinier",
+  "Serveur",
+  "Nettoyeur",
+  "Manutentionnaire",
+  "Magasinier",
+  "Livreur",
+  "Messager",
+  "Téléopérateur",
+  "Opérateur",
+  "Contrôleur",
+  "Auditeur",
+  "Inspecteur",
+  "Juriste",
+  "Avocat",
+  "Notaire",
+  "Huissier",
+  "Expert-comptable",
+  "Commissaire aux comptes",
+  "Actuaire",
+  "Statisticien",
+  "Économiste",
+  "Sociologue",
+  "Psychologue",
+  "Travailleur social",
+  "Éducateur",
+  "Animateur socioculturel",
+  "Journaliste",
+  "Rédacteur",
+  "Traducteur",
+  "Interprète",
+  "Photographe",
+  "Vidéaste",
+  "Monteur",
+  "Graphiste",
+  "Web designer",
+  "UX/UI Designer",
+  "Sound Designer",
+  "Architecte d'information",
+  "Product Manager",
+  "Scrum Master",
+  "Agile Coach",
+  "Business Analyst",
+  "Data Analyst",
+  "Data Scientist",
+  "Data Engineer",
+  "Machine Learning Engineer",
+  "AI Engineer",
+  "DevOps Engineer",
+  "Site Reliability Engineer",
+  "Cloud Engineer",
+  "Infrastructure Engineer",
+  "Network Engineer",
+  "Cybersecurity Engineer",
+  "Database Administrator",
+  "System Administrator",
+  "Technical Lead",
+  "Engineering Manager",
+  "CTO",
+  "CIO",
+  "CFO",
+  "COO",
+  "CEO"
+];
+
+// Liste des départements suggérés
+const DEPARTEMENTS = [
+  "Direction générale",
+  "Direction administrative",
+  "Direction financière",
+  "Direction commerciale",
+  "Direction technique",
+  "Direction RH",
+  "Direction marketing",
+  "Direction opérationnelle",
+  "Direction stratégique",
+  "Direction juridique",
+  "Direction informatique",
+  "Direction qualité",
+  "Direction sécurité",
+  "Direction logistique",
+  "Direction production",
+  "Direction maintenance",
+  "Direction achats",
+  "Direction ventes",
+  "Direction export",
+  "Direction import",
+  "Direction recherche",
+  "Direction développement",
+  "Direction innovation",
+  "Direction formation",
+  "Direction communication",
+  "Direction relations publiques",
+  "Direction événementiel",
+  "Direction médicale",
+  "Direction pharmaceutique",
+  "Direction hospitalière",
+  "Direction éducative",
+  "Direction pédagogique",
+  "Direction académique",
+  "Direction scientifique",
+  "Direction recherche et développement",
+  "Direction innovation technologique",
+  "Direction transformation digitale",
+  "Direction data",
+  "Direction analytics",
+  "Direction intelligence artificielle",
+  "Direction cybersécurité",
+  "Direction cloud",
+  "Direction infrastructure",
+  "Direction réseau",
+  "Direction système",
+  "Direction base de données",
+  "Direction développement logiciel",
+  "Direction test",
+  "Direction qualité logicielle",
+  "Direction support technique",
+  "Direction help desk",
+  "Direction service client",
+  "Direction expérience utilisateur",
+  "Direction design",
+  "Direction créative",
+  "Direction contenu",
+  "Direction média",
+  "Direction audiovisuel",
+  "Direction photographie",
+  "Direction vidéo",
+  "Direction son",
+  "Direction graphisme",
+  "Direction web",
+  "Direction mobile",
+  "Direction e-commerce",
+  "Direction digital",
+  "Direction transformation",
+  "Direction changement",
+  "Direction projet",
+  "Direction programme",
+  "Direction portefeuille",
+  "Direction agilité",
+  "Direction scrum",
+  "Direction lean",
+  "Direction six sigma",
+  "Direction excellence opérationnelle",
+  "Direction performance",
+  "Direction optimisation",
+  "Direction efficacité",
+  "Direction productivité",
+  "Direction rentabilité",
+  "Direction ROI",
+  "Direction KPI",
+  "Direction métriques",
+  "Direction reporting",
+  "Direction tableau de bord",
+  "Direction business intelligence",
+  "Direction data warehouse",
+  "Direction data lake",
+  "Direction big data",
+  "Direction machine learning",
+  "Direction deep learning",
+  "Direction computer vision",
+  "Direction traitement du langage naturel",
+  "Direction chatbot",
+  "Direction robotique",
+  "Direction automatisation",
+  "Direction RPA",
+  "Direction workflow",
+  "Direction processus",
+  "Direction procédure",
+  "Direction méthodologie",
+  "Direction framework",
+  "Direction standard",
+  "Direction norme",
+  "Direction certification",
+  "Direction accréditation",
+  "Direction audit",
+  "Direction conformité",
+  "Direction réglementation",
+  "Direction législation",
+  "Direction droit",
+  "Direction juridique",
+  "Direction contentieux",
+  "Direction litige",
+  "Direction arbitrage",
+  "Direction médiation",
+  "Direction négociation",
+  "Direction partenariat",
+  "Direction alliance",
+  "Direction joint-venture",
+  "Direction fusion-acquisition",
+  "Direction restructuration",
+  "Direction réorganisation",
+  "Direction downsizing",
+  "Direction upscaling",
+  "Direction croissance",
+  "Direction expansion",
+  "Direction internationalisation",
+  "Direction mondialisation",
+  "Direction localisation",
+  "Direction adaptation",
+  "Direction personnalisation",
+  "Direction sur-mesure",
+  "Direction customisation",
+  "Direction configuration",
+  "Direction paramétrage",
+  "Direction intégration",
+  "Direction migration",
+  "Direction transition",
+  "Direction transformation",
+  "Direction modernisation",
+  "Direction digitalisation",
+  "Direction automatisation",
+  "Direction robotisation",
+  "Direction intelligence artificielle",
+  "Direction machine learning",
+  "Direction deep learning",
+  "Direction data science",
+  "Direction analytics",
+  "Direction business intelligence",
+  "Direction reporting",
+  "Direction dashboard",
+  "Direction KPI",
+  "Direction métriques",
+  "Direction performance",
+  "Direction optimisation",
+  "Direction efficacité",
+  "Direction productivité",
+  "Direction rentabilité",
+  "Direction ROI",
+  "Direction coût",
+  "Direction budget",
+  "Direction finance",
+  "Direction comptabilité",
+  "Direction fiscalité",
+  "Direction trésorerie",
+  "Direction investissement",
+  "Direction financement",
+  "Direction capital",
+  "Direction actionnaire",
+  "Direction investisseur",
+  "Direction partenaire",
+  "Direction client",
+  "Direction fournisseur",
+  "Direction prestataire",
+  "Direction sous-traitant",
+  "Direction consultant",
+  "Direction expert",
+  "Direction spécialiste",
+  "Direction conseiller",
+  "Direction coach",
+  "Direction mentor",
+  "Direction formateur",
+  "Direction animateur",
+  "Direction facilitateur",
+  "Direction modérateur",
+  "Direction médiateur",
+  "Direction arbitre",
+  "Direction juge",
+  "Direction avocat",
+  "Direction notaire",
+  "Direction huissier",
+  "Direction commissaire",
+  "Direction expert-comptable",
+  "Direction commissaire aux comptes",
+  "Direction actuaire",
+  "Direction statisticien",
+  "Direction économiste",
+  "Direction sociologue",
+  "Direction psychologue",
+  "Direction travailleur social",
+  "Direction éducateur",
+  "Direction animateur socioculturel",
+  "Direction journaliste",
+  "Direction rédacteur",
+  "Direction traducteur",
+  "Direction interprète",
+  "Direction photographe",
+  "Direction vidéaste",
+  "Direction monteur",
+  "Direction graphiste",
+  "Direction web designer",
+  "Direction UX/UI Designer",
+  "Direction sound designer",
+  "Direction architecte d'information",
+  "Direction product manager",
+  "Direction scrum master",
+  "Direction agile coach",
+  "Direction business analyst",
+  "Direction data analyst",
+  "Direction data scientist",
+  "Direction data engineer",
+  "Direction machine learning engineer",
+  "Direction AI engineer",
+  "Direction DevOps engineer",
+  "Direction site reliability engineer",
+  "Direction cloud engineer",
+  "Direction infrastructure engineer",
+  "Direction network engineer",
+  "Direction cybersecurity engineer",
+  "Direction database administrator",
+  "Direction system administrator",
+  "Direction technical lead",
+  "Direction engineering manager",
+  "Direction CTO",
+  "Direction CIO",
+  "Direction CFO",
+  "Direction COO",
+  "Direction CEO"
+];
+
+// Liste des catégories CNPS Cameroun (12 catégories)
+const CATEGORIES_CNPS = [
+  "Catégorie 1",
+  "Catégorie 2", 
+  "Catégorie 3",
+  "Catégorie 4",
+  "Catégorie 5",
+  "Catégorie 6",
+  "Catégorie 7",
+  "Catégorie 8",
+  "Catégorie 9",
+  "Catégorie 10",
+  "Catégorie 11",
+  "Catégorie 12"
+];
+
+// Liste des échelons CNPS Cameroun (7 échelons)
+const ECHELONS_CNPS = [
+  "Échelon A",
+  "Échelon B",
+  "Échelon C", 
+  "Échelon D",
+  "Échelon E",
+  "Échelon F",
+  "Échelon G"
+];
+
+// Liste des diplômes suggérés
+const DIPLOMES = [
+  "Sans diplôme",
+  "CEP",
+  "BEPC",
+  "Baccalauréat",
+  "BTS",
+  "DUT",
+  "Licence",
+  "Maîtrise",
+  "Master",
+  "Doctorat",
+  "Ingénieur",
+  "Architecte",
+  "Médecin",
+  "Pharmacien",
+  "Avocat",
+  "Notaire",
+  "Expert-comptable",
+  "Formation professionnelle",
+  "Certification",
+  "Autre"
+];
+
+// Liste des services suggérés
+const SERVICES = [
+  "Service administratif",
+  "Service technique",
+  "Service commercial",
+  "Service financier",
+  "Service RH",
+  "Service marketing",
+  "Service informatique",
+  "Service logistique",
+  "Service production",
+  "Service maintenance",
+  "Service qualité",
+  "Service sécurité",
+  "Service médical",
+  "Service formation",
+  "Service communication",
+  "Service juridique",
+  "Service audit",
+  "Service recherche",
+  "Service développement",
+  "Service support"
+];
+
+// Liste des situations de famille
+const SITUATIONS_FAMILLE = [
+  "Célibataire",
+  "Marié(e)",
+  "Divorcé(e)",
+  "Veuf/Veuve",
+  "Concubinage",
+  "PACS"
+];
+
+// Composant AutocompleteField réutilisable
+const AutocompleteField = ({ 
+  label, 
+  value, 
+  onChange, 
+  inputValue, 
+  onInputChange, 
+  options, 
+  placeholder, 
+  required = false,
+  className = "w-full"
+}) => {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-600">{label}</label>
+      <Autocomplete
+        value={value}
+        onChange={(event, newValue) => {
+          onChange(newValue || "");
+        }}
+        inputValue={inputValue}
+        onInputChange={(event, newInputValue) => {
+          onInputChange(newInputValue);
+        }}
+        options={options}
+        freeSolo
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            placeholder={placeholder}
+            required={required}
+            className={className}
+            size="small"
+          />
+        )}
+        renderOption={(props, option) => (
+          <li {...props}>
+            <div className="flex items-center">
+              <span className="text-sm">{option}</span>
+            </div>
+          </li>
+        )}
+        filterOptions={(options, { inputValue }) => {
+          const filtered = options.filter((option) =>
+            option.toLowerCase().includes(inputValue.toLowerCase())
+          );
+          return filtered;
+        }}
+      />
+    </div>
+  );
+};
+
+// Composant InputField réutilisable
+const InputField = ({ 
+  label, 
+  type = "text", 
+  value, 
+  onChange, 
+  placeholder, 
+  required = false,
+  className = "w-full",
+  min,
+  maxLength,
+  autoComplete,
+  error
+}) => {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-600">{label}</label>
+      <input
+        type={type}
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        className={`p-2 border ${error ? 'border-red-400' : 'border-blue-200'} rounded-lg ${className}`}
+        required={required}
+        min={min}
+        maxLength={maxLength}
+        autoComplete={autoComplete}
+      />
+      {error && (
+        <span className="text-red-500 text-xs">{error}</span>
+      )}
+    </div>
+  );
+};
+
+// Composant SelectField réutilisable
+const SelectField = ({ 
+  label, 
+  value, 
+  onChange, 
+  options, 
+  placeholder, 
+  required = false,
+  className = "w-full"
+}) => {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-600">{label}</label>
+      <select
+        value={value}
+        onChange={onChange}
+        className={`p-2 border border-blue-200 rounded-lg ${className}`}
+        required={required}
+      >
+        {placeholder && <option value="">{placeholder}</option>}
+        {options.map((option, index) => (
+          <option key={index} value={option.value || option}>
+            {option.label || option}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+};
+
 // Composant principal
 const CompanyAdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -958,6 +1628,7 @@ const CompanyAdminDashboard = () => {
   status: "Actif",
   cnpsNumber: "",
   professionalCategory: "",
+  category: "",
   baseSalary: 0, // Changé de "" à 0 pour garantir un type nombre
   contract: null,
   contractFile: null,
@@ -969,7 +1640,6 @@ const CompanyAdminDashboard = () => {
   echelon: "",
   service: "",
   supervisor: "",
-  placeOfBirth: "",
   hasTrialPeriod: false,
   trialPeriodDuration: "",
     matricule: "",
@@ -1007,13 +1677,16 @@ const CompanyAdminDashboard = () => {
   const [dateOfBirthError, setDateOfBirthError] = useState("");
 
   // ... autres hooks d'état ...
-  const [villeResidence, setVilleResidence] = useState("");
-  const [quartierResidence, setQuartierResidence] = useState("");
   // ... reste du composant ...
 
   const [selectedBadgeModel, setSelectedBadgeModel] = useState("BadgeModel1");
   const [selectedQRType, setSelectedQRType] = useState("userInfo");
   const [showQRScanner, setShowQRScanner] = useState(false);
+  
+  // États pour les modèles de templates
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [selectedPaySlipTemplate, setSelectedPaySlipTemplate] = useState("template1");
+  const [selectedContractTemplate, setSelectedContractTemplate] = useState("contract1");
 
   function formatDateOfBirthInput(value) {
     // Si l'utilisateur tape 8 chiffres d'affilée, on formate automatiquement
@@ -1125,7 +1798,7 @@ const ensureEmployeeFields = (employee) => {
     echelon: employee.echelon || '',
     service: employee.service || '',
     supervisor: employee.supervisor || '',
-    placeOfBirth: employee.placeOfBirth || '',
+    category: employee.category || '',
     // Autres champs optionnels qui pourraient manquer
     phone: employee.phone || '',
     department: employee.department || '',
@@ -1429,6 +2102,7 @@ const addEmployee = async (e) => {
       status: "Actif",
       cnpsNumber: "",
       professionalCategory: "",
+      category: "",
       baseSalary: 0,
       contract: null,
       contractFile: null,
@@ -1440,7 +2114,6 @@ const addEmployee = async (e) => {
       echelon: "",
       service: "",
       supervisor: "",
-      placeOfBirth: "",
       hasTrialPeriod: false,
       trialPeriodDuration: "",
       matricule: "",
@@ -2356,6 +3029,10 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                         onClick={() => {
                           setNewEmployee(ensureEmployeeFields(emp));
                           setShowEmployeeModal(true);
+            setShowContractForm(false);
+            setShowContract(false);
+            setShowPaySlipForm(false);
+            setShowPaySlip(false);
                         }}
                       >
                         Modifier
@@ -2373,313 +3050,321 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
       </div>
     </Card>
 {showEmployeeModal && (
-  <Modal isOpen={showEmployeeModal} onClose={() => setShowEmployeeModal(false)}>
+  <Modal isOpen={showEmployeeModal} onClose={() => {
+    setShowEmployeeModal(false);
+    setSelectedEmployee(null);
+  }}>
     <form onSubmit={addEmployee} className="space-y-4">
       <h2 className="text-lg font-semibold">{newEmployee.id ? "Modifier Employé" : "Ajouter Employé"}</h2>
-      <div>
-        <label className="block text-sm font-medium text-gray-600">Nom complet</label>
-        <input
-          type="text"
-          placeholder="Nom complet"
-          value={newEmployee.name}
-          onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })}
-          className="p-2 border border-blue-200 rounded-lg w-full"
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-600">Email</label>
-        <input
-          type="email"
-          placeholder="Email"
-          value={newEmployee.email}
-          onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })}
-          className="p-2 border border-blue-200 rounded-lg w-full"
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-600">Rôle</label>
-        <select
-          value={newEmployee.role}
-          onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value })}
-          className="p-2 border border-blue-200 rounded-lg w-full"
-          required
-        >
-          <option value="Employé">Employé</option>
-          <option value="Manager">Manager</option>
-          <option value="Admin">Admin</option>
-        </select>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-600">Poste</label>
-        <input
-          type="text"
-          placeholder="Poste"
-          value={newEmployee.poste}
-          onChange={(e) => setNewEmployee({ ...newEmployee, poste: e.target.value })}
-          className="p-2 border border-blue-200 rounded-lg w-full"
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-600">Téléphone</label>
-        <input
-          type="tel"
-          placeholder="Téléphone"
-          value={newEmployee.phone}
-          onChange={(e) => setNewEmployee({ ...newEmployee, phone: e.target.value })}
-          className="p-2 border border-blue-200 rounded-lg w-full"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-600">Département</label>
-        <input
-          type="text"
-          placeholder="Département"
-          value={newEmployee.department}
-          onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value })}
-          className="p-2 border border-blue-200 rounded-lg w-full"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-600">Date d'embauche</label>
-        <input
-          type="date"
-          placeholder="Date d'embauche"
-          value={newEmployee.hireDate}
-          onChange={(e) => setNewEmployee({ ...newEmployee, hireDate: e.target.value })}
-          className="p-2 border border-blue-200 rounded-lg w-full"
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-600">Statut</label>
-        <select
-          value={newEmployee.status}
-          onChange={(e) => setNewEmployee({ ...newEmployee, status: e.target.value })}
-          className="p-2 border border-blue-200 rounded-lg w-full"
-          required
-        >
-          <option value="Actif">Actif</option>
-          <option value="Inactif">Inactif</option>
-          <option value="Suspendu">Suspendu</option>
-        </select>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-600">Numéro CNPS</label>
-        <input
-          type="text"
-          placeholder="Numéro CNPS"
-          value={newEmployee.cnpsNumber}
-          onChange={(e) => setNewEmployee({ ...newEmployee, cnpsNumber: e.target.value })}
-          className="p-2 border border-blue-200 rounded-lg w-full"
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-600">Catégorie professionnelle</label>
-        <input
-          type="text"
-          placeholder="Catégorie professionnelle"
-          value={newEmployee.professionalCategory}
-          onChange={(e) => setNewEmployee({ ...newEmployee, professionalCategory: e.target.value })}
-          className="p-2 border border-blue-200 rounded-lg w-full"
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-600">Salaire de base (FCFA)</label>
-        <input
-          type="number"
-          placeholder="Salaire de base (FCFA)"
-          value={newEmployee.baseSalary}
-          onChange={e => setNewEmployee({ ...newEmployee, baseSalary: e.target.value })}
-          className="p-2 border border-blue-200 rounded-lg w-full"
-          min="0"
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-600">Période d'essai</label>
-        <select
-          value={newEmployee.hasTrialPeriod}
-          onChange={(e) => setNewEmployee({ ...newEmployee, hasTrialPeriod: e.target.value === "true" })}
-          className="p-2 border border-blue-200 rounded-lg w-full"
-        >
-          <option value={false}>Non</option>
-          <option value={true}>Oui</option>
-        </select>
-      </div>
+      
+      <InputField
+        label="Nom complet"
+        type="text"
+        value={newEmployee.name}
+        onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })}
+        placeholder="Nom complet"
+        required
+      />
+      
+      <InputField
+        label="Email"
+        type="email"
+        value={newEmployee.email}
+        onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })}
+        placeholder="Email"
+        required
+      />
+      
+      <AutocompleteField
+        label="Rôle"
+        value={newEmployee.role}
+        onChange={(newValue) => setNewEmployee({ ...newEmployee, role: newValue })}
+        inputValue={newEmployee.role}
+        onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, role: newInputValue })}
+        options={["Employé", "Manager", "Admin", "Directeur", "Superviseur", "Chef d'équipe", "Responsable", "Coordinateur", "Consultant", "Expert", "Spécialiste", "Assistant", "Stagiaire", "Apprenti"]}
+        placeholder="Sélectionnez ou tapez un rôle"
+        required
+      />
+      
+      <AutocompleteField
+        label="Poste"
+        value={newEmployee.poste}
+        onChange={(newValue) => setNewEmployee({ ...newEmployee, poste: newValue })}
+        inputValue={newEmployee.poste}
+        onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, poste: newInputValue })}
+        options={POSTES_EMPLOI}
+        placeholder="Sélectionnez ou tapez un poste"
+        required
+      />
+      
+      <InputField
+        label="Téléphone"
+        type="tel"
+        value={newEmployee.phone}
+        onChange={(e) => setNewEmployee({ ...newEmployee, phone: e.target.value })}
+        placeholder="Téléphone"
+      />
+      
+      <AutocompleteField
+        label="Département"
+        value={newEmployee.department}
+        onChange={(newValue) => setNewEmployee({ ...newEmployee, department: newValue })}
+        inputValue={newEmployee.department}
+        onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, department: newInputValue })}
+        options={DEPARTEMENTS}
+        placeholder="Sélectionnez ou tapez un département"
+      />
+      
+      <InputField
+        label="Date d'embauche"
+        type="date"
+        value={newEmployee.hireDate}
+        onChange={(e) => setNewEmployee({ ...newEmployee, hireDate: e.target.value })}
+        placeholder="Date d'embauche"
+        required
+      />
+      <SelectField
+        label="Statut"
+        value={newEmployee.status}
+        onChange={(e) => setNewEmployee({ ...newEmployee, status: e.target.value })}
+        options={["Actif", "Inactif", "Suspendu"]}
+        required
+      />
+      
+      <InputField
+        label="Numéro CNPS"
+        type="text"
+        value={newEmployee.cnpsNumber}
+        onChange={(e) => setNewEmployee({ ...newEmployee, cnpsNumber: e.target.value })}
+        placeholder="Numéro CNPS"
+        required
+      />
+      
+      <AutocompleteField
+        label="Catégorie CNPS"
+        value={newEmployee.professionalCategory}
+        onChange={(newValue) => setNewEmployee({ ...newEmployee, professionalCategory: newValue })}
+        inputValue={newEmployee.professionalCategory}
+        onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, professionalCategory: newInputValue })}
+        options={CATEGORIES_CNPS}
+        placeholder="Sélectionnez une catégorie CNPS (1-12)"
+        required
+      />
+      
+      <AutocompleteField
+        label="Échelon CNPS"
+        value={newEmployee.echelon}
+        onChange={(newValue) => setNewEmployee({ ...newEmployee, echelon: newValue })}
+        inputValue={newEmployee.echelon}
+        onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, echelon: newInputValue })}
+        options={ECHELONS_CNPS}
+        placeholder="Sélectionnez un échelon CNPS (A-G)"
+      />
+      
+      <AutocompleteField
+        label="Catégorie professionnelle"
+        value={newEmployee.category}
+        onChange={(newValue) => setNewEmployee({ ...newEmployee, category: newValue })}
+        inputValue={newEmployee.category}
+        onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, category: newInputValue })}
+        options={CATEGORIES_PROFESSIONNELLES}
+        placeholder="Sélectionnez ou tapez une catégorie professionnelle"
+      />
+      
+      <InputField
+        label="Salaire de base (FCFA)"
+        type="number"
+        value={newEmployee.baseSalary}
+        onChange={(e) => setNewEmployee({ ...newEmployee, baseSalary: e.target.value })}
+        placeholder="Salaire de base (FCFA)"
+        min="0"
+        required
+      />
+      <SelectField
+        label="Période d'essai"
+        value={newEmployee.hasTrialPeriod}
+        onChange={(e) => setNewEmployee({ ...newEmployee, hasTrialPeriod: e.target.value === "true" })}
+        options={[
+          { value: false, label: "Non" },
+          { value: true, label: "Oui" }
+        ]}
+      />
+      
       {newEmployee.hasTrialPeriod && (
-        <div>
-          <label className="block text-sm font-medium text-gray-600">Durée de la période d'essai</label>
-          <input
-            type="text"
-            placeholder="Durée de la période d'essai (ex. 3 mois)"
-            value={newEmployee.trialPeriodDuration}
-            onChange={(e) => setNewEmployee({ ...newEmployee, trialPeriodDuration: e.target.value })}
-            className="p-2 border border-blue-200 rounded-lg w-full"
-          />
-        </div>
-      )}
-      <div>
-        <label className="block text-sm font-medium text-gray-600">Matricule</label>
-        <input
+        <InputField
+          label="Durée de la période d'essai"
           type="text"
-          placeholder="Entrez le matricule de l'employé"
-          value={newEmployee.matricule || ''}
-          onChange={(e) => setNewEmployee({ ...newEmployee, matricule: e.target.value })}
-          className="p-2 border border-blue-200 rounded-lg w-full"
-          required
+          value={newEmployee.trialPeriodDuration}
+          onChange={(e) => setNewEmployee({ ...newEmployee, trialPeriodDuration: e.target.value })}
+          placeholder="Durée de la période d'essai (ex. 3 mois)"
         />
-      </div>
+      )}
+      
+      <InputField
+        label="Matricule"
+        type="text"
+        value={newEmployee.matricule || ''}
+        onChange={(e) => setNewEmployee({ ...newEmployee, matricule: e.target.value })}
+        placeholder="Entrez le matricule de l'employé"
+        required
+      />
       
       {/* Nouveaux champs d'informations personnelles */}
       <div className="border-t pt-4">
         <h3 className="text-md font-semibold text-gray-700 mb-3">Informations personnelles</h3>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-600">Date de naissance</label>
-            <input
-              type="text"
-              placeholder="JJ/MM/AAAA (ex: 25/12/1990)"
-              value={newEmployee.dateOfBirth}
-              onChange={e => {
-                const formatted = formatDateOfBirthInput(e.target.value);
-                setNewEmployee({ ...newEmployee, dateOfBirth: formatted });
-                setDateOfBirthError(validateDateOfBirth(formatted));
-              }}
-              className={`p-2 border ${dateOfBirthError ? 'border-red-400' : 'border-blue-200'} rounded-lg w-full`}
-              maxLength={10}
-              autoComplete="off"
-            />
-            {dateOfBirthError && (
-              <span className="text-red-500 text-xs">{dateOfBirthError}</span>
-            )}
-          </div>
+          <InputField
+            label="Date de naissance"
+            type="text"
+            value={newEmployee.dateOfBirth}
+            onChange={e => {
+              const formatted = formatDateOfBirthInput(e.target.value);
+              setNewEmployee({ ...newEmployee, dateOfBirth: formatted });
+              setDateOfBirthError(validateDateOfBirth(formatted));
+            }}
+            placeholder="JJ/MM/AAAA (ex: 25/12/1990)"
+            maxLength={10}
+            autoComplete="off"
+            error={dateOfBirthError}
+          />
           
-          <div>
-            <label className="block text-sm font-medium text-gray-600">Lieu de naissance</label>
-            <input
-              type="text"
-              list="lieuxNaissance"
-              placeholder="Lieu de naissance"
-              value={newEmployee.lieuNaissance}
-              onChange={(e) => setNewEmployee({ ...newEmployee, lieuNaissance: e.target.value })}
-              className="p-2 border border-blue-200 rounded-lg w-full"
-            />
-            <datalist id="lieuxNaissance">
-              {allLieuNaissance.map((lieu, idx) => (
-                <option key={idx} value={lieu} />
-              ))}
-            </datalist>
-          </div>
+          <InputField
+            label="Lieu de naissance"
+            type="text"
+            value={newEmployee.lieuNaissance}
+            onChange={(e) => setNewEmployee({ ...newEmployee, lieuNaissance: e.target.value })}
+            placeholder="Ville, département, pays (ex: Douala, Littoral, Cameroun)"
+            list="lieuxNaissance"
+          />
+          <datalist id="lieuxNaissance">
+            {allLieuNaissance.map((lieu, idx) => (
+              <option key={idx} value={lieu} />
+            ))}
+          </datalist>
           
-          <div>
-            <label className="block text-sm font-medium text-gray-600">Fils de</label>
-            <input
-              type="text"
-              placeholder="Nom du père"
-              value={newEmployee.pere}
-              onChange={(e) => setNewEmployee({ ...newEmployee, pere: e.target.value })}
-              className="p-2 border border-blue-200 rounded-lg w-full"
-            />
-          </div>
+          <InputField
+            label="Fils de"
+            type="text"
+            value={newEmployee.pere}
+            onChange={(e) => setNewEmployee({ ...newEmployee, pere: e.target.value })}
+            placeholder="Nom du père"
+          />
           
-          <div>
-            <label className="block text-sm font-medium text-gray-600">Et de</label>
-            <input
-              type="text"
-              placeholder="Nom de la mère"
-              value={newEmployee.mere}
-              onChange={(e) => setNewEmployee({ ...newEmployee, mere: e.target.value })}
-              className="p-2 border border-blue-200 rounded-lg w-full"
-            />
-          </div>
+          <InputField
+            label="Et de"
+            type="text"
+            value={newEmployee.mere}
+            onChange={(e) => setNewEmployee({ ...newEmployee, mere: e.target.value })}
+            placeholder="Nom de la mère"
+          />
           
-          <div>
-            <label className="block text-sm font-medium text-gray-600">Lieu de résidence habituelle</label>
-            <input
-              type="text"
-              list="adressesResidence"
-              placeholder="Adresse de résidence"
-              value={newEmployee.residence}
-              onChange={(e) => setNewEmployee({ ...newEmployee, residence: e.target.value })}
-              className="p-2 border border-blue-200 rounded-lg w-full"
-            />
-            <datalist id="adressesResidence">
-              {allResidences.map((addr, idx) => (
-                <option key={idx} value={addr} />
-              ))}
-            </datalist>
-          </div>
+          <InputField
+            label="Lieu de résidence habituelle"
+            type="text"
+            value={newEmployee.residence}
+            onChange={(e) => setNewEmployee({ ...newEmployee, residence: e.target.value })}
+            placeholder="Adresse complète (ex: Rue de la Paix, Akwa, Douala, Cameroun)"
+            list="adressesResidence"
+          />
+          <datalist id="adressesResidence">
+            {allResidences.map((addr, idx) => (
+              <option key={idx} value={addr} />
+            ))}
+          </datalist>
           
-          <div>
-            <label className="block text-sm font-medium text-gray-600">Situation de famille</label>
-            <select
-              value={newEmployee.situation}
-              onChange={(e) => setNewEmployee({ ...newEmployee, situation: e.target.value })}
-              className="p-2 border border-blue-200 rounded-lg w-full"
-            >
-              <option value="">Sélectionner</option>
-              <option value="Célibataire">Célibataire</option>
-              <option value="Marié(e)">Marié(e)</option>
-              <option value="Divorcé(e)">Divorcé(e)</option>
-              <option value="Veuf/Veuve">Veuf/Veuve</option>
-            </select>
-          </div>
+          <AutocompleteField
+            label="Situation de famille"
+            value={newEmployee.situation}
+            onChange={(newValue) => setNewEmployee({ ...newEmployee, situation: newValue })}
+            inputValue={newEmployee.situation}
+            onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, situation: newInputValue })}
+            options={SITUATIONS_FAMILLE}
+            placeholder="Sélectionnez une situation de famille"
+          />
           
-          <div>
-            <label className="block text-sm font-medium text-gray-600">Nom et prénoms de l'épouse</label>
-            <input
-              type="text"
-              placeholder="Nom et prénoms de l'épouse"
-              value={newEmployee.epouse}
-              onChange={(e) => setNewEmployee({ ...newEmployee, epouse: e.target.value })}
-              className="p-2 border border-blue-200 rounded-lg w-full"
-            />
-          </div>
+          <InputField
+            label="Nom et prénoms de l'épouse"
+            type="text"
+            value={newEmployee.epouse}
+            onChange={(e) => setNewEmployee({ ...newEmployee, epouse: e.target.value })}
+            placeholder="Nom et prénoms de l'épouse"
+          />
           
-          <div>
-            <label className="block text-sm font-medium text-gray-600">Personne à prévenir en cas de besoin</label>
-            <input
-              type="text"
-              placeholder="Nom et téléphone de la personne à prévenir"
-              value={newEmployee.personneAPrevenir}
-              onChange={(e) => setNewEmployee({ ...newEmployee, personneAPrevenir: e.target.value })}
-              className="p-2 border border-blue-200 rounded-lg w-full"
-            />
-          </div>
+          <InputField
+            label="Personne à prévenir en cas de besoin"
+            type="text"
+            value={newEmployee.personneAPrevenir}
+            onChange={(e) => setNewEmployee({ ...newEmployee, personneAPrevenir: e.target.value })}
+            placeholder="Nom et téléphone de la personne à prévenir"
+          />
         </div>
       </div>
       
-      <Autocomplete
-        options={villesCameroun}
-        value={villeResidence}
-        onChange={(event, newValue) => {
-          setVilleResidence(newValue || "");
-          setQuartierResidence(""); // reset quartier si ville change
-        }}
-        onInputChange={(event, newInputValue) => {
-          setVilleResidence(newInputValue);
-        }}
-        renderInput={(params) => (
-          <TextField {...params} label="Ville de résidence" placeholder="Ville (ex: Douala)" variant="outlined" />
-        )}
-        freeSolo
-      />
+
       
-      <div>
-        <label className="block text-sm font-medium text-gray-600">Quartier</label>
-        <input
-          type="text"
-          placeholder="Quartier"
-          value={quartierResidence}
-          onChange={(e) => setQuartierResidence(e.target.value)}
-          className="p-2 border border-blue-200 rounded-lg w-full"
-        />
+      {/* Champs professionnels supplémentaires */}
+      <div className="border-t pt-4">
+        <h3 className="text-md font-semibold text-gray-700 mb-3">Informations professionnelles supplémentaires</h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <AutocompleteField
+            label="Diplômes"
+            value={newEmployee.diplomas}
+            onChange={(newValue) => setNewEmployee({ ...newEmployee, diplomas: newValue })}
+            inputValue={newEmployee.diplomas}
+            onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, diplomas: newInputValue })}
+            options={DIPLOMES}
+            placeholder="Sélectionnez ou tapez un diplôme"
+          />
+          
+          <AutocompleteField
+            label="Service"
+            value={newEmployee.service}
+            onChange={(newValue) => setNewEmployee({ ...newEmployee, service: newValue })}
+            inputValue={newEmployee.service}
+            onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, service: newInputValue })}
+            options={SERVICES}
+            placeholder="Sélectionnez ou tapez un service"
+          />
+          
+          <InputField
+            label="Superviseur"
+            type="text"
+            value={newEmployee.supervisor}
+            onChange={(e) => setNewEmployee({ ...newEmployee, supervisor: e.target.value })}
+            placeholder="Nom du superviseur"
+          />
+          
+
+          
+          <InputField
+            label="Heures par mois"
+            type="number"
+            value={newEmployee.hoursPerMonth}
+            onChange={(e) => setNewEmployee({ ...newEmployee, hoursPerMonth: parseInt(e.target.value) || 160 })}
+            placeholder="Heures de travail par mois"
+            min="0"
+          />
+          
+          <InputField
+            label="Ancienneté (années)"
+            type="number"
+            value={newEmployee.seniority}
+            onChange={(e) => setNewEmployee({ ...newEmployee, seniority: parseInt(e.target.value) || 0 })}
+            placeholder="Années d'ancienneté"
+            min="0"
+          />
+          
+          <InputField
+            label="Nombre d'enfants"
+            type="number"
+            value={newEmployee.childrenCount}
+            onChange={(e) => setNewEmployee({ ...newEmployee, childrenCount: parseInt(e.target.value) || 0 })}
+            placeholder="Nombre d'enfants"
+            min="0"
+          />
+        </div>
       </div>
       
       <Button type="submit" icon={Plus} disabled={actionLoading}>
@@ -2689,13 +3374,14 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
   </Modal>
 )}
 
-<Modal isOpen={selectedEmployee && !showPaySlipForm && !showContractForm && !showPaySlip && !showContract} onClose={() => {
+<Modal isOpen={selectedEmployee && !showPaySlipForm && !showContractForm && !showPaySlip && !showContract && !showEmployeeModal} onClose={() => {
   console.log('[DEBUG] Fermeture modal employé');
   setSelectedEmployee(null);
   setShowPaySlipForm(false);
   setShowContractForm(false);
   setShowPaySlip(false);
   setShowContract(false);
+  setShowEmployeeModal(false);
   setPaySlipData(null);
 }}>
   {selectedEmployee && (
@@ -2722,7 +3408,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
       <p><strong>Service:</strong> {typeof displayService === 'function' ? displayService(selectedEmployee.service) : (selectedEmployee.service || "Non renseigné")}</p>
       <p><strong>Superviseur:</strong> {typeof displaySupervisor === 'function' ? displaySupervisor(selectedEmployee.supervisor) : (selectedEmployee.supervisor || "Non renseigné")}</p>
       <p><strong>Date de naissance:</strong> {typeof displayDateOfBirth === 'function' ? displayDateOfBirth(selectedEmployee.dateOfBirth) : (selectedEmployee.dateOfBirth || "Non renseigné")}</p>
-      <p><strong>Lieu de naissance:</strong> {typeof displayPlaceOfBirth === 'function' ? displayPlaceOfBirth(selectedEmployee.placeOfBirth) : (selectedEmployee.placeOfBirth || "Non renseigné")}</p>
+      <p><strong>Lieu de naissance:</strong> {typeof displayPlaceOfBirth === 'function' ? displayPlaceOfBirth(selectedEmployee.lieuNaissance) : (selectedEmployee.lieuNaissance || "Non renseigné")}</p>
       <p><strong>Période d'essai:</strong> {selectedEmployee.hasTrialPeriod ? selectedEmployee.trialPeriodDuration || "Non renseignée" : "Non"}</p>
       <p><strong>Matricule:</strong> {typeof displayMatricule === 'function' ? displayMatricule(selectedEmployee.matricule) : (selectedEmployee.matricule || "Non renseigné")}</p>
       <div className="flex gap-4">
@@ -2749,11 +3435,12 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
               setShowContract(true);
               setShowContractForm(false);
             } else {
-            setShowContractForm(true);
+              setShowContractForm(true);
               setShowContract(false);
             }
             setShowPaySlipForm(false);
             setShowPaySlip(false);
+            setShowEmployeeModal(false);
           }}
           icon={selectedEmployee.contract ? Eye : Edit2}
           className="bg-green-600 hover:bg-green-700 text-white"
@@ -3147,6 +3834,13 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
             className="bg-blue-600 hover:bg-blue-700 text-white"
           >
             Générer Fiche
+          </Button>
+          <Button
+            onClick={() => setShowTemplateSelector(true)}
+            icon={FileText}
+            className="bg-green-600 hover:bg-green-700 text-white"
+          >
+            Modèles
           </Button>
         </div>
         {filteredEmployees.every(emp => !emp.payslips || emp.payslips.length === 0) ? (
@@ -3596,6 +4290,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
             employee={selectedEmployee}
             company={companyData}
             initialData={paySlipData} // Passer les données pour modification
+            selectedTemplate={selectedPaySlipTemplate} // Passer le modèle sélectionné
             onSave={(payslipData) => {
               savePaySlip(payslipData, paySlipData?.id); // Passer l'id pour modification
               setShowPaySlipForm(false);
@@ -3955,6 +4650,16 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
           onClose={() => setShowQRScanner(false)}
         />
       )}
+
+      {/* Sélecteur de modèles */}
+      <TemplateSelector
+        isOpen={showTemplateSelector}
+        onClose={() => setShowTemplateSelector(false)}
+        onSelectPaySlipTemplate={setSelectedPaySlipTemplate}
+        onSelectContractTemplate={setSelectedContractTemplate}
+        selectedPaySlipTemplate={selectedPaySlipTemplate}
+        selectedContractTemplate={selectedContractTemplate}
+      />
     </div>
   );
 };

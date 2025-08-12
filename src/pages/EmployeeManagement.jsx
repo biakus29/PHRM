@@ -26,12 +26,6 @@ const EmployeeManagement = ({ companyData, employees, setEmployees, actionLoadin
     cnpsNumber: "",
     professionalCategory: "",
     baseSalary: "",
-    diplomas: "",
-    echelon: "",
-    service: "",
-    supervisor: "",
-    placeOfBirth: "",
-    dateOfBirth: "",
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("name");
@@ -60,19 +54,13 @@ const EmployeeManagement = ({ companyData, employees, setEmployees, actionLoadin
           matricule: newEmployee.matricule,
           role: newEmployee.role,
           poste: newEmployee.poste,
-          phone: newEmployee.phone || "Non renseigné",
-          department: newEmployee.department || "Non spécifié",
+          phone: newEmployee.phone || "",
+          department: newEmployee.department || "",
           hireDate: newEmployee.hireDate,
           status: newEmployee.status,
           cnpsNumber: newEmployee.cnpsNumber,
           professionalCategory: newEmployee.professionalCategory,
           baseSalary: Number(newEmployee.baseSalary),
-          diplomas: newEmployee.diplomas || "Non renseignés",
-          echelon: newEmployee.echelon || "Non renseigné",
-          service: newEmployee.service || "Non renseigné",
-          supervisor: newEmployee.supervisor || "Non renseigné",
-                     placeOfBirth: newEmployee.placeOfBirth || "Non renseigné",
-          dateOfBirth: newEmployee.dateOfBirth ? new Date(newEmployee.dateOfBirth).toISOString() : null,
           createdAt: new Date().toISOString(),
           leaves: { balance: 25, requests: [], history: [] },
           absences: [],
@@ -95,12 +83,6 @@ const EmployeeManagement = ({ companyData, employees, setEmployees, actionLoadin
           cnpsNumber: "",
           professionalCategory: "",
           baseSalary: "",
-          diplomas: "",
-          echelon: "",
-          service: "",
-          supervisor: "",
-          placeOfBirth: "",
-          dateOfBirth: "",
         });
         await updateCompanyUsers(companyData.id, employees.length + 1);
         setSelectedEmployee(newEmployeeData);
@@ -317,7 +299,7 @@ const EmployeeManagement = ({ companyData, employees, setEmployees, actionLoadin
             total: selectedEmployee.baseSalary || 0,
           },
           deductions: generatedPaySlip.deductions || { pvid: 0, irpp: 0, cac: 0, cfc: 0, rav: 0, tdl: 0, total: 0 },
-          payPeriod: generatedPaySlip.payPeriod || `${displayDateWithOptions(new Date(), { month: "long", year: "numeric" })}`,
+          payPeriod: generatedPaySlip.payPeriod || `${new Date().toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}`,
           generatedAt: new Date().toISOString(),
         };
         savePaySlip(companyData.id, selectedEmployee.id, completePaySlip);
@@ -406,16 +388,6 @@ const EmployeeManagement = ({ companyData, employees, setEmployees, actionLoadin
           disabled={actionLoading}
           aria-label="Email de l'employé"
         />
-        <input
-          type="text"
-          placeholder="Matricule"
-          value={newEmployee.matricule}
-          onChange={(e) => setNewEmployee({ ...newEmployee, matricule: e.target.value })}
-          className="col-span-1 p-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          required
-          disabled={actionLoading}
-          aria-label="Matricule de l'employé"
-        />
         <select
           value={newEmployee.role}
           onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value })}
@@ -447,12 +419,12 @@ const EmployeeManagement = ({ companyData, employees, setEmployees, actionLoadin
         />
         <input
           type="text"
-          placeholder="Département (optionnel)"
+          placeholder="Départément (optionnel)"
           value={newEmployee.department}
           onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value })}
           className="col-span-1 p-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           disabled={actionLoading}
-          aria-label="Département de l'employé"
+          aria-label="Départément de l'employé"
         />
         <input
           type="date"
@@ -506,61 +478,6 @@ const EmployeeManagement = ({ companyData, employees, setEmployees, actionLoadin
           disabled={actionLoading}
           aria-label="Salaire de base de l'employé"
         />
-        <input
-          type="text"
-          placeholder="Diplômes (optionnel)"
-          value={newEmployee.diplomas}
-          onChange={(e) => setNewEmployee({ ...newEmployee, diplomas: e.target.value })}
-          className="col-span-1 p-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          disabled={actionLoading}
-          aria-label="Diplômes de l'employé"
-        />
-        <input
-          type="text"
-          placeholder="Échelon (optionnel)"
-          value={newEmployee.echelon}
-          onChange={(e) => setNewEmployee({ ...newEmployee, echelon: e.target.value })}
-          className="col-span-1 p-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          disabled={actionLoading}
-          aria-label="Échelon de l'employé"
-        />
-        <input
-          type="text"
-          placeholder="Service (optionnel)"
-          value={newEmployee.service}
-          onChange={(e) => setNewEmployee({ ...newEmployee, service: e.target.value })}
-          className="col-span-1 p-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          disabled={actionLoading}
-          aria-label="Service de l'employé"
-        />
-        <input
-          type="text"
-          placeholder="Superviseur (optionnel)"
-          value={newEmployee.supervisor}
-          onChange={(e) => setNewEmployee({ ...newEmployee, supervisor: e.target.value })}
-          className="col-span-1 p-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          disabled={actionLoading}
-          aria-label="Superviseur de l'employé"
-        />
-        <input
-          type="text"
-          placeholder="Lieu de naissance (optionnel)"
-          value={newEmployee.placeOfBirth}
-          onChange={(e) => setNewEmployee({ ...newEmployee, placeOfBirth: e.target.value })}
-          className="col-span-1 p-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          disabled={actionLoading}
-          aria-label="Lieu de naissance de l'employé"
-        />
-                 <input
-           type="date"
-           placeholder="Date de naissance"
-           value={newEmployee.dateOfBirth}
-           onChange={(e) => setNewEmployee({ ...newEmployee, dateOfBirth: e.target.value })}
-           className="col-span-1 p-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-           required
-           disabled={actionLoading}
-           aria-label="Date de naissance de l'employé"
-         />
         <Button
           type="submit"
           icon={FiPlus}

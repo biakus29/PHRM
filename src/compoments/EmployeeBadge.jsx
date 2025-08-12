@@ -5,11 +5,10 @@ import { toast } from "react-toastify";
 import { FiDownload } from "react-icons/fi";
 import { cacheLogo } from "../utils/logoUtils";
 import { generateBadgePDF } from "../utils/pdfUtils";
-import { generateQRCodeUrl } from "../utils/qrCodeUtils";
 import Button from "./Button";
 
 const EmployeeBadge = ({ employee, companyData, animationDelay, actionLoading }) => {
-  const qrCodeUrl = generateQRCodeUrl(employee, companyData);
+  const qrCodeUrl = `https://yourapp.com/employee/${employee.matricule || employee.id}`;
   const [logoData] = useState(cacheLogo(companyData.id));
 
   return (

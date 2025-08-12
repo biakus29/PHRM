@@ -128,7 +128,7 @@ const ExportContrat = ({ employee, employer, contractData, auto = false, onExpor
       const employeeDetails = [
         `Nom complet: ${employee?.name || 'N/A'}`,
         `Né(e) le: ${displayDateOfBirth(employee?.dateOfBirth)}`,
-        `À: ${employee?.lieuNaissance || employee?.placeOfBirth || 'N/A'}`,
+        `À: ${employee?.lieuNaissance || 'N/A'}`,
         `Fils de: ${employee?.pere || 'N/A'}`,
         `Et de: ${employee?.mere || 'N/A'}`,
         `Lieu de résidence: ${employee?.residence || 'N/A'}`,
