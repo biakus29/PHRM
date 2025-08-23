@@ -509,6 +509,7 @@ const Contract = ({ employee, employer, contract }) => {
           <h3 className="font-semibold">Employeur</h3>
           <p>Entreprise: {safeEmployer.companyName}</p>
           <p>Adresse: {safeEmployer.address}</p>
+          <p>Numéro contribuable: {safeEmployer?.taxpayerNumber || "N/A"}</p>
           <p>Numéro CNPS: {safeEmployer.cnpsNumber}</p>
         </div>
       </div>
@@ -714,6 +715,7 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
           <h3 className="font-semibold">Employeur</h3>
           <p>Entreprise: {employer?.companyName}</p>
           <p>Adresse: {employer?.address}</p>
+          <p>Numéro contribuable: {employer?.taxpayerNumber || "N/A"}</p>
           <p>Numéro CNPS: {employer?.cnpsNumber}</p>
         </div>
       </div>
@@ -3533,6 +3535,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
               const employerData = {
                 companyName: companyData?.name || companyData?.companyName || "N/A",
                 address: companyData?.address || "N/A",
+                taxpayerNumber: companyData?.taxpayerNumber || "N/A",
                 cnpsNumber: companyData?.cnpsNumber || "N/A",
                 representant: companyData?.representant || "N/A",
                 id: companyData?.id || "",
@@ -4220,6 +4223,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                       const employerData = {
                         companyName: companyData?.name || companyData?.companyName || "N/A",
                         address: companyData?.address || "N/A",
+                        taxpayerNumber: companyData?.taxpayerNumber || "N/A",
                         cnpsNumber: companyData?.cnpsNumber || "N/A",
                         id: companyData?.id || "",
                       };
@@ -4398,7 +4402,19 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-600">Numéro d'immatriculation CNPS</label>
+                      <label className="block text-sm font-medium text-gray-600">Numéro contribuable</label>
+                      <input
+                        type="text"
+                        value={companyData.taxpayerNumber || ''}
+                        onChange={(e) => setCompanyData({ ...companyData, taxpayerNumber: e.target.value.toUpperCase() })}
+                        className="p-2 border border-blue-200 rounded-lg w-full"
+                        placeholder="PXXXXXXXXXXXXA ou MXXXXXXXXXXXXB"
+                      />
+                      {companyData.taxpayerNumber && !/^[PM][0-9]{12}[A-Za-z]$/.test(companyData.taxpayerNumber) && (
+                        <div className="text-red-600 text-xs mt-1">Format invalide. Doit commencer par P ou M, contenir 12 chiffres, et se terminer par une lettre.</div>
+                      )}
+
+                      <label className="block text-sm font-medium text-gray-600 mt-4">Numéro d'immatriculation CNPS</label>
                       <input
                         type="text"
                         value={companyData.cnpsNumber || ''}
@@ -4416,6 +4432,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                             address: companyData.address,
                             phone: companyData.phone,
                             representant: companyData.representant,
+                            taxpayerNumber: companyData.taxpayerNumber || '',
                             cnpsNumber: companyData.cnpsNumber
                           });
                           toast.success("Paramètres enregistrés !");

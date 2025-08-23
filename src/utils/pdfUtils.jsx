@@ -6,7 +6,7 @@ import { cacheLogo } from "./logoUtils";
 
 // Génère un badge individuel en PDF
 export const generateBadgePDF = async (employee, companyData) => {
-  console.log(`[generateBadgePDF] Génération badge PDF pour ${employee.name}`);
+  console.log(`[generateBadgePDF] Génération  e PDF pour ${employee.name}`);
   try {
     const doc = new jsPDF({
       orientation: "portrait",

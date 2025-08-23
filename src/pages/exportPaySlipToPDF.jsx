@@ -268,7 +268,7 @@ const exportPaySlipToPDF = (paySlipData, employee, companyData, setActionLoading
     doc.setFontSize(6);
     doc.setFont("helvetica", "normal");
     doc.text(companyData.name || "PHRM", leftMargin, pageHeight - 5);
-    doc.text("Page 1 / 1", pageWidth - rightMargin, pageHeight - 5, { align: "right" });
+    doc.text("Page 1", pageWidth - rightMargin, pageHeight - 5, { align: "right" });
 
     // Sanitisation du nom de fichier
     const safeFileName = `fiche_de_paie_${(paySlipData.employee?.matricule || "unknown").replace(/[^a-zA-Z0-9]/g, "_")}_${(paySlipData.payPeriod || "unknown").replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;

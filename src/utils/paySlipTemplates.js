@@ -32,30 +32,133 @@ export const PAYSLIP_TEMPLATE_CONFIGS = {
   }
 };
 
-// Configuration des calculs CNPS et fiscaux
+// Configuration des calculs CNPS et fiscaux (mise à jour selon réglementation camerounaise 2025)
 export const CNPS_CALCULATIONS = {
-  employeeRate: 0.0625, // 6.25%
-  employerRate: 0.125, // 12.5%
-  cacRate: 0.01, // 1%
-  cfcRate: 0.01, // 1%
-  ravRate: 0.025, // 2.5%
-  tdlRate: 0.01, // 1%
+  // Cotisations salariales
+  employeeRates: {
+    pvid: 0.042, // PVID 4,2%
+  },
+  // Cotisations patronales
+  employerRates: {
+    pvid: 0.049, // PVID 4,9%
+    pf: 0.07,    // Prestations Familiales 7%
+    rp: 0.025    // Risques Professionnels 2,5% (variable selon secteur)
+  },
+  // Impôts et taxes
+  taxRates: {
+    cfc: 0.025,  // CFC SAL 2,5%
+    fne: 0.01,   // FNE Salarié 1%
+    fneEmp: 0.015 // FNE Employeur 1,5%
+  },
+  // Plafonds
+  ceilings: {
+    cnpsMax: 750000, // Plafond CNPS mensuel
+    irppThreshold: 62000 // Seuil d'exonération IRPP
+  },
+  // Barème IRPP progressif (mensuel)
+  irppBrackets: [
+    { min: 0, max: 166667, rate: 0.10 },
+    { min: 166667, max: 250000, rate: 0.15 },
+    { min: 250000, max: 416667, rate: 0.25 },
+    { min: 416667, max: Infinity, rate: 0.35 }
+  ],
+  // Abattement forfaitaire annuel
+  annualDeduction: 500000,
+  
+  // Catégories professionnelles CNPS
   categories: {
-    1: { min: 0, max: 50000 },
-    2: { min: 50001, max: 100000 },
-    3: { min: 100001, max: 150000 },
-    4: { min: 150001, max: 200000 },
-    5: { min: 200001, max: 250000 },
-    6: { min: 250001, max: 300000 },
-    7: { min: 300001, max: 350000 },
-    8: { min: 350001, max: 400000 },
-    9: { min: 400001, max: 450000 },
-    10: { min: 450001, max: 500000 },
-    11: { min: 500001, max: 550000 },
-    12: { min: 550001, max: 999999999 }
+    1: { min: 0, max: 50000, description: 'Manœuvre' },
+    2: { min: 50001, max: 100000, description: 'Ouvrier spécialisé' },
+    3: { min: 100001, max: 150000, description: 'Ouvrier qualifié' },
+    4: { min: 150001, max: 200000, description: 'Agent de maîtrise' },
+    5: { min: 200001, max: 250000, description: 'Technicien' },
+    6: { min: 250001, max: 300000, description: 'Employé' },
+    7: { min: 300001, max: 350000, description: 'Cadre junior' },
+    8: { min: 350001, max: 400000, description: 'Cadre' },
+    9: { min: 400001, max: 450000, description: 'Cadre supérieur' },
+    10: { min: 450001, max: 500000, description: 'Cadre dirigeant' },
+    11: { min: 500001, max: 550000, description: 'Cadre de direction' },
+    12: { min: 550001, max: 999999999, description: 'Cadre supérieur de direction' }
   },
   echelons: ['A', 'B', 'C', 'D', 'E', 'F', 'G']
 };
+
+/**
+ * Formate un nombre avec des espaces comme séparateurs de milliers
+ */
+function formatCurrency(amount) {
+  if (!amount || isNaN(amount)) return '0';
+  return Math.round(Number(amount)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+
+/**
+ * Calcule l'IRPP selon le barème progressif camerounais
+ */
+function calculateIRPP(taxableSalary) {
+  if (taxableSalary < CNPS_CALCULATIONS.ceilings.irppThreshold) {
+    return 0;
+  }
+  
+  // Salaire Net Catégoriel = 70% du salaire taxable - cotisations PVID - abattement mensuel
+  const monthlyDeduction = CNPS_CALCULATIONS.annualDeduction / 12;
+  const pvid = Math.min(taxableSalary, CNPS_CALCULATIONS.ceilings.cnpsMax) * CNPS_CALCULATIONS.employeeRates.pvid;
+  const snc = Math.max(0, (taxableSalary * 0.7) - pvid - monthlyDeduction);
+  
+  let irpp = 0;
+  let remainingAmount = snc;
+  
+  for (const bracket of CNPS_CALCULATIONS.irppBrackets) {
+    if (remainingAmount <= 0) break;
+    
+    const taxableInBracket = Math.min(remainingAmount, bracket.max - bracket.min);
+    irpp += taxableInBracket * bracket.rate;
+    remainingAmount -= taxableInBracket;
+  }
+  
+  return Math.round(irpp);
+}
+
+/**
+ * Calcule toutes les déductions sociales et fiscales
+ */
+function calculateDeductions(grossSalary, baseSalary) {
+  const cnpsBase = Math.min(grossSalary, CNPS_CALCULATIONS.ceilings.cnpsMax);
+  
+  // Cotisations salariales
+  const cnpsEmployee = Math.round(cnpsBase * CNPS_CALCULATIONS.employeeRates.pvid);
+  
+  // Cotisations patronales (pour information)
+  const cnpsEmployerPVID = Math.round(cnpsBase * CNPS_CALCULATIONS.employerRates.pvid);
+  const cnpsEmployerPF = Math.round(cnpsBase * CNPS_CALCULATIONS.employerRates.pf);
+  const cnpsEmployerRP = Math.round(cnpsBase * CNPS_CALCULATIONS.employerRates.rp);
+  
+  // Impôts et taxes
+  const irpp = calculateIRPP(grossSalary);
+  const cac = Math.round(irpp * 0.10); // CAC = 10% de l'IRPP
+  const cfc = Math.round(grossSalary * CNPS_CALCULATIONS.taxRates.cfc);
+  const fne = Math.round(grossSalary * CNPS_CALCULATIONS.taxRates.fne);
+  
+  const totalEmployeeDeductions = cnpsEmployee + irpp + cac + cfc + fne;
+  
+  return {
+    employee: {
+      cnps: cnpsEmployee,
+      irpp: irpp,
+      cac: cac,
+      cfc: cfc,
+      fne: fne,
+      total: totalEmployeeDeductions
+    },
+    employer: {
+      cnpsPVID: cnpsEmployerPVID,
+      cnpsPF: cnpsEmployerPF,
+      cnpsRP: cnpsEmployerRP,
+      fne: Math.round(grossSalary * CNPS_CALCULATIONS.taxRates.fneEmp),
+      total: cnpsEmployerPVID + cnpsEmployerPF + cnpsEmployerRP + Math.round(grossSalary * CNPS_CALCULATIONS.taxRates.fneEmp)
+    },
+    taxableBase: grossSalary - cnpsEmployee
+  };
+}
 
 // Fonction pour générer les données de fiche de paie selon le modèle
 export const generatePaySlipData = (employee, companyData, templateId, payPeriod) => {
@@ -67,30 +170,35 @@ export const generatePaySlipData = (employee, companyData, templateId, payPeriod
   // Calculs de base
   const baseSalary = employee.contract?.salaryBrut || 0;
   const transportAllowance = employee.contract?.transportAllowance || 0;
-  const daysWorked = 22;
+  const housingAllowance = employee.contract?.housingAllowance || 0;
+  const responsibilityAllowance = employee.contract?.responsibilityAllowance || 0;
+  const otherPrimes = employee.contract?.otherPrimes || 0;
+  
+  // Heures travaillées
+  const daysWorked = employee.workDays?.actual || 22; // Jours ouvrés standards
   const normalHours = daysWorked * 8;
   const overtimeHours = employee.overtimeHours?.regular || 0;
   const sundayHours = employee.overtimeHours?.sunday || 0;
   const nightHours = employee.overtimeHours?.night || 0;
+  const holidayHours = employee.overtimeHours?.holiday || 0;
 
   // Calculs de rémunération
   const dailyRate = baseSalary / 22;
   const hourlyRate = dailyRate / 8;
-  const overtimePay = overtimeHours * hourlyRate * 1.5;
-  const sundayPay = sundayHours * hourlyRate * 2;
-  const nightPay = nightHours * hourlyRate * 1.3;
-  const totalGross = baseSalary + transportAllowance + overtimePay + sundayPay + nightPay;
-
-  // Calculs de déductions
-  const cnpsDeduction = totalGross * CNPS_CALCULATIONS.employeeRate;
-  const cacDeduction = totalGross * CNPS_CALCULATIONS.cacRate;
-  const cfcDeduction = totalGross * CNPS_CALCULATIONS.cfcRate;
-  const ravDeduction = totalGross * CNPS_CALCULATIONS.ravRate;
-  const tdlDeduction = totalGross * CNPS_CALCULATIONS.tdlRate;
-  const irppDeduction = Math.max(0, (totalGross - 50000) * 0.1);
   
-  const totalDeductions = cnpsDeduction + irppDeduction + cacDeduction + cfcDeduction + ravDeduction + tdlDeduction;
-  const netSalary = totalGross - totalDeductions;
+  // Heures supplémentaires (selon Code du Travail camerounais)
+  const regularOvertimePay = overtimeHours * hourlyRate * 1.3; // 130% pour heures sup normales
+  const sundayOvertimePay = sundayHours * hourlyRate * 1.4;    // 140% pour dimanche
+  const nightOvertimePay = nightHours * hourlyRate * 1.5;      // 150% pour nuit
+  const holidayOvertimePay = holidayHours * hourlyRate * 2.0;  // 200% pour jours fériés
+  
+  const totalOvertimePay = regularOvertimePay + sundayOvertimePay + nightOvertimePay + holidayOvertimePay;
+  const totalGross = baseSalary + transportAllowance + housingAllowance + responsibilityAllowance + 
+                     otherPrimes + totalOvertimePay;
+
+  // Calcul des déductions
+  const deductions = calculateDeductions(totalGross, baseSalary);
+  const netSalary = totalGross - deductions.employee.total;
 
   return {
     template: template,
@@ -99,7 +207,9 @@ export const generatePaySlipData = (employee, companyData, templateId, payPeriod
       address: companyData.address || 'BP 16194 Yaoundé',
       phone: companyData.phone || '22214081',
       cnpsNumber: companyData.cnpsNumber || 'J123456789',
-      logo: companyData.logo || null
+      logo: companyData.logo || null,
+      siret: companyData.siret || null,
+      email: companyData.email || null
     },
     employee: {
       matricule: employee.matricule || 'N/A',
@@ -110,73 +220,197 @@ export const generatePaySlipData = (employee, companyData, templateId, payPeriod
       position: employee.poste || 'N/A',
       cnpsCategory: employee.professionalCategory || 'N/A',
       cnpsEchelon: employee.echelon || 'N/A',
+      cnpsNumber: employee.cnpsNumber || 'N/A',
       department: employee.department || 'N/A',
       service: employee.service || 'N/A',
-      supervisor: employee.supervisor || 'N/A'
+      supervisor: employee.supervisor || 'N/A',
+      bankAccount: employee.bankAccount || 'N/A',
+      taxNumber: employee.taxNumber || 'N/A'
     },
     workPeriod: {
       period: payPeriod,
       daysWorked: daysWorked,
       normalHours: normalHours,
-      overtimeHours: overtimeHours,
-      sundayHours: sundayHours,
-      nightHours: nightHours,
+      overtimeHours: {
+        regular: overtimeHours,
+        sunday: sundayHours,
+        night: nightHours,
+        holiday: holidayHours,
+        total: overtimeHours + sundayHours + nightHours + holidayHours
+      },
       seniority: employee.seniority || 0,
       childrenCount: employee.childrenCount || 0,
-      leaveDays: employee.contract?.leaveDays || 18
+      leaveDays: employee.contract?.leaveDays || 18,
+      sickDays: employee.workDays?.sick || 0,
+      absentDays: employee.workDays?.absent || 0
     },
     remuneration: {
       baseSalary: baseSalary,
       transportAllowance: transportAllowance,
-      housingAllowance: employee.contract?.housingAllowance || 0,
-      responsibilityAllowance: employee.contract?.responsibilityAllowance || 0,
-      otherPrimes: employee.contract?.otherPrimes || 0,
-      normalOvertime: overtimePay,
-      sundayOvertime: sundayPay,
-      nightOvertime: nightPay,
-      totalGross: totalGross
+      housingAllowance: housingAllowance,
+      responsibilityAllowance: responsibilityAllowance,
+      otherPrimes: otherPrimes,
+      overtime: {
+        regular: regularOvertimePay,
+        sunday: sundayOvertimePay,
+        night: nightOvertimePay,
+        holiday: holidayOvertimePay,
+        total: totalOvertimePay
+      },
+      totalGross: totalGross,
+      // Formatage pour affichage
+      formatted: {
+        baseSalary: formatCurrency(baseSalary),
+        transportAllowance: formatCurrency(transportAllowance),
+        housingAllowance: formatCurrency(housingAllowance),
+        responsibilityAllowance: formatCurrency(responsibilityAllowance),
+        otherPrimes: formatCurrency(otherPrimes),
+        totalOvertimePay: formatCurrency(totalOvertimePay),
+        totalGross: formatCurrency(totalGross)
+      }
     },
     deductions: {
-      cnps: cnpsDeduction,
-      irpp: irppDeduction,
-      cac: cacDeduction,
-      cfc: cfcDeduction,
-      rav: ravDeduction,
-      tdl: tdlDeduction,
-      totalDeductions: totalDeductions
+      employee: {
+        cnps: deductions.employee.cnps,
+        irpp: deductions.employee.irpp,
+        cac: deductions.employee.cac,
+        cfc: deductions.employee.cfc,
+        fne: deductions.employee.fne,
+        total: deductions.employee.total,
+        // Formatage pour affichage
+        formatted: {
+          cnps: formatCurrency(deductions.employee.cnps),
+          irpp: formatCurrency(deductions.employee.irpp),
+          cac: formatCurrency(deductions.employee.cac),
+          cfc: formatCurrency(deductions.employee.cfc),
+          fne: formatCurrency(deductions.employee.fne),
+          total: formatCurrency(deductions.employee.total)
+        }
+      },
+      employer: {
+        cnpsPVID: deductions.employer.cnpsPVID,
+        cnpsPF: deductions.employer.cnpsPF,
+        cnpsRP: deductions.employer.cnpsRP,
+        fne: deductions.employer.fne,
+        total: deductions.employer.total,
+        // Formatage pour affichage
+        formatted: {
+          cnpsPVID: formatCurrency(deductions.employer.cnpsPVID),
+          cnpsPF: formatCurrency(deductions.employer.cnpsPF),
+          cnpsRP: formatCurrency(deductions.employer.cnpsRP),
+          fne: formatCurrency(deductions.employer.fne),
+          total: formatCurrency(deductions.employer.total)
+        }
+      }
     },
     summary: {
-      taxableSalary: totalGross - cnpsDeduction,
+      taxableSalary: deductions.taxableBase,
       netSalary: netSalary,
-      amountInWords: numberToWords(netSalary)
+      amountInWords: numberToWords(netSalary),
+      // Formatage pour affichage
+      formatted: {
+        taxableSalary: formatCurrency(deductions.taxableBase),
+        netSalary: formatCurrency(netSalary)
+      }
     },
-    generatedAt: new Date().toISOString()
+    calculations: {
+      rates: CNPS_CALCULATIONS,
+      cnpsBase: Math.min(totalGross, CNPS_CALCULATIONS.ceilings.cnpsMax),
+      formatted: {
+        cnpsBase: formatCurrency(Math.min(totalGross, CNPS_CALCULATIONS.ceilings.cnpsMax))
+      }
+    },
+    generatedAt: new Date().toISOString(),
+    generatedDate: new Date().toLocaleDateString('fr-FR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
   };
 };
 
-// Fonction utilitaire pour convertir les nombres en mots
+// Fonction utilitaire améliorée pour convertir les nombres en mots (français)
 function numberToWords(num) {
+  if (!num || isNaN(num) || num < 0) return 'zéro';
+  
   const units = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf'];
-  const teens = ['dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept', 'dix-huit', 'dix-neuf'];
-  const tens = ['', '', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'soixante-dix', 'quatre-vingt', 'quatre-vingt-dix'];
+  const teens = ['dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 
+                 'dix-sept', 'dix-huit', 'dix-neuf'];
+  const tens = ['', '', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 
+                'soixante-dix', 'quatre-vingt', 'quatre-vingt-dix'];
   
-  if (num === 0) return 'zéro';
-  if (num < 10) return units[num];
-  if (num < 20) return teens[num - 10];
-  if (num < 100) {
-    if (num % 10 === 0) return tens[Math.floor(num / 10)];
-    if (num < 70) return tens[Math.floor(num / 10)] + '-' + units[num % 10];
-    if (num < 80) return 'soixante-' + teens[num - 60];
-    return 'quatre-vingt-' + units[num % 10];
+  const convertGroup = (n) => {
+    if (n === 0) return '';
+    if (n < 10) return units[n];
+    if (n < 20) return teens[n - 10];
+    if (n < 100) {
+      const tenDigit = Math.floor(n / 10);
+      const unitDigit = n % 10;
+      
+      if (tenDigit === 7) {
+        return unitDigit === 0 ? 'soixante-dix' : `soixante-${teens[unitDigit]}`;
+      }
+      if (tenDigit === 8) {
+        return unitDigit === 0 ? 'quatre-vingts' : `quatre-vingt-${units[unitDigit]}`;
+      }
+      if (tenDigit === 9) {
+        return `quatre-vingt-${teens[unitDigit]}`;
+      }
+      
+      return unitDigit === 0 ? tens[tenDigit] : `${tens[tenDigit]}-${units[unitDigit]}`;
+    }
+    
+    const hundreds = Math.floor(n / 100);
+    const remainder = n % 100;
+    let result = hundreds === 1 ? 'cent' : `${units[hundreds]} cent`;
+    
+    if (remainder > 0) {
+      result += ` ${convertGroup(remainder)}`;
+    } else if (hundreds > 1) {
+      result += 's'; // "cents" au pluriel
+    }
+    
+    return result;
+  };
+  
+  const integerPart = Math.floor(num);
+  
+  if (integerPart === 0) return 'zéro';
+  if (integerPart < 1000) return convertGroup(integerPart);
+  if (integerPart < 1000000) {
+    const thousands = Math.floor(integerPart / 1000);
+    const remainder = integerPart % 1000;
+    
+    let result = thousands === 1 ? 'mille' : `${convertGroup(thousands)} mille`;
+    if (remainder > 0) {
+      result += ` ${convertGroup(remainder)}`;
+    }
+    return result;
   }
-  if (num < 1000) {
-    if (num % 100 === 0) return units[Math.floor(num / 100)] + ' cent';
-    return units[Math.floor(num / 100)] + ' cent ' + numberToWords(num % 100);
-  }
-  if (num < 1000000) {
-    if (num % 1000 === 0) return numberToWords(Math.floor(num / 1000)) + ' mille';
-    return numberToWords(Math.floor(num / 1000)) + ' mille ' + numberToWords(num % 1000);
+  if (integerPart < 1000000000) {
+    const millions = Math.floor(integerPart / 1000000);
+    const remainder = integerPart % 1000000;
+    
+    let result = millions === 1 ? 'un million' : `${convertGroup(millions)} millions`;
+    if (remainder > 0) {
+      if (remainder < 1000) {
+        result += ` ${convertGroup(remainder)}`;
+      } else {
+        const thousands = Math.floor(remainder / 1000);
+        const units = remainder % 1000;
+        result += ` ${convertGroup(thousands)} mille`;
+        if (units > 0) {
+          result += ` ${convertGroup(units)}`;
+        }
+      }
+    }
+    return result;
   }
   
-  return 'nombre trop grand';
-} 
+  return 'nombre trop élevé';
+}
+
+// Export des utilitaires
+export { formatCurrency, calculateDeductions, calculateIRPP, numberToWords };
