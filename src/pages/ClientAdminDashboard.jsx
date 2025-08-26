@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from "react";
 import TemplateSelector from "../components/TemplateSelector";
 import { createRoot } from "react-dom/client";
 import { auth, db } from "../firebase";
@@ -20,8 +20,8 @@ import {
   limit
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
-import * as XLSX from "xlsx";
-import Papa from "papaparse";
+import { exportToXLSX, exportToCSV } from "../utils/fileIO";
+import { buildCommonOptions } from "../utils/chartConfig";
 import { ToastContainer, toast } from "react-toastify";
 import { calculateDeductions, getNetToPay } from "../utils/payrollUtils";
 import "react-toastify/dist/ReactToastify.css";
@@ -65,22 +65,36 @@ import { Line, Doughnut, Bar } from "react-chartjs-2";
 import { v4 as uuidv4 } from 'uuid';
 import ExportContrat from "../compoments/ExportContrat";
 import ExportPaySlip from "../compoments/ExportPaySlip";
-import Autocomplete from '@mui/material/Autocomplete';
-import TextField from '@mui/material/TextField';
 import PrimeIndemniteSelector from "../compoments/PrimeIndemniteSelector";
-import { BadgeModel1, BadgeModel2, BadgeModel3, BadgeModel4, BadgeModel5 } from "../compoments/EmployeeBadgePinterest";
-import jsPDF from "jspdf";
-import QRCode from "qrcode.react";
 import html2canvas from "html2canvas";
 import { toPng } from "html-to-image";
 import ExportBadgePDF from "../compoments/ExportBadgePDF";
 import CotisationCNPS from "../compoments/CotisationCNPS";
 import { displayDepartment, displayMatricule, displayPhone, displayCNPSNumber, displayProfessionalCategory, displaySalary, displayDate, displayDiplomas, displayEchelon, displayService, displaySupervisor, displayPlaceOfBirth, displayDateOfBirth, displayDateWithOptions, displayGeneratedAt, displayHireDate, displayContractStartDate, displayContractEndDate, displayLicenseExpiry, normalizeEmployeeData } from "../utils/displayUtils";
 import { generatePaySlipData, PAYSLIP_TEMPLATE_CONFIGS } from "../utils/paySlipTemplates";
+import { generatePDFReport as generatePDFReportUtil } from "../utils/pdfUtils";
+import { buildLeaveTypeDoughnut, buildDepartmentBar, buildMonthlyTrendsLine } from "../utils/dashboardData";
 import { generateQRCodeUrl, generateUserInfoQRCode, generateVCardQRCode } from "../utils/qrCodeUtils";
 import QRCodeScanner from "../compoments/QRCodeScanner";
 import UserInfoDisplay from "../compoments/UserInfoDisplay";
-import { QRCodeCanvas } from "qrcode.react";
+ 
+import { removeUndefined } from "../utils/objectUtils";
+import PaySlipGenerator from "../components/PaySlipGenerator";
+import { subscribeEmployees, addEmployee as svcAddEmployee, updateEmployee as svcUpdateEmployee, updateEmployeeContract as svcUpdateEmployeeContract, updateEmployeePayslips as svcUpdateEmployeePayslips, updateEmployeeBaseSalary as svcUpdateEmployeeBaseSalary, deleteEmployee as svcDeleteEmployee, updateEmployeeBadge as svcUpdateEmployeeBadge } from "../services/employees";
+import { updateCompany as svcUpdateCompany, setCompanyUserCount as svcSetCompanyUserCount } from "../services/companies";
+import ExportsBar from "../components/ExportsBar";
+import LeaveRequestsRecent from "../components/LeaveRequestsRecent";
+import EmployeesTable from "../components/EmployeesTable";
+import LeaveRequestsPanel from "../components/LeaveRequestsPanel";
+import EmployeeFormModal from "../components/EmployeeFormModal";
+import Modal from "../components/Modal";
+import DashboardSidebar from "../components/DashboardSidebar";
+import DashboardHeader from "../components/DashboardHeader";
+import generateBadgePDF from "../utils/badgePdf";
+import { VILLES_CAMEROUN, QUARTIERS_PAR_VILLE } from "../utils/constants";
+// Lazy-loaded heavy sections
+const ChartsSection = lazy(() => import("../components/ChartsSection"));
+const QRSection = lazy(() => import("../components/QRSection"));
 
 ChartJS.register(
   ArcElement,
@@ -93,278 +107,7 @@ ChartJS.register(
   Tooltip,
   Legend
 );
-// 1. Place la fonction removeUndefined tout en haut du fichier
-function removeUndefined(obj) {
-  if (Array.isArray(obj)) {
-    return obj.map(removeUndefined);
-  } else if (obj && typeof obj === 'object') {
-    return Object.entries(obj).reduce((acc, [key, value]) => {
-      if (value !== undefined) {
-        acc[key] = removeUndefined(value);
-      }
-      return acc;
-    }, {});
-  }
-  return obj;
-}
-// Composant PaySlipGenerator (adapté de l'ancien code)
-const PaySlipGenerator = ({ employee, company, initialData, selectedTemplate = "template1", onSave, onCancel, actionLoading, updateEmployee, setSelectedEmployee }) => {
-  const [formData, setFormData] = React.useState({
-    payPeriod: initialData?.payPeriod || '',
-    salaryDetails: {
-      baseSalary: initialData?.salaryDetails?.baseSalary || employee?.baseSalary || 0,
-      dailyRate: initialData?.salaryDetails?.dailyRate || (employee?.baseSalary || 0) / 30,
-      hourlyRate: initialData?.salaryDetails?.hourlyRate || (employee?.baseSalary || 0) / (30 * 8),
-      transportAllowance: initialData?.salaryDetails?.transportAllowance || 0,
-    },
-    remuneration: {
-      workedDays: initialData?.remuneration?.workedDays || 30,
-      overtime: initialData?.remuneration?.overtime || 0,
-      total: initialData?.remuneration?.total || employee?.baseSalary || 0,
-    },
-    deductions: {
-      pvis: initialData?.deductions?.pvis || 0,
-      irpp: initialData?.deductions?.irpp || 0,
-      cac: initialData?.deductions?.cac || 0,
-      cfc: initialData?.deductions?.cfc || 0,
-      rav: initialData?.deductions?.rav || 0,
-      tdl: initialData?.deductions?.tdl || 0,
-      total: initialData?.deductions?.total || 0,
-    },
-    primes: initialData?.primes || [],
-    indemnites: initialData?.indemnites || [],
-    generatedAt: initialData?.generatedAt || new Date().toISOString(),
-    month: initialData?.month || '',
-    year: initialData?.year || '',
-    id: initialData?.id || uuidv4(),
-  });
-
-  const [showMissingInfoModal, setShowMissingInfoModal] = React.useState(false);
-  const [missingInfo, setMissingInfo] = React.useState({});
-  const [missingInfoValues, setMissingInfoValues] = React.useState({});
-
-  // Champs essentiels à vérifier
-  const requiredFields = [
-    { key: 'matricule', label: 'Matricule' },
-    { key: 'poste', label: 'Poste' },
-    { key: 'professionalCategory', label: 'Catégorie professionnelle' },
-    { key: 'cnpsNumber', label: 'Numéro CNPS' },
-    { key: 'email', label: 'Email' },
-  ];
-
-  // Vérification des champs manquants
-  React.useEffect(() => {
-    const missing = {};
-    requiredFields.forEach(f => {
-      if (!employee[f.key] || employee[f.key] === '') {
-        missing[f.key] = '';
-      }
-    });
-    setMissingInfo(missing);
-    setMissingInfoValues(missing);
-  }, [employee]);
-
-  // Calculer les déductions initiales si un salaire de base est fourni
-React.useEffect(() => {
-  const baseSalary = formData.salaryDetails.baseSalary;
-  if (baseSalary > 0 && (!formData.deductions.pvis || formData.deductions.total === 0)) {
-    // Utilisation de la fonction utilitaire centralisée
-    const calculatedDeductions = calculateDeductions({ baseSalary, applyTDL: true });
-    setFormData(prev => ({
-      ...prev,
-      deductions: calculatedDeductions,
-    }));
-  }
-}, [formData.salaryDetails.baseSalary]);
-
-  // Handler pour compléter les infos manquantes
-  const handleMissingInfoChange = (key, value) => {
-    setMissingInfoValues(prev => ({ ...prev, [key]: value }));
-  };
-
-  const handleMissingInfoSubmit = async () => {
-    // Mettre à jour l'employé dans Firestore
-    await updateEmployee(employee.id, missingInfoValues);
-    setShowMissingInfoModal(false);
-    // Mettre à jour l'état local de l'employé sélectionné
-    setSelectedEmployee(prev => ({ ...prev, ...missingInfoValues }));
-    setMissingInfo({});
-  };
-
-  // Fonction de calcul des déductions sociales et fiscales selon la législation camerounaise
-  // Le paramètre applyTDL permet d'activer ou non la Taxe de Développement Local (TDL), qui n'est pas systématique
-
-
-  const handleSalaryChange = (e) => {
-    const baseSalary = parseFloat(e.target.value) || 0;
-    if (baseSalary < 0) {
-      toast.error("Le salaire de base ne peut pas être négatif.");
-      return;
-    }
-    setFormData((prev) => ({
-      ...prev,
-      salaryDetails: { ...prev.salaryDetails, baseSalary },
-      remuneration: { ...prev.remuneration, total: baseSalary },
-      deductions: calculateDeductions({ baseSalary, applyTDL: true }),
-    }));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    // Vérifier à nouveau les champs essentiels
-    const missing = {};
-    requiredFields.forEach(f => {
-      if (!employee[f.key] || employee[f.key] === '') {
-        missing[f.key] = '';
-      }
-    });
-    if (Object.keys(missing).length > 0) {
-      setMissingInfo(missing);
-      setMissingInfoValues(missing);
-      setShowMissingInfoModal(true);
-      return;
-    }
-    if (!formData.payPeriod || !formData.month || !formData.year) {
-      toast.error("Veuillez sélectionner une période de paie.");
-      return;
-    }
-    if (formData.salaryDetails.baseSalary < 0) {
-      toast.error("Le salaire de base ne peut pas être négatif.");
-      return;
-    }
-    onSave({
-      ...formData,
-      employee: {
-        id: employee.id || '',
-        name: employee.name || '',
-        firstName: employee.firstName || '',
-        lastName: employee.lastName || '',
-        matricule: employee.matricule || '',
-        poste: employee.poste || '',
-        professionalCategory: employee.professionalCategory || '',
-        email: employee.email || '',
-        cnpsNumber: employee.cnpsNumber || '',
-      },
-      salaryDetails: {
-        baseSalary: Number(formData.salaryDetails.baseSalary),
-        dailyRate: Number(formData.salaryDetails.baseSalary) / 30,
-        hourlyRate: Number(formData.salaryDetails.baseSalary) / (30 * 8),
-        transportAllowance: Number(formData.salaryDetails.transportAllowance || 0),
-      },
-      deductions: formData.deductions,
-      primes: formData.primes,
-      indemnites: formData.indemnites,
-    });
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Période de paie</label>
-        <input
-          type="month"
-          value={formData.payPeriod}
-          onChange={(e) => {
-            const [year, month] = e.target.value.split("-");
-            setFormData({ ...formData, payPeriod: e.target.value, month, year });
-          }}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Salaire de base (FCFA)</label>
-        <input
-          type="number"
-          value={formData.salaryDetails.baseSalary}
-          onChange={handleSalaryChange}
-          min="0"
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Indemnité de transport (FCFA)</label>
-        <input
-          type="number"
-          value={formData.salaryDetails.transportAllowance}
-          onChange={e =>
-            setFormData({
-              ...formData,
-              salaryDetails: {
-                ...formData.salaryDetails,
-                transportAllowance: parseFloat(e.target.value) || 0,
-              },
-            })
-          }
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-        />
-      </div>
-      {/* Sélecteur Primes & Indemnités */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Primes et Indemnités</label>
-        <PrimeIndemniteSelector
-          primes={formData.primes}
-          indemnites={formData.indemnites}
-          onChange={(primes, indemnites) => setFormData(f => ({ ...f, primes, indemnites }))}
-        />
-      </div>
-      <div className="flex justify-end space-x-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
-          disabled={actionLoading}
-        >
-          Annuler
-        </button>
-        <button
-          type="submit"
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          disabled={actionLoading}
-        >
-          {actionLoading ? "Enregistrement..." : "Enregistrer"}
-        </button>
-      </div>
-
-      {showMissingInfoModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-            <h3 className="text-lg font-semibold mb-4">Compléter les informations de l'employé</h3>
-            <p className="mb-4">Veuillez renseigner les champs suivants pour générer la fiche de paie :</p>
-            {Object.keys(missingInfo).map((key) => (
-              <div className="mb-4" key={key}>
-                <label className="block text-sm font-medium">{requiredFields.find(f => f.key === key)?.label || key}</label>
-                <input
-                  type="text"
-                  value={missingInfoValues[key] || ''}
-                  onChange={e => handleMissingInfoChange(key, e.target.value)}
-                  className="mt-1 p-2 w-full border rounded"
-                  placeholder={`Entrez ${requiredFields.find(f => f.key === key)?.label || key}`}
-                  required
-                />
-              </div>
-            ))}
-            <div className="flex justify-end space-x-2">
-              <Button
-                onClick={() => setShowMissingInfoModal(false)}
-                className="bg-gray-500 hover:bg-gray-600 text-white"
-              >
-                Annuler
-              </Button>
-              <Button
-                onClick={handleMissingInfoSubmit}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                Valider
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </form>
-  );
-};
+// PaySlipGenerator extracted to src/components/PaySlipGenerator.jsx
 
 // Composant ContractGenerator (à ajouter pour éviter l'erreur)
 const ContractGenerator = ({ employee, companyData, onSave, onCancel, actionLoading = false }) => {
@@ -926,686 +669,7 @@ const Card = ({ title, children, className = "" }) => (
   </div>
 );
 
-// Composant Modal (inchangé)
-const Modal = ({ isOpen, onClose, children }) => {
-  if (!isOpen) return null;
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 animate-fade-in">
-      <div className="bg-white rounded-lg p-6 w-full max-w-lg sm:max-w-2xl max-h-[80vh] overflow-y-auto">
-        {children}
-        <Button onClick={onClose} variant="outline" className="mt-4">Fermer</Button>
-      </div>
-    </div>
-  );
-};
-
-// Liste des postes d'emploi suggérés
-const POSTES_EMPLOI = [
-  "Ingénieur",
-  "Magasinier",
-  "Auditeur",
-  "Assistant",
-  "Directeur",
-  "Comptable",
-  "Secrétaire",
-  "Technicien",
-  "Chef de projet",
-  "Analyste",
-  "Développeur",
-  "Designer",
-  "Marketing",
-  "Commercial",
-  "RH",
-  "Juriste",
-  "Architecte",
-  "Médecin",
-  "Infirmier",
-  "Pharmacien",
-  "Enseignant",
-  "Formateur",
-  "Conducteur",
-  "Chauffeur",
-  "Garde",
-  "Agent de sécurité",
-  "Cuisinier",
-  "Serveur",
-  "Réceptionniste",
-  "Gestionnaire",
-  "Superviseur",
-  "Coordinateur",
-  "Consultant",
-  "Expert",
-  "Spécialiste",
-  "Responsable",
-  "Chef de service",
-  "Chef de département",
-  "Directeur général",
-  "Directeur technique",
-  "Directeur commercial",
-  "Directeur financier",
-  "Directeur RH",
-  "Directeur marketing",
-  "Directeur opérationnel",
-  "PDG",
-  "Président",
-  "Vice-président",
-  "Administrateur",
-  "Manager",
-  "Team Leader",
-  "Lead Developer",
-  "DevOps",
-  "Data Scientist",
-  "Data Analyst",
-  "Business Analyst",
-  "Product Manager",
-  "Scrum Master",
-  "Agile Coach",
-  "UX/UI Designer",
-  "Graphiste",
-  "Rédacteur",
-  "Traducteur",
-  "Interprète",
-  "Journaliste",
-  "Photographe",
-  "Vidéaste",
-  "Monteur",
-  "Sound Designer",
-  "Architecte d'information",
-  "UX Researcher",
-  "Product Owner",
-  "Business Developer",
-  "Sales Manager",
-  "Account Manager",
-  "Customer Success",
-  "Support technique",
-  "Help Desk",
-  "Système d'information",
-  "Administrateur système",
-  "Network Engineer",
-  "Cybersecurity",
-  "Data Engineer",
-  "Machine Learning Engineer",
-  "AI Engineer",
-  "Blockchain Developer",
-  "Mobile Developer",
-  "Frontend Developer",
-  "Backend Developer",
-  "Full Stack Developer",
-  "QA Engineer",
-  "Test Engineer",
-  "DevOps Engineer",
-  "Site Reliability Engineer",
-  "Cloud Engineer",
-  "Infrastructure Engineer",
-  "Database Administrator",
-  "Data Architect",
-  "Solution Architect",
-  "Enterprise Architect",
-  "Technical Lead",
-  "Engineering Manager",
-  "CTO",
-  "CIO",
-  "CFO",
-  "COO",
-  "CEO"
-];
-
-// Liste des catégories professionnelles suggérées
-const CATEGORIES_PROFESSIONNELLES = [
-  "Cadre supérieur",
-  "Cadre moyen",
-  "Agent de maîtrise",
-  "Employé qualifié",
-  "Employé non qualifié",
-  "Ouvrier qualifié",
-  "Ouvrier non qualifié",
-  "Stagiaire",
-  "Apprenti",
-  "Dirigeant",
-  "Manager",
-  "Superviseur",
-  "Technicien",
-  "Spécialiste",
-  "Expert",
-  "Consultant",
-  "Formateur",
-  "Animateur",
-  "Coordinateur",
-  "Chef d'équipe",
-  "Responsable",
-  "Directeur",
-  "Administrateur",
-  "Gestionnaire",
-  "Assistant",
-  "Secrétaire",
-  "Réceptionniste",
-  "Comptable",
-  "Analyste",
-  "Développeur",
-  "Designer",
-  "Ingénieur",
-  "Architecte",
-  "Médecin",
-  "Infirmier",
-  "Pharmacien",
-  "Enseignant",
-  "Formateur",
-  "Commercial",
-  "Vendeur",
-  "Chauffeur",
-  "Conducteur",
-  "Agent de sécurité",
-  "Garde",
-  "Cuisinier",
-  "Serveur",
-  "Nettoyeur",
-  "Manutentionnaire",
-  "Magasinier",
-  "Livreur",
-  "Messager",
-  "Téléopérateur",
-  "Opérateur",
-  "Contrôleur",
-  "Auditeur",
-  "Inspecteur",
-  "Juriste",
-  "Avocat",
-  "Notaire",
-  "Huissier",
-  "Expert-comptable",
-  "Commissaire aux comptes",
-  "Actuaire",
-  "Statisticien",
-  "Économiste",
-  "Sociologue",
-  "Psychologue",
-  "Travailleur social",
-  "Éducateur",
-  "Animateur socioculturel",
-  "Journaliste",
-  "Rédacteur",
-  "Traducteur",
-  "Interprète",
-  "Photographe",
-  "Vidéaste",
-  "Monteur",
-  "Graphiste",
-  "Web designer",
-  "UX/UI Designer",
-  "Sound Designer",
-  "Architecte d'information",
-  "Product Manager",
-  "Scrum Master",
-  "Agile Coach",
-  "Business Analyst",
-  "Data Analyst",
-  "Data Scientist",
-  "Data Engineer",
-  "Machine Learning Engineer",
-  "AI Engineer",
-  "DevOps Engineer",
-  "Site Reliability Engineer",
-  "Cloud Engineer",
-  "Infrastructure Engineer",
-  "Network Engineer",
-  "Cybersecurity Engineer",
-  "Database Administrator",
-  "System Administrator",
-  "Technical Lead",
-  "Engineering Manager",
-  "CTO",
-  "CIO",
-  "CFO",
-  "COO",
-  "CEO"
-];
-
-// Liste des départements suggérés
-const DEPARTEMENTS = [
-  "Direction générale",
-  "Direction administrative",
-  "Direction financière",
-  "Direction commerciale",
-  "Direction technique",
-  "Direction RH",
-  "Direction marketing",
-  "Direction opérationnelle",
-  "Direction stratégique",
-  "Direction juridique",
-  "Direction informatique",
-  "Direction qualité",
-  "Direction sécurité",
-  "Direction logistique",
-  "Direction production",
-  "Direction maintenance",
-  "Direction achats",
-  "Direction ventes",
-  "Direction export",
-  "Direction import",
-  "Direction recherche",
-  "Direction développement",
-  "Direction innovation",
-  "Direction formation",
-  "Direction communication",
-  "Direction relations publiques",
-  "Direction événementiel",
-  "Direction médicale",
-  "Direction pharmaceutique",
-  "Direction hospitalière",
-  "Direction éducative",
-  "Direction pédagogique",
-  "Direction académique",
-  "Direction scientifique",
-  "Direction recherche et développement",
-  "Direction innovation technologique",
-  "Direction transformation digitale",
-  "Direction data",
-  "Direction analytics",
-  "Direction intelligence artificielle",
-  "Direction cybersécurité",
-  "Direction cloud",
-  "Direction infrastructure",
-  "Direction réseau",
-  "Direction système",
-  "Direction base de données",
-  "Direction développement logiciel",
-  "Direction test",
-  "Direction qualité logicielle",
-  "Direction support technique",
-  "Direction help desk",
-  "Direction service client",
-  "Direction expérience utilisateur",
-  "Direction design",
-  "Direction créative",
-  "Direction contenu",
-  "Direction média",
-  "Direction audiovisuel",
-  "Direction photographie",
-  "Direction vidéo",
-  "Direction son",
-  "Direction graphisme",
-  "Direction web",
-  "Direction mobile",
-  "Direction e-commerce",
-  "Direction digital",
-  "Direction transformation",
-  "Direction changement",
-  "Direction projet",
-  "Direction programme",
-  "Direction portefeuille",
-  "Direction agilité",
-  "Direction scrum",
-  "Direction lean",
-  "Direction six sigma",
-  "Direction excellence opérationnelle",
-  "Direction performance",
-  "Direction optimisation",
-  "Direction efficacité",
-  "Direction productivité",
-  "Direction rentabilité",
-  "Direction ROI",
-  "Direction KPI",
-  "Direction métriques",
-  "Direction reporting",
-  "Direction tableau de bord",
-  "Direction business intelligence",
-  "Direction data warehouse",
-  "Direction data lake",
-  "Direction big data",
-  "Direction machine learning",
-  "Direction deep learning",
-  "Direction computer vision",
-  "Direction traitement du langage naturel",
-  "Direction chatbot",
-  "Direction robotique",
-  "Direction automatisation",
-  "Direction RPA",
-  "Direction workflow",
-  "Direction processus",
-  "Direction procédure",
-  "Direction méthodologie",
-  "Direction framework",
-  "Direction standard",
-  "Direction norme",
-  "Direction certification",
-  "Direction accréditation",
-  "Direction audit",
-  "Direction conformité",
-  "Direction réglementation",
-  "Direction législation",
-  "Direction droit",
-  "Direction juridique",
-  "Direction contentieux",
-  "Direction litige",
-  "Direction arbitrage",
-  "Direction médiation",
-  "Direction négociation",
-  "Direction partenariat",
-  "Direction alliance",
-  "Direction joint-venture",
-  "Direction fusion-acquisition",
-  "Direction restructuration",
-  "Direction réorganisation",
-  "Direction downsizing",
-  "Direction upscaling",
-  "Direction croissance",
-  "Direction expansion",
-  "Direction internationalisation",
-  "Direction mondialisation",
-  "Direction localisation",
-  "Direction adaptation",
-  "Direction personnalisation",
-  "Direction sur-mesure",
-  "Direction customisation",
-  "Direction configuration",
-  "Direction paramétrage",
-  "Direction intégration",
-  "Direction migration",
-  "Direction transition",
-  "Direction transformation",
-  "Direction modernisation",
-  "Direction digitalisation",
-  "Direction automatisation",
-  "Direction robotisation",
-  "Direction intelligence artificielle",
-  "Direction machine learning",
-  "Direction deep learning",
-  "Direction data science",
-  "Direction analytics",
-  "Direction business intelligence",
-  "Direction reporting",
-  "Direction dashboard",
-  "Direction KPI",
-  "Direction métriques",
-  "Direction performance",
-  "Direction optimisation",
-  "Direction efficacité",
-  "Direction productivité",
-  "Direction rentabilité",
-  "Direction ROI",
-  "Direction coût",
-  "Direction budget",
-  "Direction finance",
-  "Direction comptabilité",
-  "Direction fiscalité",
-  "Direction trésorerie",
-  "Direction investissement",
-  "Direction financement",
-  "Direction capital",
-  "Direction actionnaire",
-  "Direction investisseur",
-  "Direction partenaire",
-  "Direction client",
-  "Direction fournisseur",
-  "Direction prestataire",
-  "Direction sous-traitant",
-  "Direction consultant",
-  "Direction expert",
-  "Direction spécialiste",
-  "Direction conseiller",
-  "Direction coach",
-  "Direction mentor",
-  "Direction formateur",
-  "Direction animateur",
-  "Direction facilitateur",
-  "Direction modérateur",
-  "Direction médiateur",
-  "Direction arbitre",
-  "Direction juge",
-  "Direction avocat",
-  "Direction notaire",
-  "Direction huissier",
-  "Direction commissaire",
-  "Direction expert-comptable",
-  "Direction commissaire aux comptes",
-  "Direction actuaire",
-  "Direction statisticien",
-  "Direction économiste",
-  "Direction sociologue",
-  "Direction psychologue",
-  "Direction travailleur social",
-  "Direction éducateur",
-  "Direction animateur socioculturel",
-  "Direction journaliste",
-  "Direction rédacteur",
-  "Direction traducteur",
-  "Direction interprète",
-  "Direction photographe",
-  "Direction vidéaste",
-  "Direction monteur",
-  "Direction graphiste",
-  "Direction web designer",
-  "Direction UX/UI Designer",
-  "Direction sound designer",
-  "Direction architecte d'information",
-  "Direction product manager",
-  "Direction scrum master",
-  "Direction agile coach",
-  "Direction business analyst",
-  "Direction data analyst",
-  "Direction data scientist",
-  "Direction data engineer",
-  "Direction machine learning engineer",
-  "Direction AI engineer",
-  "Direction DevOps engineer",
-  "Direction site reliability engineer",
-  "Direction cloud engineer",
-  "Direction infrastructure engineer",
-  "Direction network engineer",
-  "Direction cybersecurity engineer",
-  "Direction database administrator",
-  "Direction system administrator",
-  "Direction technical lead",
-  "Direction engineering manager",
-  "Direction CTO",
-  "Direction CIO",
-  "Direction CFO",
-  "Direction COO",
-  "Direction CEO"
-];
-
-// Liste des catégories CNPS Cameroun (12 catégories)
-const CATEGORIES_CNPS = [
-  "Catégorie 1",
-  "Catégorie 2", 
-  "Catégorie 3",
-  "Catégorie 4",
-  "Catégorie 5",
-  "Catégorie 6",
-  "Catégorie 7",
-  "Catégorie 8",
-  "Catégorie 9",
-  "Catégorie 10",
-  "Catégorie 11",
-  "Catégorie 12"
-];
-
-// Liste des échelons CNPS Cameroun (7 échelons)
-const ECHELONS_CNPS = [
-  "Échelon A",
-  "Échelon B",
-  "Échelon C", 
-  "Échelon D",
-  "Échelon E",
-  "Échelon F",
-  "Échelon G"
-];
-
-// Liste des diplômes suggérés
-const DIPLOMES = [
-  "Sans diplôme",
-  "CEP",
-  "BEPC",
-  "Baccalauréat",
-  "BTS",
-  "DUT",
-  "Licence",
-  "Maîtrise",
-  "Master",
-  "Doctorat",
-  "Ingénieur",
-  "Architecte",
-  "Médecin",
-  "Pharmacien",
-  "Avocat",
-  "Notaire",
-  "Expert-comptable",
-  "Formation professionnelle",
-  "Certification",
-  "Autre"
-];
-
-// Liste des services suggérés
-const SERVICES = [
-  "Service administratif",
-  "Service technique",
-  "Service commercial",
-  "Service financier",
-  "Service RH",
-  "Service marketing",
-  "Service informatique",
-  "Service logistique",
-  "Service production",
-  "Service maintenance",
-  "Service qualité",
-  "Service sécurité",
-  "Service médical",
-  "Service formation",
-  "Service communication",
-  "Service juridique",
-  "Service audit",
-  "Service recherche",
-  "Service développement",
-  "Service support"
-];
-
-// Liste des situations de famille
-const SITUATIONS_FAMILLE = [
-  "Célibataire",
-  "Marié(e)",
-  "Divorcé(e)",
-  "Veuf/Veuve",
-  "Concubinage",
-  "PACS"
-];
-
-// Composant AutocompleteField réutilisable
-const AutocompleteField = ({ 
-  label, 
-  value, 
-  onChange, 
-  inputValue, 
-  onInputChange, 
-  options, 
-  placeholder, 
-  required = false,
-  className = "w-full"
-}) => {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-600">{label}</label>
-      <Autocomplete
-        value={value}
-        onChange={(event, newValue) => {
-          onChange(newValue || "");
-        }}
-        inputValue={inputValue}
-        onInputChange={(event, newInputValue) => {
-          onInputChange(newInputValue);
-        }}
-        options={options}
-        freeSolo
-        renderInput={(params) => (
-          <TextField
-            {...params}
-            placeholder={placeholder}
-            required={required}
-            className={className}
-            size="small"
-          />
-        )}
-        renderOption={(props, option) => (
-          <li {...props}>
-            <div className="flex items-center">
-              <span className="text-sm">{option}</span>
-            </div>
-          </li>
-        )}
-        filterOptions={(options, { inputValue }) => {
-          const filtered = options.filter((option) =>
-            option.toLowerCase().includes(inputValue.toLowerCase())
-          );
-          return filtered;
-        }}
-      />
-    </div>
-  );
-};
-
-// Composant InputField réutilisable
-const InputField = ({ 
-  label, 
-  type = "text", 
-  value, 
-  onChange, 
-  placeholder, 
-  required = false,
-  className = "w-full",
-  min,
-  maxLength,
-  autoComplete,
-  error
-}) => {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-600">{label}</label>
-      <input
-        type={type}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        className={`p-2 border ${error ? 'border-red-400' : 'border-blue-200'} rounded-lg ${className}`}
-        required={required}
-        min={min}
-        maxLength={maxLength}
-        autoComplete={autoComplete}
-      />
-      {error && (
-        <span className="text-red-500 text-xs">{error}</span>
-      )}
-    </div>
-  );
-};
-
-// Composant SelectField réutilisable
-const SelectField = ({ 
-  label, 
-  value, 
-  onChange, 
-  options, 
-  placeholder, 
-  required = false,
-  className = "w-full"
-}) => {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-600">{label}</label>
-      <select
-        value={value}
-        onChange={onChange}
-        className={`p-2 border border-blue-200 rounded-lg ${className}`}
-        required={required}
-      >
-        {placeholder && <option value="">{placeholder}</option>}
-        {options.map((option, index) => (
-          <option key={index} value={option.value || option}>
-            {option.label || option}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-};
+// Modal moved to shared component: ../components/Modal
 
 // Composant principal
 const CompanyAdminDashboard = () => {
@@ -1838,13 +902,12 @@ useEffect(() => {
 const deletePaySlip = async (employeeId, payslipId) => {
     setActionLoading(true);
     try {
-      const employeeDoc = doc(db, "clients", companyData.id, "employees", employeeId);
       const employee = employees.find((emp) => emp.id === employeeId);
       if (!employee) {
         throw new Error("Employé non trouvé.");
       }
     const updatedPayslips = (employee.payslips || []).filter((ps) => ps.id !== payslipId);
-    await updateDoc(employeeDoc, { payslips: removeUndefined(updatedPayslips) });
+    await svcUpdateEmployeePayslips(db, companyData.id, employeeId, removeUndefined(updatedPayslips));
     setEmployees((prev) => prev.map((emp) => emp.id === employeeId ? { ...emp, payslips: updatedPayslips } : emp));
     setFilteredEmployees((prev) => prev.map((emp) => emp.id === employeeId ? { ...emp, payslips: updatedPayslips } : emp));
     // Mettre à jour selectedEmployee si c'est le même employé
@@ -1902,6 +965,7 @@ const deletePaySlip = async (employeeId, payslipId) => {
 
   // Charger les données depuis Firebase
   useEffect(() => {
+    let unsubscribe;
     const fetchData = async () => {
       console.log('[DEBUG] useEffect fetchData: auth.currentUser =', auth.currentUser);
       const user = auth.currentUser;
@@ -1920,13 +984,11 @@ const deletePaySlip = async (employeeId, payslipId) => {
           const companyId = companyDoc.id;
           setCompanyData({ id: companyId, ...companyDoc.data() });
           setLogoData(localStorage.getItem(`logo_${companyId}`));
-          const unsubscribe = onSnapshot(
-            collection(db, "clients", companyId, "employees"),
-            (snapshot) => {
-              const employeesData = snapshot.docs.map((doc) => {
-                const employeeData = { id: doc.id, ...doc.data() };
-                return normalizeEmployeeData(employeeData);
-              });
+          unsubscribe = subscribeEmployees(
+            db,
+            companyId,
+            (rows) => {
+              const employeesData = rows.map((employeeData) => normalizeEmployeeData(employeeData));
               setEmployees(employeesData);
               setLoading(false);
             },
@@ -1936,7 +998,6 @@ const deletePaySlip = async (employeeId, payslipId) => {
               setLoading(false);
             }
           );
-          return () => unsubscribe();
         } else {
           setErrorMessage("Aucun client trouvé pour cet utilisateur.");
           toast.error("Aucun client trouvé pour cet utilisateur.");
@@ -1949,9 +1010,14 @@ const deletePaySlip = async (employeeId, payslipId) => {
       }
     };
     fetchData();
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
   }, [navigate]);
 
-  // Mettre à jour un employé
+// Mettre à jour un employé (via service)
 const updateEmployee = useCallback(async (id, updatedData) => {
   try {
     setActionLoading(true);
@@ -1977,23 +1043,10 @@ const updateEmployee = useCallback(async (id, updatedData) => {
       throw new Error("Email invalide.");
     }
 
-    // Vérifier la taille des données
-    const sizeInBytes = new TextEncoder().encode(JSON.stringify(updatedData)).length;
-    if (sizeInBytes > 900000) {
-      throw new Error("Les données de l'employé sont trop volumineuses pour Firestore.");
-    }
-
-    // Vérifier si le document existe
-    const employeeRef = doc(db, "clients", companyData.id, "employees", id);
-    const employeeSnap = await getDocs(employeeRef);
-    if (!employeeSnap.exists()) {
-      throw new Error("L'employé spécifié n'existe pas.");
-    }
-
-    // Mettre à jour le document
-    await updateDoc(employeeRef, {
+    // Mettre à jour via service
+    await svcUpdateEmployee(db, companyData.id, id, {
       ...updatedData,
-      updatedAt: new Date().toISOString(), // Ajouter un horodatage pour tracer les mises à jour
+      updatedAt: new Date().toISOString(),
     });
     toast.success("Employé mis à jour avec succès !");
   } catch (error) {
@@ -2010,7 +1063,7 @@ const updateEmployee = useCallback(async (id, updatedData) => {
   }
 }, [companyData]);
 
-  // Ajouter un employé
+// Ajouter un employé (via service)
 const addEmployee = async (e) => {
   e.preventDefault();
   setActionLoading(true);
@@ -2049,8 +1102,7 @@ const addEmployee = async (e) => {
     };
     let employeeId;
     if (newEmployee.id) {
-      console.log('[DEBUG] addEmployee: updateDoc for employee', newEmployee.id);
-      
+      console.log('[DEBUG] addEmployee: update existing employee', newEmployee.id);
       // Convertir la date de naissance du format français vers ISO
       const employeeData = {
         ...newEmployee,
@@ -2059,13 +1111,11 @@ const addEmployee = async (e) => {
         contractFile: null,
         department: newEmployee.department,
       };
-      
-      await updateDoc(doc(db, "clients", companyData.id, "employees", newEmployee.id), employeeData);
+      await svcUpdateEmployee(db, companyData.id, newEmployee.id, employeeData);
       employeeId = newEmployee.id;
       toast.success("Employé modifié avec succès !");
     } else {
-      console.log('[DEBUG] addEmployee: addDoc for new employee', newEmployee);
-      
+      console.log('[DEBUG] addEmployee: add new employee', newEmployee);
       // Convertir la date de naissance du format français vers ISO
       const employeeData = {
         ...newEmployee,
@@ -2077,9 +1127,7 @@ const addEmployee = async (e) => {
         createdAt: new Date().toISOString(),
         department: newEmployee.department,
       };
-      
-      const docRef = await addDoc(collection(db, "clients", companyData.id, "employees"), employeeData);
-      employeeId = docRef.id;
+      employeeId = await svcAddEmployee(db, companyData.id, employeeData);
       toast.success("Employé ajouté avec succès !");
     }
     // Génère automatiquement le PDF du contrat avec uniquement les champs utiles
@@ -2134,22 +1182,25 @@ const addEmployee = async (e) => {
 const saveContract = async (contractData) => {
   setActionLoading(true);
   try {
-    const employeeDoc = doc(db, "clients", companyData.id, "employees", selectedEmployee.id);
-    await updateDoc(employeeDoc, {
+    await svcUpdateEmployeeContract(db, companyData.id, selectedEmployee.id, {
       contract: contractData,
       contractFile: contractData.fileUrl || null,
       hasTrialPeriod: contractData.trialPeriod ? true : false,
       trialPeriodDuration: contractData.trialPeriod || "",
+      updatedAt: new Date().toISOString(),
     });
     toast.success("Contrat enregistré avec succès !");
-    setShowContractForm(false);
-    setShowPaySlipForm(false);
-    setShowPaySlip(false);
-    setShowContract(false);
-    setSelectedEmployee(null);
+    // Mettre à jour localement l'employé sélectionné
+    setSelectedEmployee((prev) => ({
+      ...prev,
+      contract: contractData,
+      contractFile: contractData.fileUrl || null,
+      hasTrialPeriod: !!contractData.trialPeriod,
+      trialPeriodDuration: contractData.trialPeriod || "",
+    }));
   } catch (error) {
     console.error("[saveContract] Erreur:", error.message);
-    toast.error("Erreur lors de l'enregistrement du contrat.");
+    toast.error(`Erreur lors de l'enregistrement du contrat : ${error.message}`);
   } finally {
     setActionLoading(false);
   }
@@ -2159,9 +1210,8 @@ const saveContract = async (contractData) => {
     if (!window.confirm("Supprimer cet employé ?")) return;
     try {
       setActionLoading(true);
-      const employeeRef = doc(db, "clients", companyData.id, "employees", id);
-      await deleteDoc(employeeRef);
-      await updateDoc(doc(db, "clients", companyData.id), { currentUsers: employees.length - 1 });
+      await svcDeleteEmployee(db, companyData.id, id);
+      await svcSetCompanyUserCount(db, companyData.id, employees.length - 1);
       toast.success("Employé supprimé !");
     } catch (error) {
       console.error("Erreur suppression employé:", error);
@@ -2253,54 +1303,24 @@ const saveContract = async (contractData) => {
 
   // Générer un rapport PDF
   const generatePDFReport = useCallback(() => {
-    try {
-      // Imports nécessaires pour la génération PDF
-      const { jsPDF } = require('jspdf');
-      const autoTable = require('jspdf-autotable');
-      
-      setActionLoading(true);
-      const doc = new jsPDF();
-      doc.setFontSize(16);
-      doc.text(`Rapport RH - ${companyData.name}`, 10, 10);
-      doc.setFontSize(12);
-      doc.text(`Employés : ${companyData.currentUsers}/${companyData.licenseMaxUsers}`, 10, 20);
-              doc.text(`Date : ${displayDate(new Date())}`, 10, 30);
-      autoTable(doc, {
-        startY: 40,
-        head: [["Nom", "Rôle", "Poste", "Congés restants", "Statut"]],
-        body: employees.map((emp) => [emp.name, emp.role, emp.poste, emp.leaves.balance, emp.status]),
-        theme: "grid",
-        styles: { fontSize: 10 },
-      });
-      doc.save(`${companyData.name}_rapport.pdf`);
-      toast.success("Rapport PDF généré !");
-    } catch (error) {
-      console.error("Erreur génération PDF:", error);
-      toast.error("Erreur génération PDF");
-    } finally {
-      setActionLoading(false);
-    }
+    generatePDFReportUtil(companyData, employees, setActionLoading);
   }, [companyData, employees]);
 
   // Générer un rapport Excel
   const generateExcelReport = useCallback(() => {
     try {
       setActionLoading(true);
-      const worksheet = XLSX.utils.json_to_sheet(
-        employees.map((emp) => ({
-          Nom: emp.name,
-          Email: emp.email,
-          Rôle: emp.role,
-          Poste: emp.poste,
-          Département: emp.department || "N/A",
-          "Date d'embauche": displayHireDate(emp.hireDate),
-          Statut: emp.status,
-          "Solde Congés": emp.leaves.balance,
-        }))
-      );
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Employés");
-      XLSX.writeFile(workbook, `${companyData.name}_rapport.xlsx`);
+      const rows = employees.map((emp) => ({
+        Nom: emp.name,
+        Email: emp.email,
+        Rôle: emp.role,
+        Poste: emp.poste,
+        Département: emp.department || "N/A",
+        "Date d'embauche": displayHireDate(emp.hireDate),
+        Statut: emp.status,
+        "Solde Congés": emp.leaves.balance,
+      }));
+      exportToXLSX(rows, `${companyData.name}_rapport.xlsx`, "Employés");
       toast.success("Rapport Excel généré !");
     } catch (error) {
       console.error("Erreur génération Excel:", error);
@@ -2314,7 +1334,7 @@ const saveContract = async (contractData) => {
   const generateCSVReport = useCallback(() => {
     try {
       setActionLoading(true);
-      const csvData = employees.map((emp) => ({
+      const rows = employees.map((emp) => ({
         Nom: emp.name,
         Email: emp.email,
         Rôle: emp.role,
@@ -2324,14 +1344,7 @@ const saveContract = async (contractData) => {
         Statut: emp.status,
         "Solde Congés": emp.leaves.balance,
       }));
-      const csv = Papa.unparse(csvData);
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `${companyData.name}_rapport.csv`);
-      link.click();
-      URL.revokeObjectURL(url);
+      exportToCSV(rows, `${companyData.name}_rapport.csv`);
       toast.success("Rapport CSV généré !");
     } catch (error) {
       console.error("Erreur génération CSV:", error);
@@ -2375,7 +1388,6 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
     if (!selectedEmployee?.id || !companyData?.id) {
       throw new Error("Employé ou entreprise non sélectionné.");
     }
-    const employeeDoc = doc(db, "clients", companyData.id, "employees", selectedEmployee.id);
     const employee = employees.find((emp) => emp.id === selectedEmployee.id);
     if (!employee) {
       throw new Error("Employé non trouvé.");
@@ -2385,7 +1397,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
       throw new Error("Le salaire de base doit être supérieur ou égal à 36270 FCFA.");
     }
     if (newBaseSalary !== Number(employee.baseSalary)) {
-      await updateDoc(employeeDoc, { baseSalary: newBaseSalary });
+      await svcUpdateEmployeeBaseSalary(db, companyData.id, selectedEmployee.id, newBaseSalary);
     }
     // Harmonisation : structure directe, ajout id unique si création
     const safePaySlipData = {
@@ -2420,7 +1432,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
       // Création : ajouter une nouvelle fiche
       updatedPayslips.push(safePaySlipData);
     }
-    await updateDoc(employeeDoc, { payslips: removeUndefined(updatedPayslips) });
+    await svcUpdateEmployeePayslips(db, companyData.id, selectedEmployee.id, removeUndefined(updatedPayslips));
     setEmployees((prev) => prev.map((emp) => emp.id === selectedEmployee.id ? { ...emp, payslips: updatedPayslips } : emp));
     setFilteredEmployees((prev) => prev.map((emp) => emp.id === selectedEmployee.id ? { ...emp, payslips: updatedPayslips } : emp));
     // Mettre à jour selectedEmployee avec les nouvelles données
@@ -2474,51 +1486,10 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
     return leaveRequests.filter((req) => req.status === leaveFilter);
   }, [leaveRequests, leaveFilter]);
 
-  // Données pour les graphiques
-  const doughnutData = {
-    labels: ["Vacances", "Maladie", "Personnel", "Maternité", "Autre"],
-    datasets: [
-      {
-        data: [30, 20, 15, 10, 25],
-        backgroundColor: ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#EF4444"],
-        borderColor: ["#ffffff"],
-        borderWidth: 2,
-      },
-    ],
-  };
-
-  const barData = {
-    labels: ["Informatique", "RH", "Finance", "Marketing", "Non assigné"],
-    datasets: [
-      {
-        label: "Employés par département",
-        data: [5, 3, 2, 4, 1],
-        backgroundColor: "#3B82F6",
-        borderColor: "#2563EB",
-        borderWidth: 1,
-      },
-    ],
-  };
-
-  const lineData = {
-    labels: ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun"],
-    datasets: [
-      {
-        label: "Embauches",
-        data: [2, 3, 1, 4, 2, 5],
-        borderColor: "#3B82F6",
-        backgroundColor: "rgba(59, 130, 246, 0.2)",
-        fill: true,
-      },
-      {
-        label: "Départs",
-        data: [1, 0, 2, 1, 0, 1],
-        borderColor: "#EF4444",
-        backgroundColor: "rgba(239, 68, 68, 0.2)",
-        fill: true,
-      },
-    ],
-  };
+  // Données pour les graphiques (via utilitaires)
+  const doughnutData = buildLeaveTypeDoughnut();
+  const barData = buildDepartmentBar();
+  const lineData = buildMonthlyTrendsLine();
 
   if (loading) {
     return (
@@ -2539,24 +1510,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
     );
   }
 
-  // Liste des villes et quartiers connus du Cameroun
-  const villesCameroun = [
-    "Douala", "Yaoundé", "Garoua", "Bamenda", "Maroua", "Bafoussam", "Ngaoundéré", "Bertoua", "Ebolowa", "Kumba"
-  ];
-  const quartiersParVille = {
-    "Douala": ["Akwa", "Bonapriso", "Bonamoussadi", "Deido", "Makepe", "Logbaba", "Bali", "New Bell", "Cité des Palmiers", "Bonabéri"],
-    "Yaoundé": ["Bastos", "Melen", "Mvog Ada", "Nlongkak", "Essos", "Emana", "Mokolo", "Biyem-Assi", "Etoudi", "Ekounou"],
-    // Les autres villes peuvent être complétées au besoin
-  };
-
-  // Fonction utilitaire pour générer le badge PDF (exemple simple, à adapter selon besoin)
-  const generateBadgePDF = (employee, companyData, badgeModel) => {
-    const doc = new jsPDF({ orientation: "landscape", unit: "px", format: [320, 210] });
-    // On peut utiliser html2canvas ou doc.html pour capturer le rendu React, ou générer le PDF manuellement
-    // Ici, on met un placeholder
-    doc.text(`Badge pour ${employee.name} (${badgeModel})`, 20, 30);
-    doc.save(`badge_${employee.name.replace(/\s+/g, "_")}.pdf`);
-  };
+  // Cameroon cities and PDF helpers moved to utils (constants.js, badgePdf.js)
 
   return (
     <div className="min-h-screen flex bg-gradient-to-br from-slate-50 to-blue-50">
@@ -2567,103 +1521,20 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
         </div>
       )}
       {/* Sidebar */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 bg-white border-r border-blue-100 transition-all duration-300 ${
-          sidebarOpen ? "w-64" : "w-16"
-        } md:static md:h-screen md:flex md:flex-col`}
-      >
-        <div className="p-4 border-b border-blue-100">
-          <div className="flex items-center justify-between">
-            {sidebarOpen && (
-              <div className="flex items-center gap-3">
-                {logoData ? (
-                  <img src={logoData} alt="Logo" className="h-10 rounded-lg" />
-                ) : (
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-400 rounded-lg flex items-center justify-center">
-                    <Settings className="w-6 h-6 text-white" />
-                  </div>
-                )}
-                <div>
-                  <h1 className="text-xl font-bold text-gray-900">RH Dashboard</h1>
-                  <p className="text-sm text-gray-500">{companyData.name}</p>
-                </div>
-              </div>
-            )}
-            <Button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              variant="outline"
-              size="sm"
-              className="md:hidden"
-            >
-              {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </Button>
-          </div>
-        </div>
-        <nav className="flex-1 p-4">
-          <ul className="space-y-2">
-            {[
-              { id: "overview", label: "Tableau de bord", icon: BarChart3 },
-              { id: "employees", label: "Employés", icon: Users },
-              { id: "leaves", label: "Congés", icon: Calendar },
-              { id: "absences", label: "Absences", icon: Clock },
-              { id: "payslips", label: "Paie", icon: CreditCard },
-              { id: "notifications", label: "Notifications", icon: Bell },
-              { id: "badges", label: "Badges", icon: Users },
-              { id: "reports", label: "Rapports", icon: Download }, // <-- Ajouté
-              { id: "settings", label: "Paramètres", icon: Settings },
-            ].map((item) => (
-              <li key={item.id} className="relative group">
-                <button
-                  onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all duration-200 ${
-                    activeTab === item.id
-                      ? "bg-gradient-to-r from-blue-600 to-blue-400 text-white"
-                      : "text-gray-600 hover:bg-blue-50"
-                  }`}
-                >
-                  <item.icon className="w-5 h-5" />
-                  {sidebarOpen && <span className="font-medium">{item.label}</span>}
-                </button>
-                {!sidebarOpen && (
-                  <span className="absolute left-16 top-1/2 -translate-y-1/2 bg-gray-800 text-white text-sm px-2 py-1 rounded hidden group-hover:block">
-                    {item.label}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </nav>
-        <div className="p-4 border-t border-blue-100">
-          <Button
-            onClick={handleLogout}
-            variant="danger"
-            icon={XCircle}
-            className="w-full justify-start"
-          >
-            {sidebarOpen && "Déconnexion"}
-          </Button>
-        </div>
-      </aside>
+      <DashboardSidebar
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+        companyData={companyData}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        logoData={logoData}
+        handleLogout={handleLogout}
+        notifications={notifications}
+      />
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <header className="bg-white shadow-sm border-b border-blue-100 p-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900 capitalize">{activeTab}</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-500">
-              {displayDateWithOptions(new Date(), { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-            </span>
-            <div className="relative">
-              <Bell className="w-6 h-6 text-blue-600" />
-              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                {notifications.filter((n) => !n.read).length}
-              </span>
-            </div>
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-400 rounded-full flex items-center justify-center text-white font-semibold">
-              {auth.currentUser?.email[0]?.toUpperCase() || "U"}
-            </div>
-          </div>
-        </header>
+        <DashboardHeader activeTab={activeTab} notifications={notifications} />
         {/* Main */}
         <main className="flex-1 p-6 overflow-auto animate-fade-in">
           {activeTab === "overview" && (
@@ -2758,17 +1629,9 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                   </div>
                 </Card>
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card title="Types de Congés">
-                  <Doughnut data={doughnutData} options={{ responsive: true, maintainAspectRatio: false }} className="h-64" />
-                </Card>
-                <Card title="Répartition par Département">
-                  <Bar data={barData} options={{ responsive: true, maintainAspectRatio: false }} className="h-64" />
-                </Card>
-                <Card title="Tendances Mensuelles">
-                  <Line data={lineData} options={{ responsive: true, maintainAspectRatio: false }} className="h-64" />
-                </Card>
-              </div>
+              <Suspense fallback={<div className="p-4">Chargement des graphiques…</div>}>
+                <ChartsSection />
+              </Suspense>
               
               {/* Nouvelles métriques financières */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -2842,39 +1705,8 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card title="Demandes de Congés Récentes">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-200">
-                      <th className="text-left py-3 px-4">Employé</th>
-                      <th className="text-left py-3 px-4">Date</th>
-                        <th className="text-left py-3 px-4">Durée</th>
-                      <th className="text-left py-3 px-4">Statut</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredLeaveRequests.slice(0, 5).map((req, index) => (
-                      <tr key={index} className="border-b border-gray-100 hover:bg-blue-50">
-                        <td className="py-4 px-4">{employees.find((emp) => emp.id === req.employeeId)?.name}</td>
-                        <td className="py-4 px-4">{displayDate(req.date)}</td>
-                          <td className="py-4 px-4">{req.days} jour(s)</td>
-                        <td className="py-4 px-4">
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs ${
-                              req.status === "Approuvé"
-                                ? "bg-green-100 text-green-800"
-                                : req.status === "Rejeté"
-                                ? "bg-red-100 text-red-800"
-                                : "bg-yellow-100 text-yellow-800"
-                            }`}
-                          >
-                            {req.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </Card>
+                  <LeaveRequestsRecent employees={employees} requests={filteredLeaveRequests} />
+                </Card>
                 
                 <Card title="Fiches de Paie Récentes">
                   <table className="w-full">
@@ -2984,395 +1816,49 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
         {filteredEmployees.length === 0 ? (
           <p className="text-center text-gray-500">Aucun employé trouvé.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full table-auto">
-              <thead>
-                <tr className="border-b border-blue-100">
-                  <th className="text-left py-3 px-4">Photo</th>
-                  <th className="text-left py-3 px-4">Nom & Prénom</th>
-                  <th className="text-left py-3 px-4">Poste</th>
-                  <th className="text-left py-3 px-4">Salaire</th>
-                  <th className="text-left py-3 px-4">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredEmployees.map((emp) => (
-                  <tr key={emp.id} className="border-b border-blue-100 hover:bg-blue-50">
-                    <td className="py-4 px-4">
-                      <img
-                        src={emp.profilePicture || "https://ui-avatars.com/api/?name=Inconnu&background=60A5FA&color=fff"}
-                        alt={emp.name || "Employé"}
-                        className="w-10 h-10 rounded-full"
-                        onError={(e) => (e.target.src = "https://ui-avatars.com/api/?name=Inconnu&background=60A5FA&color=fff")}
-                      />
-                    </td>
-                    <td className="py-4 px-4">
-                      <div>
-                        <div className="font-medium">{emp.name || "N/A"}</div>
-                        <div className="text-sm text-gray-500">{emp.firstName || ""}</div>
-                      </div>
-                    </td>
-                    <td className="py-4 px-4">{emp.poste || "N/A"}</td>
-                    <td className="py-4 px-4">{emp.baseSalary ? emp.baseSalary.toLocaleString() : "0"} FCFA</td>
-                    <td className="py-4 px-4 flex gap-2">
-                      <Button size="sm" icon={Eye} onClick={() => {
-                        console.log('[DEBUG] Clic sur bouton Voir pour employé:', emp);
-                        try {
-                          setSelectedEmployee(emp);
-                        } catch (error) {
-                          console.error('[ERROR] Erreur lors du clic sur Voir:', error);
-                          toast.error('Erreur lors de l\'affichage des détails');
-                        }
-                      }}>Voir</Button>
-                      <Button
-                        size="sm"
-                        icon={Edit}
-                        variant="outline"
-                        onClick={() => {
-                          setNewEmployee(ensureEmployeeFields(emp));
-                          setShowEmployeeModal(true);
-            setShowContractForm(false);
-            setShowContract(false);
-            setShowPaySlipForm(false);
-            setShowPaySlip(false);
-                        }}
-                      >
-                        Modifier
-                      </Button>
-                      <Button size="sm" icon={Trash2} variant="danger" onClick={() => deleteEmployee(emp.id)}>
-                        Supprimer
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <EmployeesTable
+            employees={filteredEmployees}
+            onView={(emp) => {
+              try {
+                setSelectedEmployee(emp);
+              } catch (error) {
+                console.error('[ERROR] Erreur lors du clic sur Voir:', error);
+                toast.error("Erreur lors de l'affichage des détails");
+              }
+            }}
+            onEdit={(emp) => {
+              setNewEmployee(ensureEmployeeFields(emp));
+              setShowEmployeeModal(true);
+              setShowContractForm(false);
+              setShowContract(false);
+              setShowPaySlipForm(false);
+              setShowPaySlip(false);
+            }}
+            onDelete={(id) => deleteEmployee(id)}
+          />
         )}
       </div>
     </Card>
 {showEmployeeModal && (
-  <Modal isOpen={showEmployeeModal} onClose={() => {
-    setShowEmployeeModal(false);
-    setSelectedEmployee(null);
-  }}>
-    <form onSubmit={addEmployee} className="space-y-4">
-      <h2 className="text-lg font-semibold">{newEmployee.id ? "Modifier Employé" : "Ajouter Employé"}</h2>
-      
-      <InputField
-        label="Nom complet"
-        type="text"
-        value={newEmployee.name}
-        onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })}
-        placeholder="Nom complet"
-        required
-      />
-      
-      <InputField
-        label="Email"
-        type="email"
-        value={newEmployee.email}
-        onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })}
-        placeholder="Email"
-        required
-      />
-      
-      <AutocompleteField
-        label="Rôle"
-        value={newEmployee.role}
-        onChange={(newValue) => setNewEmployee({ ...newEmployee, role: newValue })}
-        inputValue={newEmployee.role}
-        onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, role: newInputValue })}
-        options={["Employé", "Manager", "Admin", "Directeur", "Superviseur", "Chef d'équipe", "Responsable", "Coordinateur", "Consultant", "Expert", "Spécialiste", "Assistant", "Stagiaire", "Apprenti"]}
-        placeholder="Sélectionnez ou tapez un rôle"
-        required
-      />
-      
-      <AutocompleteField
-        label="Poste"
-        value={newEmployee.poste}
-        onChange={(newValue) => setNewEmployee({ ...newEmployee, poste: newValue })}
-        inputValue={newEmployee.poste}
-        onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, poste: newInputValue })}
-        options={POSTES_EMPLOI}
-        placeholder="Sélectionnez ou tapez un poste"
-        required
-      />
-      
-      <InputField
-        label="Téléphone"
-        type="tel"
-        value={newEmployee.phone}
-        onChange={(e) => setNewEmployee({ ...newEmployee, phone: e.target.value })}
-        placeholder="Téléphone"
-      />
-      
-      <AutocompleteField
-        label="Département"
-        value={newEmployee.department}
-        onChange={(newValue) => setNewEmployee({ ...newEmployee, department: newValue })}
-        inputValue={newEmployee.department}
-        onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, department: newInputValue })}
-        options={DEPARTEMENTS}
-        placeholder="Sélectionnez ou tapez un département"
-      />
-      
-      <InputField
-        label="Date d'embauche"
-        type="date"
-        value={newEmployee.hireDate}
-        onChange={(e) => setNewEmployee({ ...newEmployee, hireDate: e.target.value })}
-        placeholder="Date d'embauche"
-        required
-      />
-      <SelectField
-        label="Statut"
-        value={newEmployee.status}
-        onChange={(e) => setNewEmployee({ ...newEmployee, status: e.target.value })}
-        options={["Actif", "Inactif", "Suspendu"]}
-        required
-      />
-      
-      <InputField
-        label="Numéro CNPS"
-        type="text"
-        value={newEmployee.cnpsNumber}
-        onChange={(e) => setNewEmployee({ ...newEmployee, cnpsNumber: e.target.value })}
-        placeholder="Numéro CNPS"
-        required
-      />
-      
-      <AutocompleteField
-        label="Catégorie CNPS"
-        value={newEmployee.professionalCategory}
-        onChange={(newValue) => setNewEmployee({ ...newEmployee, professionalCategory: newValue })}
-        inputValue={newEmployee.professionalCategory}
-        onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, professionalCategory: newInputValue })}
-        options={CATEGORIES_CNPS}
-        placeholder="Sélectionnez une catégorie CNPS (1-12)"
-        required
-      />
-      
-      <AutocompleteField
-        label="Échelon CNPS"
-        value={newEmployee.echelon}
-        onChange={(newValue) => setNewEmployee({ ...newEmployee, echelon: newValue })}
-        inputValue={newEmployee.echelon}
-        onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, echelon: newInputValue })}
-        options={ECHELONS_CNPS}
-        placeholder="Sélectionnez un échelon CNPS (A-G)"
-      />
-      
-      <AutocompleteField
-        label="Catégorie professionnelle"
-        value={newEmployee.category}
-        onChange={(newValue) => setNewEmployee({ ...newEmployee, category: newValue })}
-        inputValue={newEmployee.category}
-        onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, category: newInputValue })}
-        options={CATEGORIES_PROFESSIONNELLES}
-        placeholder="Sélectionnez ou tapez une catégorie professionnelle"
-      />
-      
-      <InputField
-        label="Salaire de base (FCFA)"
-        type="number"
-        value={newEmployee.baseSalary}
-        onChange={(e) => setNewEmployee({ ...newEmployee, baseSalary: e.target.value })}
-        placeholder="Salaire de base (FCFA)"
-        min="0"
-        required
-      />
-      <SelectField
-        label="Période d'essai"
-        value={newEmployee.hasTrialPeriod}
-        onChange={(e) => setNewEmployee({ ...newEmployee, hasTrialPeriod: e.target.value === "true" })}
-        options={[
-          { value: false, label: "Non" },
-          { value: true, label: "Oui" }
-        ]}
-      />
-      
-      {newEmployee.hasTrialPeriod && (
-        <InputField
-          label="Durée de la période d'essai"
-          type="text"
-          value={newEmployee.trialPeriodDuration}
-          onChange={(e) => setNewEmployee({ ...newEmployee, trialPeriodDuration: e.target.value })}
-          placeholder="Durée de la période d'essai (ex. 3 mois)"
-        />
-      )}
-      
-      <InputField
-        label="Matricule"
-        type="text"
-        value={newEmployee.matricule || ''}
-        onChange={(e) => setNewEmployee({ ...newEmployee, matricule: e.target.value })}
-        placeholder="Entrez le matricule de l'employé"
-        required
-      />
-      
-      {/* Nouveaux champs d'informations personnelles */}
-      <div className="border-t pt-4">
-        <h3 className="text-md font-semibold text-gray-700 mb-3">Informations personnelles</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <InputField
-            label="Date de naissance"
-            type="text"
-            value={newEmployee.dateOfBirth}
-            onChange={e => {
-              const formatted = formatDateOfBirthInput(e.target.value);
-              setNewEmployee({ ...newEmployee, dateOfBirth: formatted });
-              setDateOfBirthError(validateDateOfBirth(formatted));
-            }}
-            placeholder="JJ/MM/AAAA (ex: 25/12/1990)"
-            maxLength={10}
-            autoComplete="off"
-            error={dateOfBirthError}
-          />
-          
-          <InputField
-            label="Lieu de naissance"
-            type="text"
-            value={newEmployee.lieuNaissance}
-            onChange={(e) => setNewEmployee({ ...newEmployee, lieuNaissance: e.target.value })}
-            placeholder="Ville, département, pays (ex: Douala, Littoral, Cameroun)"
-            list="lieuxNaissance"
-          />
-          <datalist id="lieuxNaissance">
-            {allLieuNaissance.map((lieu, idx) => (
-              <option key={idx} value={lieu} />
-            ))}
-          </datalist>
-          
-          <InputField
-            label="Fils de"
-            type="text"
-            value={newEmployee.pere}
-            onChange={(e) => setNewEmployee({ ...newEmployee, pere: e.target.value })}
-            placeholder="Nom du père"
-          />
-          
-          <InputField
-            label="Et de"
-            type="text"
-            value={newEmployee.mere}
-            onChange={(e) => setNewEmployee({ ...newEmployee, mere: e.target.value })}
-            placeholder="Nom de la mère"
-          />
-          
-          <InputField
-            label="Lieu de résidence habituelle"
-            type="text"
-            value={newEmployee.residence}
-            onChange={(e) => setNewEmployee({ ...newEmployee, residence: e.target.value })}
-            placeholder="Adresse complète (ex: Rue de la Paix, Akwa, Douala, Cameroun)"
-            list="adressesResidence"
-          />
-          <datalist id="adressesResidence">
-            {allResidences.map((addr, idx) => (
-              <option key={idx} value={addr} />
-            ))}
-          </datalist>
-          
-          <AutocompleteField
-            label="Situation de famille"
-            value={newEmployee.situation}
-            onChange={(newValue) => setNewEmployee({ ...newEmployee, situation: newValue })}
-            inputValue={newEmployee.situation}
-            onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, situation: newInputValue })}
-            options={SITUATIONS_FAMILLE}
-            placeholder="Sélectionnez une situation de famille"
-          />
-          
-          <InputField
-            label="Nom et prénoms de l'épouse"
-            type="text"
-            value={newEmployee.epouse}
-            onChange={(e) => setNewEmployee({ ...newEmployee, epouse: e.target.value })}
-            placeholder="Nom et prénoms de l'épouse"
-          />
-          
-          <InputField
-            label="Personne à prévenir en cas de besoin"
-            type="text"
-            value={newEmployee.personneAPrevenir}
-            onChange={(e) => setNewEmployee({ ...newEmployee, personneAPrevenir: e.target.value })}
-            placeholder="Nom et téléphone de la personne à prévenir"
-          />
-        </div>
-      </div>
-      
-
-      
-      {/* Champs professionnels supplémentaires */}
-      <div className="border-t pt-4">
-        <h3 className="text-md font-semibold text-gray-700 mb-3">Informations professionnelles supplémentaires</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <AutocompleteField
-            label="Diplômes"
-            value={newEmployee.diplomas}
-            onChange={(newValue) => setNewEmployee({ ...newEmployee, diplomas: newValue })}
-            inputValue={newEmployee.diplomas}
-            onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, diplomas: newInputValue })}
-            options={DIPLOMES}
-            placeholder="Sélectionnez ou tapez un diplôme"
-          />
-          
-          <AutocompleteField
-            label="Service"
-            value={newEmployee.service}
-            onChange={(newValue) => setNewEmployee({ ...newEmployee, service: newValue })}
-            inputValue={newEmployee.service}
-            onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, service: newInputValue })}
-            options={SERVICES}
-            placeholder="Sélectionnez ou tapez un service"
-          />
-          
-          <InputField
-            label="Superviseur"
-            type="text"
-            value={newEmployee.supervisor}
-            onChange={(e) => setNewEmployee({ ...newEmployee, supervisor: e.target.value })}
-            placeholder="Nom du superviseur"
-          />
-          
-
-          
-          <InputField
-            label="Heures par mois"
-            type="number"
-            value={newEmployee.hoursPerMonth}
-            onChange={(e) => setNewEmployee({ ...newEmployee, hoursPerMonth: parseInt(e.target.value) || 160 })}
-            placeholder="Heures de travail par mois"
-            min="0"
-          />
-          
-          <InputField
-            label="Ancienneté (années)"
-            type="number"
-            value={newEmployee.seniority}
-            onChange={(e) => setNewEmployee({ ...newEmployee, seniority: parseInt(e.target.value) || 0 })}
-            placeholder="Années d'ancienneté"
-            min="0"
-          />
-          
-          <InputField
-            label="Nombre d'enfants"
-            type="number"
-            value={newEmployee.childrenCount}
-            onChange={(e) => setNewEmployee({ ...newEmployee, childrenCount: parseInt(e.target.value) || 0 })}
-            placeholder="Nombre d'enfants"
-            min="0"
-          />
-        </div>
-      </div>
-      
-      <Button type="submit" icon={Plus} disabled={actionLoading}>
-        {newEmployee.id ? "Modifier" : "Ajouter"}
-      </Button>
-    </form>
+  <Modal
+    isOpen={showEmployeeModal}
+    onClose={() => {
+      setShowEmployeeModal(false);
+      setSelectedEmployee(null);
+    }}
+  >
+    <EmployeeFormModal
+      newEmployee={newEmployee}
+      setNewEmployee={setNewEmployee}
+      onSubmit={addEmployee}
+      actionLoading={actionLoading}
+      formatDateOfBirthInput={formatDateOfBirthInput}
+      validateDateOfBirth={validateDateOfBirth}
+      dateOfBirthError={dateOfBirthError}
+      setDateOfBirthError={setDateOfBirthError}
+      allLieuNaissance={allLieuNaissance}
+      allResidences={allResidences}
+    />
   </Modal>
 )}
 
@@ -3599,74 +2085,14 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                 </Button>
               </div>
               <Card>
-                <div className="p-6">
-                  <div className="flex flex-col sm:flex-row gap-4 mb-4">
-                    <select
-                      value={leaveFilter}
-                      onChange={(e) => setLeaveFilter(e.target.value)}
-                      className="p-2 border border-blue-200 rounded-lg"
-                    >
-                      <option>Tous</option>
-                      <option>En attente</option>
-                      <option>Approuvé</option>
-                      <option>Rejeté</option>
-                    </select>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-blue-100">
-                          <th className="text-left py-3 px-4">Employé</th>
-                          <th className="text-left py-3 px-4">Date</th>
-                          <th className="text-left py-3 px-4">Durée</th>
-                          <th className="text-left py-3 px-4">Raison</th>
-                          <th className="text-left py-3 px-4">Statut</th>
-                          <th className="text-left py-3 px-4">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredLeaveRequests.map((req, index) => (
-                          <tr key={index} className="border-b border-blue-100 hover:bg-blue-50">
-                            <td className="py-4 px-4">{employees.find((emp) => emp.id === req.employeeId)?.name}</td>
-                            <td className="py-4 px-4">{displayDate(req.date)}</td>
-                            <td className="py-4 px-4">{req.days} jour(s)</td>
-                            <td className="py-4 px-4">{req.reason}</td>
-                            <td className="py-4 px-4">
-                              <span
-                                className={`px-2 py-1 rounded-full text-xs ${
-                                  req.status === "Approuvé"
-                                    ? "bg-green-100 text-green-800"
-                                    : req.status === "Rejeté"
-                                    ? "bg-red-100 text-red-800"
-                                    : "bg-yellow-100 text-yellow-800"
-                                }`}
-                              >
-                                {req.status}
-                              </span>
-                            </td>
-                            <td className="py-4 px-4">
-                              {req.status === "En attente" && (
-                                <div className="flex gap-2">
-                                  <Button size="sm" onClick={() => handleLeaveRequest(req.employeeId, index, "Approuvé")}>
-                                    Approuver
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="text-red-600 border-red-200 hover:bg-red-50"
-                                    onClick={() => handleLeaveRequest(req.employeeId, index, "Rejeté")}
-                                  >
-                                    Rejeter
-                                  </Button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                <LeaveRequestsPanel
+                  employees={employees}
+                  requests={filteredLeaveRequests}
+                  leaveFilter={leaveFilter}
+                  setLeaveFilter={setLeaveFilter}
+                  onApprove={(employeeId, idx) => handleLeaveRequest(employeeId, idx, "Approuvé")}
+                  onReject={(employeeId, idx) => handleLeaveRequest(employeeId, idx, "Rejeté")}
+                />
               </Card>
 <Modal isOpen={showLeaveModal} onClose={() => setShowLeaveModal(false)}>
   <form
@@ -4114,7 +2540,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                         <tbody>
                           {selectedPaySlip.primes.map((prime, idx) => (
                             <tr key={idx}>
-                              <td>{prime.type}</td>
+                              <td>{prime.label || prime.type}</td>
                               <td>{Number(prime.montant).toLocaleString()} FCFA</td>
                             </tr>
                           ))}
@@ -4138,7 +2564,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                         <tbody>
                           {selectedPaySlip.indemnites.map((ind, idx) => (
                             <tr key={idx}>
-                              <td>{ind.type}</td>
+                              <td>{ind.label || ind.type}</td>
                               <td>{Number(ind.montant).toLocaleString()} FCFA</td>
                             </tr>
                           ))}
@@ -4240,6 +2666,8 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                           salaryDetails={selectedPaySlip.salaryDetails}
                           remuneration={selectedPaySlip.remuneration}
                           deductions={selectedPaySlip.deductions}
+                          primes={selectedPaySlip.primes}
+                          indemnites={selectedPaySlip.indemnites}
                           payPeriod={selectedPaySlip.payPeriod}
                           generatedAt={selectedPaySlip.generatedAt}
                           auto={true}
@@ -4427,7 +2855,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                       onClick={async () => {
                         try {
                           setActionLoading(true);
-                          await updateDoc(doc(db, "clients", companyData.id), {
+                          await svcUpdateCompany(db, companyData.id, {
                             name: companyData.name,
                             address: companyData.address,
                             phone: companyData.phone,
@@ -4451,17 +2879,12 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                 </div>
               </Card>
               <Card title="Exporter Données">
-                <div className="flex gap-4">
-                  <Button onClick={generatePDFReport} icon={Download} className="bg-green-600 hover:bg-green-700 text-white">
-                    Exporter PDF
-                  </Button>
-                  <Button onClick={generateExcelReport} icon={Download} className="bg-blue-600 hover:bg-blue-700 text-white">
-                    Exporter Excel
-                  </Button>
-                  <Button onClick={generateCSVReport} icon={Download} className="bg-purple-600 hover:bg-purple-700 text-white">
-                    Exporter CSV
-                  </Button>
-                </div>
+                <ExportsBar
+                  onPdf={generatePDFReport}
+                  onXlsx={generateExcelReport}
+                  onCsv={generateCSVReport}
+                  disabled={actionLoading}
+                />
               </Card>
               <Card title="Badges Employés" className="mt-8">
                 <div className="mb-4 flex flex-col md:flex-row md:items-center gap-4">
@@ -4508,140 +2931,24 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
           )}
           {activeTab === "badges" && (
             <Card title="Badges Employés" className="mt-8">
-              <div className="mb-4 flex flex-col md:flex-row md:items-center gap-4">
-                <label className="font-semibold">Modèle de badge :</label>
-                <select
-                  value={selectedBadgeModel}
-                  onChange={e => setSelectedBadgeModel(e.target.value)}
-                  className="border rounded px-2 py-1"
-                >
-                  <option value="BadgeModel1">Moderne</option>
-                  <option value="BadgeModel2">Bandeau coloré</option>
-                  <option value="BadgeModel3">Minimaliste</option>
-                  <option value="BadgeModel4">Vertical coloré</option>
-                  <option value="BadgeModel5">Photo fond</option>
-                </select>
-                
-                <label className="font-semibold">Type de QR code :</label>
-                <select
-                  value={selectedQRType}
-                  onChange={e => setSelectedQRType(e.target.value)}
-                  className="border rounded px-2 py-1"
-                >
-                  <option value="userInfo">Informations utilisateur</option>
-                  <option value="vCard">Carte de contact (vCard)</option>
-                  <option value="url">URL simple</option>
-                </select>
-              </div>
-              
-              {/* Section de test QR Code */}
-              <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-                <h3 className="text-lg font-semibold mb-3">Test QR Code</h3>
-                <p className="text-sm text-gray-600 mb-3">
-                  Scannez ce QR code avec votre téléphone pour tester la fonctionnalité :
-                </p>
-                <div className="flex items-center gap-4">
-                  {employees.length > 0 && (
-                    <>
-                      <div className="bg-white p-2 rounded">
-                        <QRCodeCanvas 
-                          value={(() => {
-                            switch(selectedQRType) {
-                              case "userInfo":
-                                return generateUserInfoQRCode(employees[0], companyData);
-                              case "vCard":
-                                return generateVCardQRCode(employees[0], companyData);
-                              case "url":
-                                return generateQRCodeUrl(employees[0], companyData);
-                              default:
-                                return generateUserInfoQRCode(employees[0], companyData);
-                            }
-                          })()} 
-                          size={120} 
-                          level="M"
-                          includeMargin={true}
-                        />
-                      </div>
-                      <div className="text-sm">
-                        <p><strong>Employé test :</strong> {employees[0].name}</p>
-                        <p><strong>Matricule :</strong> {employees[0].matricule || employees[0].id}</p>
-                        <p><strong>Poste :</strong> {employees[0].poste}</p>
-                        <p><strong>Type QR :</strong> {
-                          selectedQRType === "userInfo" ? "Informations utilisateur" :
-                          selectedQRType === "vCard" ? "Carte de contact" :
-                          "URL simple"
-                        }</p>
-                        <div className="mt-2">
-                          <UserInfoDisplay 
-                            userData={(() => {
-                              switch(selectedQRType) {
-                                case "userInfo":
-                                  return {
-                                    nom: employees[0].name,
-                                    matricule: employees[0].matricule || employees[0].id,
-                                    poste: employees[0].poste,
-                                    entreprise: companyData?.name,
-                                    email: employees[0].email,
-                                    telephone: employees[0].phone,
-                                    departement: employees[0].department,
-                                    dateEmbauche: employees[0].hireDate,
-                                    statut: employees[0].status || "Actif"
-                                  };
-                                default:
-                                  return null;
-                              }
-                            })()}
-                            qrType={selectedQRType}
-                          />
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-                <div className="mt-4">
-                  <button
-                    onClick={() => setShowQRScanner(true)}
-                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                  >
-                    Tester le Scanner QR Code
-                  </button>
-                </div>
-              </div>
-              
-              <div className="space-y-8">
-                {employees.map(emp => (
-                  <ExportBadgePDF
-                    key={emp.id}
-                    employee={emp}
-                    companyData={companyData}
-                    qrCodeUrl={(() => {
-                      switch(selectedQRType) {
-                        case "userInfo":
-                          return generateUserInfoQRCode(emp, companyData);
-                        case "vCard":
-                          return generateVCardQRCode(emp, companyData);
-                        case "url":
-                          return generateQRCodeUrl(emp, companyData);
-                        default:
-                          return generateUserInfoQRCode(emp, companyData);
-                      }
-                    })()}
-                    initialModel={selectedBadgeModel}
-                    onSaveBadgeImage={async (employeeId, dataUrl) => {
-                      // Exemple de sauvegarde Firestore (à adapter selon ta logique)
-                      try {
-                        await updateDoc(doc(db, "clients", companyData.id, "employees", employeeId), {
-                          badgeImage: dataUrl,
-                          badgeModel: selectedBadgeModel,
-                          badgeUpdatedAt: new Date().toISOString(),
-                        });
-                      } catch (e) {
-                        throw e;
-                      }
-                    }}
-                  />
-                ))}
-              </div>
+              <Suspense fallback={<div className="p-4">Chargement des badges…</div>}>
+                <QRSection
+                  employees={employees}
+                  companyData={companyData}
+                  selectedBadgeModel={selectedBadgeModel}
+                  setSelectedBadgeModel={setSelectedBadgeModel}
+                  selectedQRType={selectedQRType}
+                  setSelectedQRType={setSelectedQRType}
+                  onOpenScanner={() => setShowQRScanner(true)}
+                  onSaveBadgeImage={async (employeeId, dataUrl) => {
+                    await svcUpdateEmployeeBadge(db, companyData.id, employeeId, {
+                      badgeImage: dataUrl,
+                      badgeModel: selectedBadgeModel,
+                      badgeUpdatedAt: new Date().toISOString(),
+                    });
+                  }}
+                />
+              </Suspense>
             </Card>
           )}
           {activeTab === "reports" && (

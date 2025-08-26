@@ -37,6 +37,7 @@ import {
   FiRefreshCw,
   FiSearch,
 } from "react-icons/fi";
+import { buildCommonOptions } from "../utils/chartConfig";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -890,40 +891,30 @@ const SuperAdminDashboard = () => {
               <Bar
                 data={statsData}
                 options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
+                  ...buildCommonOptions({ title: "Statistiques d'utilisation" }),
                   plugins: {
-                    legend: {
-                      position: "top",
-                      labels: { color: "#6B7280" },
-                    },
-                    tooltip: {
-                      mode: "index",
-                      intersect: false,
-                    },
+                    ...buildCommonOptions({ title: "Statistiques d'utilisation" }).plugins,
+                    legend: { position: "top", labels: { color: "#6B7280" } },
                   },
                   scales: {
-                    y: {
-                      beginAtZero: true,
-                      ticks: {
-                        callback: function (value) {
-                          return value + "%";
-                        },
-                        color: "#6B7280",
-                      },
+                    x: {
+                      ...buildCommonOptions({}).scales.x,
+                      ticks: { color: "#6B7280" },
                       grid: { color: "#E5E7EB" },
                     },
-                    x: {
-                      ticks: { color: "#6B7280" },
+                    y: {
+                      ...buildCommonOptions({}).scales.y,
+                      ticks: {
+                        callback: (value) => `${value}%`,
+                        color: "#6B7280",
+                      },
                       grid: { color: "#E5E7EB" },
                     },
                   },
                   animation: {
                     duration: 1000,
                     easing: "easeOutBounce",
-                    y: {
-                      from: 0,
-                    },
+                    y: { from: 0 },
                   },
                 }}
               />

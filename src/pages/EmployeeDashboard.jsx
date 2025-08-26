@@ -8,7 +8,8 @@ import { FiLogOut, FiCalendar, FiFileText, FiAlertTriangle, FiCheck, FiBell, FiC
 import { Line } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from "chart.js";
 import { Tooltip as ReactTooltip } from "react-tooltip";
-import Papa from "papaparse";
+import { exportToCSV } from "../utils/fileIO";
+import { buildCommonOptions } from "../utils/chartConfig";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
@@ -266,19 +267,12 @@ const EmployeeDashboard = () => {
 
   // Export leave history to CSV
   const exportLeavesToCSV = () => {
-    const csvData = leaveHistory.map((req) => ({
+    const rows = leaveHistory.map((req) => ({
       Date: req.date,
       Jours: req.days,
       Statut: req.status,
     }));
-    const csv = Papa.unparse(csvData);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `conges_${employeeData.name}.csv`);
-    link.click();
-    URL.revokeObjectURL(url);
+    exportToCSV(rows, `conges_${employeeData.name}.csv`);
     toast.success("Historique des congés exporté !");
   };
 
@@ -337,21 +331,14 @@ const EmployeeDashboard = () => {
 
   // Export payslips to CSV
   const exportPaySlipsToCSV = () => {
-    const csvData = paySlipHistory.map((slip) => ({
+    const rows = paySlipHistory.map((slip) => ({
       Date: slip.formattedDate,
       "Salaire Brut": slip.grossSalary,
       "Salaire Net": slip.netSalary,
       "Heures Travaillées": slip.hoursPerMonth,
       URL: slip.url || "Non disponible",
     }));
-    const csv = Papa.unparse(csvData);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `fiches_paie_${employeeData.name}.csv`);
-    link.click();
-    URL.revokeObjectURL(url);
+    exportToCSV(rows, `fiches_paie_${employeeData.name}.csv`);
     toast.success("Historique des fiches de paie exporté !");
   };
 
@@ -789,28 +776,7 @@ const EmployeeDashboard = () => {
                   <div className="h-64">
                     <Line
                       data={leaveChartData}
-                      options={{
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                          legend: { position: "top", labels: { color: "#4B5563" } },
-                          title: { display: true, text: "Congés pris par mois", color: "#1F2937" },
-                          tooltip: { mode: "index", intersect: false },
-                        },
-                        scales: {
-                          y: {
-                            beginAtZero: true,
-                            title: { display: true, text: "Jours", color: "#4B5563" },
-                            ticks: { color: "#4B5563" },
-                            grid: { color: "#F3F4F6" },
-                          },
-                          x: {
-                            title: { display: true, text: "Mois", color: "#4B5563" },
-                            ticks: { color: "#4B5563" },
-                            grid: { color: "#F3F4F6" },
-                          },
-                        },
-                      }}
+                      options={buildCommonOptions({ title: "Congés pris par mois", xTitle: "Mois", yTitle: "Jours" })}
                     />
                   </div>
                 )}

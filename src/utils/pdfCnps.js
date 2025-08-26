@@ -96,11 +96,11 @@ export function exportCnpsPDF({ selectedIds, formData, employerOptions, employer
   // Configuration des colonnes
   const hasRP = !!employerOptions.includeRP;
   const tableHead = [
-    'Mat. Int.', 'Code CNPS', 'Nom Complet', 'N° CNPS', 'Salaire Brut', 'Catégorie'
+    'Mat. CNPS', 'Code CNPS', 'Nom Complet', 'N° CNPS', 'Salaire Brut', 'Catégorie', 'Total Primes', 'Total Indemnités'
   ];
   
   if (hasRP) tableHead.push('Taux RP');
-  tableHead.push('Base Cotis.', 'Cotis. Sal.', 'Cotis. Emp.', 'Total', 'Mois', 'Année');
+  tableHead.push('Base Cotis.', 'Cotis. Sal.', 'Mois', 'Année');
   
   // Données du tableau
   const tableBody = selectedIds.map((id) => {
@@ -111,20 +111,42 @@ export function exportCnpsPDF({ selectedIds, formData, employerOptions, employer
     const cotisEmployeur = Math.round(base * (0.049 + 0.07 + rpRate / 100));
     const totalGlobal = cotisSalarie + cotisEmployeur;
     
+    // Calcul Total Primes
+    let totalPrimes = 0;
+    if (Array.isArray(d.primesArray)) {
+      totalPrimes = d.primesArray.reduce((acc, p) => acc + (Number(p.montant || p.amount || p.value) || 0), 0);
+    } else {
+      totalPrimes = (Number(d.primesImposables) || 0) || ((Number(d.overtimeDisplay) || 0) + (Number(d.bonusDisplay) || 0));
+    }
+    
+    // Calcul Total Indemnités
+    let totalIndemnites = 0;
+    if (Array.isArray(d.indemnitesArray)) {
+      totalIndemnites = d.indemnitesArray.reduce((acc, i) => acc + (Number(i.montant || i.amount || i.value) || 0), 0);
+    } else {
+      totalIndemnites = (Number(d.indemniteTransport) || 0) + 
+                       (Number(d.housingAllowanceDisplay) || 0) + 
+                       (Number(d.representationAllowanceDisplay) || 0) + 
+                       (Number(d.dirtAllowanceDisplay) || 0) + 
+                       (Number(d.mealAllowanceDisplay) || 0);
+    }
+    
     const row = [
-      d.matriculeInterne || '-',
+      d.cnps || '-',
       buildCnpsCode({
         mois: d.mois,
         matriculeEmployeur: cnpsEmployeur,
         regime: d.regime,
         annee: d.annee,
-        matriculeEmploye: d.matriculeInterne,
+        matriculeEmploye: d.cnps,
         joursTravailles: d.joursTravailles
       }),
       d.nom || '-',
       d.cnps || '-',
       formatNumber(d.brut) + ' F',
-      d.poste || '-'
+      d.poste || '-',
+      formatNumber(totalPrimes) + ' F',
+      formatNumber(totalIndemnites) + ' F'
     ];
     
     if (hasRP) row.push((d.tauxRP || 0) + '%');
@@ -132,8 +154,6 @@ export function exportCnpsPDF({ selectedIds, formData, employerOptions, employer
     row.push(
       formatNumber(base) + ' F',
       formatNumber(cotisSalarie) + ' F',
-      formatNumber(cotisEmployeur) + ' F',
-      formatNumber(totalGlobal) + ' F',
       d.mois || '-',
       d.annee || '-'
     );
@@ -143,12 +163,12 @@ export function exportCnpsPDF({ selectedIds, formData, employerOptions, employer
   
   // Styles des colonnes
   const columnStyles = {};
-  const baseIdx = hasRP ? 7 : 6;
+  const baseIdx = hasRP ? 9 : 8; // Ajusté pour les nouvelles colonnes
   columnStyles[4] = { halign: 'right' }; // Brut
+  columnStyles[6] = { halign: 'right' }; // Total Primes
+  columnStyles[7] = { halign: 'right' }; // Total Indemnités
   columnStyles[baseIdx] = { halign: 'right' }; // Base
   columnStyles[baseIdx + 1] = { halign: 'right' }; // Cotis Sal
-  columnStyles[baseIdx + 2] = { halign: 'right' }; // Cotis Emp
-  columnStyles[baseIdx + 3] = { halign: 'right' }; // Total
   
   // Tableau principal
   autoTable(doc, {
@@ -258,19 +278,23 @@ export function exportTaxesPDF({ selectedIds, taxesData, formData, cnpsEmployeur
   
   // Tableau principal
   const tableHead = [
-    ['Mat.', 'Nom Complet', 'SBT (F)', 'IRPP (F)', 'CAC (F)', 'CFC (F)', 'FNE Sal. (F)', 'FNE Emp. (F)']
+    ['Mat. CNPS', 'Nom Complet', 'SBT (F)', 'IRPP (F)', 'CAC (F)', 'CFC (F)', 'TDL (F)', 'FNE Sal. (F)']
   ];
   
-  const tableBody = taxesData.rows.map((r) => [
-    r.matricule || '-',
-    r.nom || '-',
-    formatNumber(r.sbt),
-    formatNumber(r.irpp),
-    formatNumber(r.cac),
-    formatNumber(r.cfc),
-    formatNumber(r.fneSal),
-    formatNumber(r.fneEmp)
-  ]);
+  const tableBody = taxesData.rows.map((r) => {
+    const irpp = Number(r.irpp) || 0;
+    const tdl = Math.round(irpp * 0.10);
+    return [
+      r.cnps || r.matricule || '-',
+      r.nom || '-',
+      formatNumber(r.sbt),
+      formatNumber(irpp),
+      formatNumber(r.cac),
+      formatNumber(r.cfc),
+      formatNumber(tdl),
+      formatNumber(r.fneSal)
+    ];
+  });
   
   autoTable(doc, {
     head: tableHead,
@@ -300,14 +324,14 @@ export function exportTaxesPDF({ selectedIds, taxesData, formData, cnpsEmployeur
       fillColor: colors.lightGray
     },
     columnStyles: {
-      0: { halign: 'center', cellWidth: 15 },
-      1: { cellWidth: 50 },
-      2: { halign: 'right', cellWidth: 25 },
-      3: { halign: 'right', cellWidth: 25 },
+      0: { halign: 'center', cellWidth: 22 },
+      1: { cellWidth: 55 },
+      2: { halign: 'right', cellWidth: 22 },
+      3: { halign: 'right', cellWidth: 22 },
       4: { halign: 'right', cellWidth: 20 },
       5: { halign: 'right', cellWidth: 20 },
-      6: { halign: 'right', cellWidth: 25 },
-      7: { halign: 'right', cellWidth: 25 }
+      6: { halign: 'right', cellWidth: 20 },
+      7: { halign: 'right', cellWidth: 22 }
     },
     didDrawPage: (data) => {
       addFooter(doc, data.pageNumber);
@@ -317,19 +341,22 @@ export function exportTaxesPDF({ selectedIds, taxesData, formData, cnpsEmployeur
   // Tableau des totaux
   startY = doc.lastAutoTable.finalY + 8;
   
-  const totalsHead = [['TYPE D\'IMPÔT', 'TOTAL (FCFA)', 'TAUX']];
+  const totalsHead = [["TYPE D'IMPÔT", 'TOTAL (FCFA)', 'TAUX']];
+  const totals = taxesData.totals || {};
+  const totalsTDL = Math.round(((Number(totals.irpp) || 0) * 0.10));
   const totalsBody = [
-    ['Salaire Brut Taxable', formatNumber(taxesData.totals.sbt) + ' F', 'Base'],
-    ['IRPP', formatNumber(taxesData.totals.irpp) + ' F', 'Barème'],
-    ['CAC', formatNumber(taxesData.totals.cac) + ' F', '10% IRPP'],
-    ['CFC SAL', formatNumber(taxesData.totals.cfc) + ' F', '2,5% SBT'],
-    ['FNE Salarié', formatNumber(taxesData.totals.fneSal) + ' F', '1% SBT'],
-    ['FNE Employeur', formatNumber(taxesData.totals.fneEmp) + ' F', '1,5% SBT'],
+    ['Salaire Brut Taxable', formatNumber(totals.sbt) + ' F', 'Base'],
+    ['IRPP', formatNumber(totals.irpp) + ' F', 'Barème'],
+    ['CAC', formatNumber(totals.cac) + ' F', '10% IRPP'],
+    ['CFC SAL', formatNumber(totals.cfc) + ' F', '2,5% SBT'],
+    ['TDL', formatNumber(totalsTDL) + ' F', '10% IRPP'],
+    ['FNE Salarié', formatNumber(totals.fneSal) + ' F', '1% SBT'],
+    ['FNE Employeur', formatNumber(totals.fneEmp) + ' F', '1,5% SBT'],
     ['', '', ''], // Ligne vide
     [
       'TOTAL À VERSER', 
-      formatNumber(taxesData.totals.irpp + taxesData.totals.cac + taxesData.totals.cfc + 
-                   taxesData.totals.fneSal + taxesData.totals.fneEmp) + ' F',
+      formatNumber((Number(totals.irpp) || 0) + (Number(totals.cac) || 0) + (Number(totals.cfc) || 0) + 
+                   totalsTDL + (Number(totals.fneSal) || 0) + (Number(totals.fneEmp) || 0)) + ' F',
       'Somme'
     ]
   ];

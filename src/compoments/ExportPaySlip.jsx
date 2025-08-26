@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { INDEMNITIES, BONUSES } from '../utils/payrollLabels';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'react-toastify';
@@ -27,7 +28,7 @@ function getValue(obj, path) {
   return path.split('.').reduce((acc, part) => acc && acc[part], obj);
 }
 
-const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, payPeriod, generatedAt, auto = false, onExported }) => {
+const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, payPeriod, generatedAt, primes, indemnites, auto = false, onExported }) => {
   
   const generatePaySlipPDF = () => {
     // Vérification des champs obligatoires
@@ -80,8 +81,23 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
       
       const totalGross = baseSalary + transportAllowance + housingAllowance + overtime + bonus;
       
+      // Calcul du SBT (Salaire Brut Taxable)
+      // Tous les gains sont taxables excepté: indemnité de transport, indemnité de représentation,
+      // prime de salissures, prime de panier.
+      const representationAllowance = Number(payslipData.salaryDetails.representationAllowance) || 0;
+      const dirtAllowance = Number(payslipData.salaryDetails.dirtAllowance) || 0; // prime de salissures
+      const mealAllowance = Number(payslipData.salaryDetails.mealAllowance) || 0; // prime de panier
+      
+      // Inclure ici les éléments taxables connus: base, logement, heures supp, primes/bonus.
+      // Exclure: transport, représentation, salissures, panier.
+      const sbt = 
+        (Number(baseSalary) || 0) +
+        (Number(housingAllowance) || 0) +
+        (Number(overtime) || 0) +
+        (Number(bonus) || 0);
+      
       // Calculs déductions (taux camerounais officiels)
-      const cnpsEmployee = Math.round(baseSalary * 0.045); // 4.5%
+      const cnpsEmployee = Math.round(baseSalary * 0.042); // PVID salarié 4,2%
       const creditsFonciers = Math.round(baseSalary * 0.015); // 1.5%
       const irpp = Number(payslipData.deductions.irpp) || 0;
       const advance = Number(payslipData.deductions.advance) || 0;
@@ -90,6 +106,34 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
       const totalDeductions = cnpsEmployee + creditsFonciers + irpp + advance + otherDeductions;
       const netSalary = Math.max(0, totalGross - totalDeductions);
       
+      // Cache local des montants utiles pour CNPS (pré-remplissage)
+      try {
+        const empKey = emp.matricule || empCNPS || empName;
+        if (empKey) {
+          const cacheKey = `lastPayslip_${empKey}`;
+          const cachePayload = {
+            baseSalary,
+            transportAllowance,
+            housingAllowance,
+            overtime,
+            bonus,
+            representationAllowance,
+            dirtAllowance,
+            mealAllowance,
+            // Persist dynamic arrays when available
+            primes: Array.isArray(primes)
+              ? primes.map(p => ({ label: p.label || p.type, montant: Number(p.montant) || 0 }))
+              : undefined,
+            indemnites: Array.isArray(indemnites)
+              ? indemnites.map(i => ({ label: i.label || i.type, montant: Number(i.montant) || 0 }))
+              : undefined,
+          };
+          localStorage.setItem(cacheKey, JSON.stringify(cachePayload));
+        }
+      } catch (e) {
+        console.warn('Cache payslip CNPS indisponible:', e);
+      }
+
       // Configuration PDF
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pageWidth = doc.internal.pageSize.width;
@@ -212,13 +256,9 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
       doc.text('GAINS ET AVANTAGES', margin + 2, currentY + 4);
       currentY += 8;
       
-      // Tableau des gains
+      // Tableau des gains (salaire de base uniquement pour uniformiser)
       const gainsData = [
-        ['Salaire de base', formatCFA(baseSalary), 'F CFA'],
-        ['Indemnité de transport', formatCFA(transportAllowance), 'F CFA'],
-        ['Indemnité de logement', formatCFA(housingAllowance), 'F CFA'],
-        ['Heures supplémentaires', formatCFA(overtime), 'F CFA'],
-        ['Prime/Bonus', formatCFA(bonus), 'F CFA']
+        ['Salaire de base', formatCFA(baseSalary), 'F CFA']
       ];
       
       autoTable(doc, {
@@ -249,7 +289,64 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
       });
       
       currentY = doc.lastAutoTable.finalY + 1;
-      
+
+      // === SECTION INDEMNITÉS ===
+      doc.setFillColor(220, 220, 220);
+      doc.rect(margin, currentY, pageWidth - (2 * margin), 6, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(0, 0, 0);
+      doc.text('INDEMNITÉS', margin + 2, currentY + 4);
+      currentY += 8;
+
+      const indemnitesData = [
+        ['Indemnité de transport', formatCFA(transportAllowance), 'F CFA'],
+        ['Indemnité de logement', formatCFA(housingAllowance), 'F CFA'],
+        ['Indemnité de représentation', formatCFA(representationAllowance), 'F CFA'],
+        ['Prime de salissures', formatCFA(dirtAllowance), 'F CFA'],
+        ['Prime de panier', formatCFA(mealAllowance), 'F CFA'],
+      ];
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [['DÉSIGNATION', 'MONTANT', 'DEVISE']],
+        body: indemnitesData,
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 8, cellPadding: 1.5, lineColor: [0, 0, 0], lineWidth: 0.2 },
+        headStyles: { fillColor: [180, 180, 180], textColor: [0, 0, 0], fontSize: 8, fontStyle: 'bold', halign: 'center' },
+        columnStyles: { 0: { cellWidth: 100, halign: 'left' }, 1: { cellWidth: 40, halign: 'right' }, 2: { cellWidth: 25, halign: 'center' } },
+        margin: { left: margin, right: margin }
+      });
+
+      currentY = doc.lastAutoTable.finalY + 6;
+
+      // === SECTION PRIMES ===
+      doc.setFillColor(220, 220, 220);
+      doc.rect(margin, currentY, pageWidth - (2 * margin), 6, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(0, 0, 0);
+      doc.text('PRIMES', margin + 2, currentY + 4);
+      currentY += 8;
+
+      const primesData = [
+        ['Heures supplémentaires', formatCFA(overtime), 'F CFA'],
+        ['Prime/Bonus', formatCFA(bonus), 'F CFA']
+      ];
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [['DÉSIGNATION', 'MONTANT', 'DEVISE']],
+        body: primesData,
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 8, cellPadding: 1.5, lineColor: [0, 0, 0], lineWidth: 0.2 },
+        headStyles: { fillColor: [180, 180, 180], textColor: [0, 0, 0], fontSize: 8, fontStyle: 'bold', halign: 'center' },
+        columnStyles: { 0: { cellWidth: 100, halign: 'left' }, 1: { cellWidth: 40, halign: 'right' }, 2: { cellWidth: 25, halign: 'center' } },
+        margin: { left: margin, right: margin }
+      });
+
+      currentY = doc.lastAutoTable.finalY + 6;
+
       // Total brut
       doc.setFillColor(200, 200, 200);
       doc.rect(margin, currentY, pageWidth - (2 * margin), 5, 'F');
@@ -257,6 +354,16 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
       doc.setFontSize(9);
       doc.text('TOTAL BRUT', margin + 2, currentY + 3.5);
       doc.text(`${formatCFA(totalGross)} F CFA`, pageWidth - margin - 40, currentY + 3.5);
+      currentY += 7;
+      
+      // Affichage SBT (base IRPP)
+      doc.setFillColor(235, 235, 235);
+      doc.rect(margin, currentY, pageWidth - (2 * margin), 5, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(0, 0, 0);
+      doc.text('SBT (Salaire Brut Taxable)', margin + 2, currentY + 3.5);
+      doc.text(`${formatCFA(sbt)} F CFA`, pageWidth - margin - 40, currentY + 3.5);
       currentY += 7;
       
       // === SECTION RETENUES ===
@@ -271,9 +378,9 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
       
       // Tableau des retenues
       const deductionsData = [
-        ['Cotisation salariale CNPS', `${formatCFA(baseSalary)} × 4,5%`, formatCFA(cnpsEmployee), 'F CFA'],
+        ['PVID (CNPS) – salarié', `${formatCFA(baseSalary)} × 4,2%`, formatCFA(cnpsEmployee), 'F CFA'],
         ['Crédit Foncier du Cameroun', `${formatCFA(baseSalary)} × 1,5%`, formatCFA(creditsFonciers), 'F CFA'],
-        ['Impôt sur le Revenu (IRPP)', '', formatCFA(irpp), 'F CFA'],
+        ['Impôt sur le Revenu (IRPP)', `${formatCFA(sbt)}`, formatCFA(irpp), 'F CFA'],
         ['Avance sur salaire', '', formatCFA(advance), 'F CFA'],
         ['Autres retenues', '', formatCFA(otherDeductions), 'F CFA']
       ];
@@ -403,6 +510,48 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
     }
   }, [auto]);
 
+  // Auto-met à jour le cache local des montants utiles pour CNPS dès qu'on modifie les données
+  useEffect(() => {
+    try {
+      const empKey = employee?.matricule || employee?.cnpsNumber || employee?.name;
+      if (!empKey) return;
+      const cacheKey = `lastPayslip_${empKey}`;
+      const payload = {
+        baseSalary: Number(salaryDetails?.baseSalary) || 0,
+        transportAllowance: Number(salaryDetails?.transportAllowance) || 0,
+        housingAllowance: Number(salaryDetails?.housingAllowance) || 0,
+        representationAllowance: Number(salaryDetails?.representationAllowance) || 0,
+        dirtAllowance: Number(salaryDetails?.dirtAllowance) || 0,
+        mealAllowance: Number(salaryDetails?.mealAllowance) || 0,
+        overtime: Number(remuneration?.overtime) || 0,
+        bonus: Number(remuneration?.bonus) || 0,
+        // Persist dynamic arrays when available
+        primes: Array.isArray(primes)
+          ? primes.map(p => ({ label: p.label || p.type, montant: Number(p.montant) || 0 }))
+          : undefined,
+        indemnites: Array.isArray(indemnites)
+          ? indemnites.map(i => ({ label: i.label || i.type, montant: Number(i.montant) || 0 }))
+          : undefined,
+      };
+      localStorage.setItem(cacheKey, JSON.stringify(payload));
+    } catch {}
+  }, [
+    employee?.matricule,
+    employee?.cnpsNumber,
+    employee?.name,
+    salaryDetails?.baseSalary,
+    salaryDetails?.transportAllowance,
+    salaryDetails?.housingAllowance,
+    salaryDetails?.representationAllowance,
+    salaryDetails?.dirtAllowance,
+    salaryDetails?.mealAllowance,
+    remuneration?.overtime,
+    remuneration?.bonus,
+    // include arrays so cache updates if user edits them upstream
+    primes,
+    indemnites,
+  ]);
+
   if (auto) return null;
 
   const netToPay = Math.max(0, (remuneration?.total || 0) - (deductions?.total || 0));
@@ -457,6 +606,53 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
         </svg>
         Générer le Bulletin de Salaire PDF
       </button>
+
+      {/* Aperçu dynamique Type / Montant (écran) */}
+      <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+        {/* Indemnités */}
+        <div className="bg-gray-50 rounded border p-4">
+          <div className="font-semibold text-gray-800 mb-3">Indemnités</div>
+          <div className="space-y-2">
+            {INDEMNITIES
+              .map(item => ({
+                label: item.label,
+                amount: Number(salaryDetails?.[item.key]) || 0,
+              }))
+              .filter(x => x.amount > 0)
+              .map((x, idx) => (
+                <div key={idx} className="flex items-center justify-between">
+                  <span className="text-gray-700">{x.label}</span>
+                  <span className="font-medium">{formatCFA(x.amount)} F CFA</span>
+                </div>
+              ))}
+            {INDEMNITIES.every(i => (Number(salaryDetails?.[i.key]) || 0) === 0) && (
+              <div className="text-gray-400">—</div>
+            )}
+          </div>
+        </div>
+
+        {/* Primes */}
+        <div className="bg-gray-50 rounded border p-4">
+          <div className="font-semibold text-gray-800 mb-3">Primes</div>
+          <div className="space-y-2">
+            {BONUSES
+              .map(item => ({
+                label: item.label,
+                amount: Number(remuneration?.[item.key]) || 0,
+              }))
+              .filter(x => x.amount > 0)
+              .map((x, idx) => (
+                <div key={idx} className="flex items-center justify-between">
+                  <span className="text-gray-700">{x.label}</span>
+                  <span className="font-medium">{formatCFA(x.amount)} F CFA</span>
+                </div>
+              ))}
+            {BONUSES.every(b => (Number(remuneration?.[b.key]) || 0) === 0) && (
+              <div className="text-gray-400">—</div>
+            )}
+          </div>
+        </div>
+      </div>
       
       <div className="mt-4 p-3 bg-blue-50 rounded border-l-4 border-blue-400">
         <div className="flex">
@@ -466,7 +662,7 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
           <div className="text-sm text-blue-800">
             <p className="font-medium mb-1">Conforme à la réglementation camerounaise</p>
             <ul className="text-xs space-y-1">
-              <li>• Cotisations CNPS : 4,5% (salarié) + 11,2% (employeur)</li>
+              <li>• Cotisations CNPS : 4,2% (salarié PVID) + 11,9% (employeur hors RP)</li>
               <li>• Crédit Foncier : 1,5% du salaire de base</li>
               <li>• Format officiel avec en-tête République du Cameroun</li>
               <li>• Calculs conformes au Code du Travail camerounais</li>

@@ -118,43 +118,39 @@ const TemplatePreview = ({ isOpen, onClose, template, type }) => {
 
       {/* Rémunération */}
       <div className="bg-blue-50 p-4 rounded-lg mb-6">
-        <h3 className="font-semibold text-gray-800 mb-3 border-b pb-2">Rémunération Brute</h3>
-        <div className="grid grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-sm">Salaire de base</span>
-              <span className="text-sm font-medium">250,000 FCFA</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm">Indemnité de transport</span>
-              <span className="text-sm font-medium">15,000 FCFA</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm">Prime de logement</span>
-              <span className="text-sm font-medium">30,000 FCFA</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm">Prime de responsabilité</span>
-              <span className="text-sm font-medium">20,000 FCFA</span>
+        <h3 className="font-semibold text-gray-800 mb-3 border-b pb-2">Rémunération</h3>
+        <div className="space-y-4 text-sm">
+          {/* Salaire de base */}
+          <div className="flex justify-between">
+            <span className="text-gray-700">Salaire de base</span>
+            <span className="font-medium">250,000 FCFA</span>
+          </div>
+
+          {/* Indemnités */}
+          <div>
+            <h4 className="text-gray-800 font-medium mb-2">Indemnités</h4>
+            <div className="space-y-1">
+              <div className="flex justify-between"><span>Indemnité de transport</span><span className="font-medium">15,000 FCFA</span></div>
+              <div className="flex justify-between"><span>Indemnité de logement</span><span className="font-medium">30,000 FCFA</span></div>
+              <div className="flex justify-between"><span>Indemnité de représentation</span><span className="font-medium">10,000 FCFA</span></div>
+              <div className="flex justify-between"><span>Prime de salissures</span><span className="font-medium">5,000 FCFA</span></div>
+              <div className="flex justify-between"><span>Prime de panier</span><span className="font-medium">5,000 FCFA</span></div>
             </div>
           </div>
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-sm">Heures supplémentaires normales</span>
-              <span className="text-sm font-medium">12,000 FCFA</span>
+
+          {/* Primes */}
+          <div>
+            <h4 className="text-gray-800 font-medium mb-2">Primes</h4>
+            <div className="space-y-1">
+              <div className="flex justify-between"><span>Heures supplémentaires</span><span className="font-medium">12,000 FCFA</span></div>
+              <div className="flex justify-between"><span>Prime/Bonus</span><span className="font-medium">20,000 FCFA</span></div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-sm">Heures supplémentaires dimanche</span>
-              <span className="text-sm font-medium">8,000 FCFA</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm">Heures supplémentaires nuit</span>
-              <span className="text-sm font-medium">4,000 FCFA</span>
-            </div>
-            <div className="border-t pt-2 flex justify-between">
-              <span className="font-semibold">Total brut</span>
-              <span className="font-semibold">339,000 FCFA</span>
-            </div>
+          </div>
+
+          {/* Total brut */}
+          <div className="border-t pt-2 flex justify-between text-sm">
+            <span className="font-semibold">Total brut</span>
+            <span className="font-semibold">342,000 FCFA</span>
           </div>
         </div>
       </div>
