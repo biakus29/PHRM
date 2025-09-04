@@ -11,7 +11,6 @@ export const LABELS = {
 
 // Indemnities with display label and canonical key names used in data
 export const INDEMNITIES = [
-  { key: 'transportAllowance', label: 'Indemnité de transport' },
   { key: 'housingAllowance', label: 'Indemnité de logement' },
   { key: 'representationAllowance', label: 'Indemnité de représentation' },
   { key: 'dirtAllowance', label: 'Prime de salissures' },
@@ -22,6 +21,7 @@ export const INDEMNITIES = [
 export const BONUSES = [
   { key: 'overtime', label: 'Heures supplémentaires' },
   { key: 'bonus', label: 'Prime/Bonus' },
+  { key: 'primeTransport', label: 'Prime de transport' },
 ];
 
 // Helper to compute gross total from provided amounts map
@@ -33,3 +33,4 @@ export function computeGrossTotal(amounts) {
   ];
   return fields.reduce((sum, k) => sum + (Number(amounts?.[k]) || 0), 0);
 }
+

@@ -33,7 +33,7 @@ const CotisationCNPS = ({ companyId, cnpsEmployeur }) => {
   const [cotisations, setCotisations] = useState([]); // Aperçu Firestore
   const [moisApercu, setMoisApercu] = useState(getCurrentMonthYear().month);
   const [anneeApercu, setAnneeApercu] = useState(getCurrentMonthYear().year);
-  const [hideDetails, setHideDetails] = useState(false); // masquer temporairement la colonne détails
+  const [uniformTransport, setUniformTransport] = useState(0); // prime transport uniforme
   const [employerOptions, setEmployerOptions] = useState({
     includePF: true,
     ratePF: 7.0, // Prestations familiales
@@ -333,52 +333,22 @@ const CotisationCNPS = ({ companyId, cnpsEmployeur }) => {
     };
   }, [selectedIds, formData]);
 
-  
+  // Colonnes fixes à afficher pour chaque employé (toujours visibles)
+  const fixedAllowanceCols = React.useMemo(() => ([
+    { key: 'indemniteTransport', label: 'Indemnité Transport', source: 'field' },
+    { key: 'housingAllowanceDisplay', label: 'Indemnité Logement', source: 'field' },
+    { key: 'representationAllowanceDisplay', label: 'Indemnité Représentation', source: 'field' },
+    { key: 'dirtAllowanceDisplay', label: 'Prime de Salissures', source: 'field' },
+    { key: 'mealAllowanceDisplay', label: 'Prime de Panier', source: 'field' },
+    { key: 'overtimeDisplay', label: 'Heures Supplémentaires', source: 'field' },
+    { key: 'bonusDisplay', label: 'Prime/Bonus', source: 'field' },
+    { key: 'primesImposables', label: 'Primes Imposables', source: 'field' },
+    { key: 'primesNaturesSociales', label: 'Primes Nat. Sociales', source: 'field' },
+    { key: 'avantagesNature', label: 'Avantages Nature', source: 'field' },
+    { key: 'indemniteNonImposable', label: 'Indemnité Non Imposable', source: 'field' },
+  ]), []);
 
-  // Colonnes variables: visible si au moins une valeur > 0 parmi la sélection
-// Colonnes variables : afficher toutes les colonnes d'indemnités si au moins une sélection
-const visibleCols = React.useMemo(() => {
-  const hasAny = (getter) => selectedIds.some(id => (Number(getter(formData[id] || {})) || 0) > 0);
-
-  // Afficher les colonnes si au moins un salarié est sélectionné
-  const hasSelection = selectedIds.length > 0;
-
-  // Vérifier les colonnes optionnelles avec valeurs non nulles
-  const showPrimesImp = hasAny(d => d.primesImposables); // Afficher si valeurs en BD
-  const showPrimesNat = hasAny(d => d.primesNaturesSociales);
-  const showAvNat = hasAny(d => d.avantagesNature);
-  const showNI = hasAny(d => d.indemniteNonImposable);
-
-  // Afficher la colonne des détails si au moins une indemnité/prime est non nulle
-  const showDetails = (
-    hasAny(d => d.indemniteTransport)
-    || hasAny(d => d.housingAllowanceDisplay)
-    || hasAny(d => d.representationAllowanceDisplay)
-    || hasAny(d => d.dirtAllowanceDisplay)
-    || hasAny(d => d.mealAllowanceDisplay)
-    || hasAny(d => d.overtimeDisplay)
-    || hasAny(d => d.bonusDisplay)
-    || showPrimesImp
-    || showPrimesNat
-    || showAvNat
-    || showNI
-  ) && !hideDetails;
-
-  return {
-    showTransport: false,
-    showHousing: false,
-    showRepresentation: false,
-    showDirt: false,
-    showMeal: false,
-    showOvertime: hasSelection,
-    showBonus: hasSelection,
-    showPrimesImp,
-    showPrimesNat,
-    showAvNat,
-    showNI,
-    showDetails,
-  };
-}, [selectedIds, formData, hideDetails]);
+  // Colonnes dynamiques et colonne Détails supprimées pour simplification du tableau
 
   // 3b. Validation des données (2025)
   const validateEmployeeData = (data) => {
@@ -757,7 +727,7 @@ const visibleCols = React.useMemo(() => {
     wsHead.push(
       "SBT (Taxable)",
       "SBC (Cotisable)",
-      "Indemnité Transport",
+      "Prime Transport",
       "Primes Imposables",
       "Total Primes",
       "Total Indemnités",
@@ -844,11 +814,7 @@ const visibleCols = React.useMemo(() => {
       {selectedIds.length > 0 && (
         <div className="overflow-x-auto">
           <div className="flex items-center justify-between mb-2 text-sm">
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={hideDetails} onChange={e => setHideDetails(e.target.checked)} />
-                <span>Masquer la colonne Détails</span>
-              </label>
+            <div className="flex items-center gap-3 flex-wrap">
               <button
                 type="button"
                 className="px-2 py-1 border rounded hover:bg-blue-50"
@@ -881,6 +847,30 @@ const visibleCols = React.useMemo(() => {
                 }}
                 title="Actualiser les données sans perdre la session"
               >🔄 Actualiser</button>
+              <div className="flex items-center gap-2 ml-2">
+                <label className="text-gray-700">Prime Transport (uniforme)</label>
+                <input
+                  type="number"
+                  value={Number(uniformTransport || 0)}
+                  onChange={e => setUniformTransport(Number(e.target.value) || 0)}
+                  className="w-24 border rounded px-2 py-1 text-right"
+                />
+                <button
+                  type="button"
+                  className="px-2 py-1 border rounded hover:bg-blue-50"
+                  onClick={() => {
+                    if (!selectedIds.length) return toast.info('Sélectionnez au moins un salarié');
+                    setFormData(prev => {
+                      const next = { ...prev };
+                      selectedIds.forEach(id => {
+                        next[id] = { ...(next[id] || {}), indemniteTransport: Number(uniformTransport || 0) };
+                      });
+                      return next;
+                    });
+                    toast.success('Prime transport appliquée à la sélection');
+                  }}
+                >Appliquer à la sélection</button>
+              </div>
             </div>
           </div>
           <table className="min-w-full border text-xs">
@@ -899,42 +889,9 @@ const visibleCols = React.useMemo(() => {
                 )}
                 <th className="p-2 border">SBT (Taxable)</th>
                 <th className="p-2 border">SBC (Cotisable)</th>
-                {visibleCols.showTransport && (
-                  <th className="p-2 border">Indemnité Transport</th>
-                )}
-                {visibleCols.showHousing && (
-                  <th className="p-2 border">Indemnité Logement</th>
-                )}
-                {visibleCols.showRepresentation && (
-                  <th className="p-2 border">Indemnité Représentation</th>
-                )}
-                {visibleCols.showDirt && (
-                  <th className="p-2 border">Prime de Salissures</th>
-                )}
-                {visibleCols.showMeal && (
-                  <th className="p-2 border">Prime de Panier</th>
-                )}
-                {visibleCols.showOvertime && (
-                  <th className="p-2 border">Heures Supplémentaires</th>
-                )}
-                {visibleCols.showBonus && (
-                  <th className="p-2 border">Prime/Bonus</th>
-                )}
-                {visibleCols.showPrimesImp && (
-                  <th className="p-2 border">Primes Imposables</th>
-                )}
-                {visibleCols.showPrimesNat && (
-                  <th className="p-2 border">Primes Nat. Sociales</th>
-                )}
-                {visibleCols.showAvNat && (
-                  <th className="p-2 border">Avantages Nature</th>
-                )}
-                {visibleCols.showNI && (
-                  <th className="p-2 border">Indemnité Non Imposable</th>
-                )}
-                {visibleCols.showDetails && (
-                  <th className="p-2 border">Détails indemnités/primes (&gt; 0)</th>
-                )}
+                <th className="p-2 border">Prime Transport</th>
+                <th className="p-2 border">Heures Supplémentaires</th>
+                <th className="p-2 border">Prime/Bonus</th>
                 <th className="p-2 border">Total Primes</th>
                 <th className="p-2 border">Total Indemnités</th>
                 <th className="p-2 border">IRPP</th>
@@ -954,13 +911,12 @@ const visibleCols = React.useMemo(() => {
                 const taxRow = taxesData.rows.find(r => r.id === id) || { sbt: 0, irpp: 0, cac: 0, tdl: 0, cfc: 0 };
                 const sumItems = (arr = []) => arr.reduce((acc, it) => acc + (Number(it?.montant ?? it?.amount ?? it?.value ?? 0) || 0), 0);
                 const totalPrimes = Array.isArray(d.primesArray) && d.primesArray.length
-                  ? sumItems(d.primesArray)
-                  : (Number(d.primesImposables || 0) || (Number(d.overtimeDisplay || 0) + Number(d.bonusDisplay || 0)));
+                  ? (sumItems(d.primesArray) + Number(d.indemniteTransport || 0))
+                  : (Number(d.primesImposables || 0) || (Number(d.overtimeDisplay || 0) + Number(d.bonusDisplay || 0))) + Number(d.indemniteTransport || 0);
                 const totalIndemnites = Array.isArray(d.indemnitesArray) && d.indemnitesArray.length
                   ? sumItems(d.indemnitesArray)
                   : (
-                      Number(d.indemniteTransport || 0)
-                      + Number(d.housingAllowanceDisplay || 0)
+                      Number(d.housingAllowanceDisplay || 0)
                       + Number(d.representationAllowanceDisplay || 0)
                       + Number(d.dirtAllowanceDisplay || 0)
                       + Number(d.mealAllowanceDisplay || 0)
@@ -1049,207 +1005,39 @@ const visibleCols = React.useMemo(() => {
                     <td className="p-2 border">{formatFR(getSBT(d))}</td>
                     {/* SBC réel (base cotisable CNPS) */}
                     <td className="p-2 border">{formatFR(getSBC(d))}</td>
-                    {visibleCols.showTransport && (
-                      <td className="p-2 border">
-                        <input
-                          type="number"
-                          value={Number(d.indemniteTransport || 0)}
-                          onChange={e => setFormData(prev => ({
-                            ...prev,
-                            [id]: { ...prev[id], indemniteTransport: Number(e.target.value) || 0 }
-                          }))}
-                          className="w-20 border rounded px-1 py-1 text-right"
-                        />
-                      </td>
-                    )}
-                    {visibleCols.showHousing && (
-                      <td className="p-2 border">{formatFR(d.housingAllowanceDisplay || 0)}</td>
-                    )}
-                    {visibleCols.showRepresentation && (
-                      <td className="p-2 border">{formatFR(d.representationAllowanceDisplay || 0)}</td>
-                    )}
-                    {visibleCols.showDirt && (
-                      <td className="p-2 border">{formatFR(d.dirtAllowanceDisplay || 0)}</td>
-                    )}
-                    {visibleCols.showMeal && (
-                      <td className="p-2 border">{formatFR(d.mealAllowanceDisplay || 0)}</td>
-                    )}
-                    {visibleCols.showOvertime && (
-                      <td className="p-2 border">{formatFR(d.overtimeDisplay || 0)}</td>
-                    )}
-                    {visibleCols.showBonus && (
-                      <td className="p-2 border">{formatFR(d.bonusDisplay || 0)}</td>
-                    )}
-                    {visibleCols.showPrimesImp && (
-                      <td className="p-2 border">
-                        <input
-                          type="number"
-                          value={Number(d.primesImposables || 0)}
-                          onChange={e => setFormData(prev => ({
-                            ...prev,
-                            [id]: { ...prev[id], primesImposables: Number(e.target.value) || 0 }
-                          }))}
-                          className="w-20 border rounded px-1 py-1 text-right"
-                        />
-                      </td>
-                    )}
-                    {visibleCols.showPrimesNat && (
-                      <td className="p-2 border">
-                        <input
-                          type="number"
-                          value={Number(d.primesNaturesSociales || 0)}
-                          onChange={e => setFormData(prev => ({
-                            ...prev,
-                            [id]: { ...prev[id], primesNaturesSociales: Number(e.target.value) || 0 }
-                          }))}
-                          className="w-20 border rounded px-1 py-1 text-right"
-                        />
-                      </td>
-                    )}
-                    {visibleCols.showAvNat && (
-                      <td className="p-2 border">
-                        <input
-                          type="number"
-                          value={Number(d.avantagesNature || 0)}
-                          onChange={e => setFormData(prev => ({
-                            ...prev,
-                            [id]: { ...prev[id], avantagesNature: Number(e.target.value) || 0 }
-                          }))}
-                          className="w-20 border rounded px-1 py-1 text-right"
-                        />
-                      </td>
-                    )}
-                    {visibleCols.showNI && (
-                      <td className="p-2 border">
-                        <input
-                          type="number"
-                          value={Number(d.indemniteNonImposable || 0)}
-                          onChange={e => setFormData(prev => ({
-                            ...prev,
-                            [id]: { ...prev[id], indemniteNonImposable: Number(e.target.value) || 0 }
-                          }))}
-                          className="w-24 border rounded px-1 py-1 text-right"
-                        />
-                      </td>
-                    )}
-                    {visibleCols.showDetails && (
-                      <td className="p-2 border align-top text-[11px] leading-tight">
-                        {(() => {
-                          const hidden = Array.isArray(d.hiddenItems) ? d.hiddenItems : [];
-                          const items = [];
-                          const classify = (name, isPrime = false) => {
-                            const lbl = (name || '').toString().toLowerCase();
-                            const tags = [];
-                            // Heuristiques basées sur conventions courantes
-                            if (isPrime) {
-                              if (lbl.includes('heure sup') || lbl.includes('overtime') || lbl.includes('hs') || lbl.includes('bonus') || lbl.includes('prime')) {
-                                tags.push('SBT', 'IMPOSABLE');
-                              }
-                              // Primes sociales spécifiques (si présentes)
-                              if (lbl.includes('social')) tags.push('SBC');
-                            } else {
-                              if (lbl.includes('transport')) tags.push('SBC');
-                              if (lbl.includes('logement') || lbl.includes('habitation') || lbl.includes('housing')) tags.push('NI');
-                              if (lbl.includes('représentation') || lbl.includes('representation')) tags.push('NI');
-                              if (lbl.includes('salissure') || lbl.includes('salissures') || lbl.includes('dirt')) tags.push('NI');
-                              if (lbl.includes('panier') || lbl.includes('repas') || lbl.includes('meal')) tags.push('NI');
-                            }
-                            return tags;
-                          };
-                          const tagText = (tags = []) => tags.length ? ` [${tags.join(', ')}]` : '';
-                          const pushIf = (token, label, val, isPrime = false) => {
-                            if (hidden.includes(token)) return;
-                            if ((Number(val) || 0) > 0) items.push({ token, text: `${label}: ${formatFR(val)} FCFA` });
-                            // Attacher tags au dernier item ajouté
-                            if (items.length > 0) {
-                              const idx = items.length - 1;
-                              const tags = classify(label, isPrime);
-                              if (tags.length) items[idx].text += tagText(tags);
-                            }
-                          };
-                          // First, use dynamic arrays if available
-                          if (Array.isArray(d.indemnitesArray)) {
-                            d.indemnitesArray.forEach(it => {
-                              const name = it.label || it.name || it.type;
-                              const val = it.montant ?? it.amount ?? it.value;
-                              const token = `indem:${name}`;
-                              pushIf(token, name, val, false);
-                            });
-                          }
-                          if (Array.isArray(d.primesArray)) {
-                            d.primesArray.forEach(it => {
-                              const name = it.label || it.name || it.type;
-                              const val = it.montant ?? it.amount ?? it.value;
-                              const token = `prime:${name}`;
-                              pushIf(token, name, val, true);
-                            });
-                          }
-                          // Fallback to legacy mapped fields if arrays are not provided or empty
-                          const hadArrays = items.length > 0;
-                          // Map canonical keys -> current CNPS form fields
-                          const indemnityFieldMap = {
-                            transportAllowance: 'indemniteTransport',
-                            housingAllowance: 'housingAllowanceDisplay',
-                            representationAllowance: 'representationAllowanceDisplay',
-                            dirtAllowance: 'dirtAllowanceDisplay',
-                            mealAllowance: 'mealAllowanceDisplay',
-                          };
-                          const bonusFieldMap = {
-                            overtime: 'overtimeDisplay',
-                            bonus: 'bonusDisplay',
-                          };
-                          if (!hadArrays) {
-                            INDEMNITIES.forEach(({ key, label }) => {
-                              const field = indemnityFieldMap[key];
-                              if (field) {
-                                const token = `fld:${key}`;
-                                pushIf(token, label, d[field], false);
-                              }
-                            });
-                            BONUSES.forEach(({ key, label }) => {
-                              const field = bonusFieldMap[key];
-                              if (field) {
-                                const token = `fld:${key}`;
-                                pushIf(token, label, d[field], true);
-                              }
-                            });
-                          }
-                          return (
-                            <div className="space-y-1">
-                              {items.length ? (
-                                <ul className="list-disc pl-4 space-y-0.5">
-                                  {items.map((it, idx) => (
-                                    <li key={idx} className="flex items-start gap-2">
-                                      <span className="flex-1">{it.text}</span>
-                                      <button
-                                        type="button"
-                                        title="Masquer cet élément"
-                                        className="text-red-600 hover:underline"
-                                        onClick={() => setFormData(prev => ({
-                                          ...prev,
-                                          [id]: {
-                                            ...prev[id],
-                                            hiddenItems: [...(prev[id]?.hiddenItems || []), it.token]
-                                          }
-                                        }))}
-                                      >✕</button>
-                                    </li>
-                                  ))}
-                                </ul>
-                              ) : <span className="text-gray-400">—</span>}
-                              <button type="button" onClick={handleReloadFromPayslip} className="mt-1 text-blue-600 hover:underline text-[11px]">Recharger depuis bulletin</button>
-                              {hidden.length > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => setFormData(prev => ({ ...prev, [id]: { ...prev[id], hiddenItems: [] } }))}
-                                  className="ml-2 mt-1 text-gray-600 hover:underline text-[11px]"
-                                >Réinitialiser masquages</button>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </td>
-                    )}
+                    <td className="p-2 border">
+                      <input
+                        type="number"
+                        value={Number(d.indemniteTransport || 0)}
+                        onChange={e => setFormData(prev => ({
+                          ...prev,
+                          [id]: { ...prev[id], indemniteTransport: Number(e.target.value) || 0 }
+                        }))}
+                        className="w-20 border rounded px-1 py-1 text-right"
+                      />
+                    </td>
+                    <td className="p-2 border">
+                      <input
+                        type="number"
+                        value={Number(d.overtimeDisplay || 0)}
+                        onChange={e => setFormData(prev => ({
+                          ...prev,
+                          [id]: { ...prev[id], overtimeDisplay: Number(e.target.value) || 0 }
+                        }))}
+                        className="w-20 border rounded px-1 py-1 text-right"
+                      />
+                    </td>
+                    <td className="p-2 border">
+                      <input
+                        type="number"
+                        value={Number(d.bonusDisplay || 0)}
+                        onChange={e => setFormData(prev => ({
+                          ...prev,
+                          [id]: { ...prev[id], bonusDisplay: Number(e.target.value) || 0 }
+                        }))}
+                        className="w-20 border rounded px-1 py-1 text-right"
+                      />
+                    </td>
                     <td className="p-2 border">{formatFR(totalPrimes)}</td>
                     <td className="p-2 border">{formatFR(totalIndemnites)}</td>
                     <td className="p-2 border">{formatFR(taxRow.irpp)}</td>
@@ -1284,32 +1072,23 @@ const visibleCols = React.useMemo(() => {
                   <td className="p-2 border">{formatFR(taxesData.totals.sbt)}</td>
                   {/* Total SBC (base cotisable CNPS) */}
                   <td className="p-2 border">{formatFR(tableTotals.base)}</td>
-                  {visibleCols.showTransport && (<td className="p-2 border"></td>)}
-                  {visibleCols.showHousing && (<td className="p-2 border"></td>)}
-                  {visibleCols.showRepresentation && (<td className="p-2 border"></td>)}
-                  {visibleCols.showDirt && (<td className="p-2 border"></td>)}
-                  {visibleCols.showMeal && (<td className="p-2 border"></td>)}
-                  {visibleCols.showOvertime && (<td className="p-2 border"></td>)}
-                  {visibleCols.showBonus && (<td className="p-2 border"></td>)}
-                  {visibleCols.showPrimesImp && (<td className="p-2 border"></td>)}
-                  {visibleCols.showPrimesNat && (<td className="p-2 border"></td>)}
-                  {visibleCols.showAvNat && (<td className="p-2 border"></td>)}
-                  {visibleCols.showNI && (<td className="p-2 border"></td>)}
-                  {visibleCols.showDetails && (<td className="p-2 border"></td>)}
+                  {/* Placeholders for: Indemnité Transport, Heures Supplémentaires, Prime/Bonus */}
+                  <td className="p-2 border"></td>
+                  <td className="p-2 border"></td>
+                  <td className="p-2 border"></td>
                   {/* Totaux primes/indemnités sur la sélection */}
                   <td className="p-2 border">{formatFR(selectedIds.reduce((acc, id) => {
                     const d = formData[id] || {};
                     const arr = Array.isArray(d.primesArray) ? d.primesArray : null;
-                    if (arr && arr.length) return acc + arr.reduce((s, it) => s + (Number(it?.montant ?? it?.amount ?? it?.value ?? 0) || 0), 0);
-                    return acc + (Number(d.primesImposables || 0) || (Number(d.overtimeDisplay || 0) + Number(d.bonusDisplay || 0)));
+                    if (arr && arr.length) return acc + arr.reduce((s, it) => s + (Number(it?.montant ?? it?.amount ?? it?.value ?? 0) || 0), 0) + Number(d.indemniteTransport || 0);
+                    return acc + ((Number(d.primesImposables || 0) || (Number(d.overtimeDisplay || 0) + Number(d.bonusDisplay || 0))) + Number(d.indemniteTransport || 0));
                   }, 0))}</td>
                   <td className="p-2 border">{formatFR(selectedIds.reduce((acc, id) => {
                     const d = formData[id] || {};
                     const arr = Array.isArray(d.indemnitesArray) ? d.indemnitesArray : null;
                     if (arr && arr.length) return acc + arr.reduce((s, it) => s + (Number(it?.montant ?? it?.amount ?? it?.value ?? 0) || 0), 0);
                     return acc + (
-                      Number(d.indemniteTransport || 0)
-                      + Number(d.housingAllowanceDisplay || 0)
+                      Number(d.housingAllowanceDisplay || 0)
                       + Number(d.representationAllowanceDisplay || 0)
                       + Number(d.dirtAllowanceDisplay || 0)
                       + Number(d.mealAllowanceDisplay || 0)

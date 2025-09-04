@@ -77,9 +77,11 @@ import { buildLeaveTypeDoughnut, buildDepartmentBar, buildMonthlyTrendsLine } fr
 import { generateQRCodeUrl, generateUserInfoQRCode, generateVCardQRCode } from "../utils/qrCodeUtils";
 import QRCodeScanner from "../compoments/QRCodeScanner";
 import UserInfoDisplay from "../compoments/UserInfoDisplay";
+import { computeGrossTotal, INDEMNITIES, BONUSES } from "../utils/payrollLabels";
  
 import { removeUndefined } from "../utils/objectUtils";
 import PaySlipGenerator from "../components/PaySlipGenerator";
+import { getSBT, getSBC, CNPS_CAP } from "../utils/cnpsCalc";
 import { subscribeEmployees, addEmployee as svcAddEmployee, updateEmployee as svcUpdateEmployee, updateEmployeeContract as svcUpdateEmployeeContract, updateEmployeePayslips as svcUpdateEmployeePayslips, updateEmployeeBaseSalary as svcUpdateEmployeeBaseSalary, deleteEmployee as svcDeleteEmployee, updateEmployeeBadge as svcUpdateEmployeeBadge } from "../services/employees";
 import { updateCompany as svcUpdateCompany, setCompanyUserCount as svcSetCompanyUserCount } from "../services/companies";
 import ExportsBar from "../components/ExportsBar";
@@ -342,10 +344,12 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
     const pvis = deductions?.pvis || formData?.pvis || 0;
     const irpp = deductions?.irpp || formData?.irpp || 0;
     
-    // Validation PVIS (5% du salaire de base)
-    const expectedPvis = baseSalary * 0.05;
+    // Validation PVIS (4,2% du salaire plafonné à 750 000 FCFA)
+    const pvisBase = Math.min(Number(baseSalary) || 0, 750000);
+    const expectedPvis = pvisBase * 0.042;
+    // Tolérance pour éviter les faux positifs liés aux arrondis
     if (Math.abs(pvis - expectedPvis) > 100) {
-      warnings.push(`PVIS: ${pvis.toLocaleString()} FCFA (attendu: ${expectedPvis.toLocaleString()} FCFA)`);
+      warnings.push(`PVIS: ${pvis.toLocaleString()} FCFA (attendu: ${expectedPvis.toLocaleString()} FCFA, 4,2% plafonné à 750 000)`);
     }
     
     // Validation IRPP (basique)
@@ -378,11 +382,18 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
       irpp: parseFloat(formData.irpp) || 0,
     };
     
-    // Recalculer le total des déductions
-    const totalDeductions = Object.values(updatedDeductions).reduce((sum, value) => {
-      return sum + (typeof value === 'number' ? value : 0);
-    }, 0);
-    
+    // Recalculer explicitement le total des déductions (évite le double comptage)
+    const n = (v) => (Number(v) || 0);
+    const totalDeductions =
+      n(updatedDeductions.pvis) +
+      n(updatedDeductions.irpp) +
+      n(updatedDeductions.cac) +
+      n(updatedDeductions.cfc) +
+      n(updatedDeductions.rav) +
+      n(updatedDeductions.tdl) +
+      n(updatedDeductions.advance) +
+      n(updatedDeductions.other);
+
     updatedDeductions.total = totalDeductions;
     
     // Fermer la modale
@@ -415,12 +426,113 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
   }, [employee, deductions]);
 
   // Calculs
-  const remunerationTotal = remuneration?.total || 0;
-  const deductionsTotal = deductions?.total || 0;
-  const netToPay = Math.max(0, remunerationTotal - deductionsTotal);
+  // Fallback: si remuneration.total est absent ou nul, on recalcule le brut à partir des montants connus
+  const num = (v) => {
+    if (v === null || v === undefined) return 0;
+    if (typeof v === 'number') return isFinite(v) ? v : 0;
+    const s = String(v).replace(/[^0-9+\-.,]/g, '').replace(/,/g, '.');
+    // Garder seulement le dernier point comme séparateur décimal
+    const parts = s.split('.');
+    const normalized = parts.length > 1 ? parts.slice(0, -1).join('') + '.' + parts[parts.length - 1] : s;
+    const n = Number(normalized);
+    return isNaN(n) ? 0 : n;
+  };
+  const remunerationAmounts = { ...(salaryDetails || {}), ...(remuneration || {}) };
+  // Unifier la source des primes/indemnités: props > remuneration.* > vide
+  const primesAll = Array.isArray(primes) && primes.length > 0
+    ? primes
+    : (Array.isArray(remuneration?.primes) ? remuneration.primes : []);
+  const indemAll = Array.isArray(indemnites) && indemnites.length > 0
+    ? indemnites
+    : (Array.isArray(remuneration?.indemnites) ? remuneration.indemnites : []);
+  const primesSum = Array.isArray(primesAll)
+    ? primesAll.reduce((sum, p) => sum + num(p?.montant ?? p?.amount ?? p?.value ?? p?.total ?? p?.somme), 0)
+    : 0;
+  const indemSum = Array.isArray(indemAll)
+    ? indemAll.reduce((sum, i) => sum + num(i?.montant ?? i?.amount ?? i?.value ?? i?.total ?? i?.somme), 0)
+    : 0;
+  // Éviter les doubles comptes: clés déjà comptées par computeGrossTotal
+  const knownKeys = new Set([
+    'baseSalary',
+    ...INDEMNITIES.map(i => i.key),
+    ...BONUSES.map(b => b.key),
+  ]);
+  const dynamicPrimeSum = Object.entries(remunerationAmounts).reduce((sum, [key, val]) => {
+    if (!knownKeys.has(key) && /^prime/i.test(key)) return sum + num(val);
+    return sum;
+  }, 0);
+  const dynamicIndemSum = Object.entries(remunerationAmounts).reduce((sum, [key, val]) => {
+    // capture clés type indemnite*, indemn*, ou *Allowance (ex: housingAllowance)
+    if (!knownKeys.has(key) && (/^indem/i.test(key) || /Allowance$/i.test(key))) {
+      return sum + num(val);
+    }
+    return sum;
+  }, 0);
+  const remunerationFallback = computeGrossTotal(remunerationAmounts) + primesSum + indemSum + dynamicPrimeSum + dynamicIndemSum;
+  const providedTotal = num(remuneration?.total) || 0;
+  const remunerationTotal = Math.max(providedTotal, remunerationFallback);
+
+  // Calculs SBT/SBC selon règle Cameroun
+  const baseDataForBases = {
+    ...remunerationAmounts,
+    brut: baseSalary,
+    baseSalary: baseSalary,
+  };
+  const sbt = Math.round(getSBT(baseDataForBases));
+  const sbc = Math.round(Math.min(getSBC(baseDataForBases), CNPS_CAP));
+
+  // Normalisation/arrondi des déductions à l'unité FCFA
+  const r = (v) => Math.round(num(v));
+  const deductionsRounded = {
+    pvis: r(deductions?.pvis),
+    irpp: r(deductions?.irpp),
+    cac: r(deductions?.cac),
+    cfc: r(deductions?.cfc),
+    rav: r(deductions?.rav),
+    tdl: r(deductions?.tdl),
+    advance: r(deductions?.advance),
+    other: r(deductions?.other),
+  };
+  const deductionsTotal =
+    deductionsRounded.pvis +
+    deductionsRounded.irpp +
+    deductionsRounded.cac +
+    deductionsRounded.cfc +
+    deductionsRounded.rav +
+    deductionsRounded.tdl +
+    deductionsRounded.advance +
+    deductionsRounded.other;
+  const netToPay = Math.max(0, Math.round(remunerationTotal) - deductionsTotal);
 
   // Validation des déductions
   const deductionWarnings = validateDeductions(deductions, baseSalary, formData);
+
+  // DEBUG: tracer les valeurs utilisées pour le calcul
+  useEffect(() => {
+    try {
+      // Limiter le bruit en prod
+      if (process.env.NODE_ENV === 'production') return;
+      console.debug('[PaySlip][DEBUG] Calcul brut/net', {
+        employee: employee?.name,
+        baseSalary,
+        providedTotal,
+        computeGrossTotalBase: computeGrossTotal({ ...(salaryDetails || {}), ...(remuneration || {}) }),
+        primesArrayCount: Array.isArray(primes) ? primes.length : 0,
+        primesSum,
+        indemnitesArrayCount: Array.isArray(indemnites) ? indemnites.length : 0,
+        indemSum,
+        dynamicPrimeSum,
+        dynamicIndemSum,
+        remunerationFallback,
+        remunerationTotal,
+        deductionsRounded,
+        deductionsTotal,
+        netToPay,
+      });
+    } catch (e) {
+      // no-op
+    }
+  }, [employee?.name, baseSalary, providedTotal, primesSum, indemSum, dynamicPrimeSum, dynamicIndemSum, remunerationFallback, remunerationTotal, deductionsTotal, netToPay]);
 
   // Fonction utilitaire pour calculer le net à payer en prenant en compte salaire de base, primes, indemnités et déductions
   const getNetToPay = (paySlip) => {
@@ -479,8 +591,11 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
             <td className="py-2 px-4">{(salaryDetails?.hourlyRate || 0).toLocaleString()} FCFA</td>
           </tr>
           <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">Indemnité transport</td>
-            <td className="py-2 px-4">{(salaryDetails?.transportAllowance || 0).toLocaleString()} FCFA</td>
+            <td className="py-2 px-4">Prime de transport</td>
+            <td className="py-2 px-4">{(
+              // Priorité à la nouvelle clé primeTransport, fallback sur anciens champs
+              remuneration?.primeTransport || salaryDetails?.primeTransport || salaryDetails?.transportAllowance || 0
+            ).toLocaleString()} FCFA</td>
           </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">Jours travaillés</td>
@@ -490,39 +605,120 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
             <td className="py-2 px-4">Heures supplémentaires</td>
             <td className="py-2 px-4">{(remuneration?.overtime || 0).toLocaleString()} FCFA</td>
           </tr>
+
+          {/* Injecter primes/indemnités directement dans le tableau de rémunération */}
+          {Array.isArray(primesAll) && primesAll.length > 0 && (
+            <>
+              {primesAll.map((p, idx) => (
+                <tr key={`rem-prime-${idx}`} className="border-b border-blue-100">
+                  <td className="py-2 px-4">{p?.label || p?.type || p?.name || `Prime ${idx + 1}`}</td>
+                  <td className="py-2 px-4">{(Number(p?.montant) || 0).toLocaleString()} FCFA</td>
+                </tr>
+              ))}
+              <tr className="border-b border-blue-100">
+                <td className="py-2 px-4 font-medium">Sous-total primes</td>
+                <td className="py-2 px-4 font-medium">{primesSum.toLocaleString()} FCFA</td>
+              </tr>
+            </>
+          )}
+
+          {Array.isArray(indemAll) && indemAll.length > 0 && (
+            <>
+              {indemAll.map((i, idx) => (
+                <tr key={`rem-indem-${idx}`} className="border-b border-blue-100">
+                  <td className="py-2 px-4">{i?.label || i?.type || i?.name || `Indemnité ${idx + 1}`}</td>
+                  <td className="py-2 px-4">{(Number(i?.montant) || 0).toLocaleString()} FCFA</td>
+                </tr>
+              ))}
+              <tr className="border-b border-blue-100">
+                <td className="py-2 px-4 font-medium">Sous-total indemnités</td>
+                <td className="py-2 px-4 font-medium">{indemSum.toLocaleString()} FCFA</td>
+              </tr>
+            </>
+          )}
           <tr className="border-b border-blue-100 bg-blue-50">
             <td className="py-2 px-4 font-semibold">TOTAL RÉMUNÉRATION</td>
             <td className="py-2 px-4 font-semibold">{remunerationTotal.toLocaleString()} FCFA</td>
           </tr>
+          <tr className="border-b border-blue-100">
+            <td className="py-2 px-4">Salaire Brut Taxable (SBT)</td>
+            <td className="py-2 px-4">{sbt.toLocaleString()} FCFA</td>
+          </tr>
+          <tr className="border-b border-blue-100">
+            <td className="py-2 px-4">Salaire Brut Cotisable (SBC)</td>
+            <td className="py-2 px-4">{sbc.toLocaleString()} FCFA</td>
+          </tr>
         </tbody>
       </table>
       
+      {/* Primes détaillées */}
+      {Array.isArray(primesAll) && primesAll.length > 0 && (
+        <>
+          <h3 className="font-semibold mt-4">Primes</h3>
+          <table className="w-full border-collapse">
+            <tbody>
+              {primesAll.map((p, idx) => (
+                <tr key={`prime-${idx}`} className="border-b border-blue-100">
+                  <td className="py-2 px-4">{p?.label || p?.type || p?.name || `Prime ${idx + 1}`}</td>
+                  <td className="py-2 px-4">{(Number(p?.montant) || 0).toLocaleString()} FCFA</td>
+                </tr>
+              ))}
+              <tr className="border-b border-blue-100 bg-blue-50">
+                <td className="py-2 px-4 font-semibold">TOTAL PRIMES</td>
+                <td className="py-2 px-4 font-semibold">{primesSum.toLocaleString()} FCFA</td>
+              </tr>
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {/* Indemnités détaillées */}
+      {Array.isArray(indemAll) && indemAll.length > 0 && (
+        <>
+          <h3 className="font-semibold mt-4">Indemnités</h3>
+          <table className="w-full border-collapse">
+            <tbody>
+              {indemAll.map((i, idx) => (
+                <tr key={`indem-${idx}`} className="border-b border-blue-100">
+                  <td className="py-2 px-4">{i?.label || i?.type || i?.name || `Indemnité ${idx + 1}`}</td>
+                  <td className="py-2 px-4">{(Number(i?.montant) || 0).toLocaleString()} FCFA</td>
+                </tr>
+              ))}
+              <tr className="border-b border-blue-100 bg-blue-50">
+                <td className="py-2 px-4 font-semibold">TOTAL INDEMNITÉS</td>
+                <td className="py-2 px-4 font-semibold">{indemSum.toLocaleString()} FCFA</td>
+              </tr>
+            </tbody>
+          </table>
+        </>
+      )}
+
       <h3 className="font-semibold mt-4">Déductions</h3>
       <table className="w-full border-collapse">
         <tbody>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">PVIS</td>
-            <td className="py-2 px-4">{(deductions?.pvis || 0).toLocaleString()} FCFA</td>
+            <td className="py-2 px-4">{r(deductions?.pvis).toLocaleString()} FCFA</td>
             </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">IRPP</td>
-            <td className="py-2 px-4">{(deductions?.irpp || 0).toLocaleString()} FCFA</td>
+            <td className="py-2 px-4">{r(deductions?.irpp).toLocaleString()} FCFA</td>
           </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">CAC</td>
-            <td className="py-2 px-4">{(deductions?.cac || 0).toLocaleString()} FCFA</td>
+            <td className="py-2 px-4">{r(deductions?.cac).toLocaleString()} FCFA</td>
           </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">CFC</td>
-            <td className="py-2 px-4">{(deductions?.cfc || 0).toLocaleString()} FCFA</td>
+            <td className="py-2 px-4">{r(deductions?.cfc).toLocaleString()} FCFA</td>
           </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">RAV</td>
-            <td className="py-2 px-4">{(deductions?.rav || 0).toLocaleString()} FCFA</td>
+            <td className="py-2 px-4">{r(deductions?.rav).toLocaleString()} FCFA</td>
           </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">TDL</td>
-            <td className="py-2 px-4">{(deductions?.tdl || 0).toLocaleString()} FCFA</td>
+            <td className="py-2 px-4">{r(deductions?.tdl).toLocaleString()} FCFA</td>
           </tr>
           <tr className="border-b border-blue-100 bg-red-50">
             <td className="py-2 px-4 font-semibold">TOTAL DÉDUCTIONS</td>
@@ -533,7 +729,7 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
       
       {/* Calcul du net à payer : salaire de base + primes + indemnités - déductions */}
       <div className="bg-green-50 p-4 rounded-lg">
-        <h3 className="font-bold text-lg">NET À PAYER: {getNetToPay({ salaryDetails, primes, indemnites, deductions }).toLocaleString()} FCFA</h3>
+        <h3 className="font-bold text-lg">NET À PAYER: {netToPay.toLocaleString()} FCFA</h3>
       </div>
       
       {/* Avertissements sur les déductions */}
@@ -1734,9 +1930,17 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                             <td className="py-4 px-4">{payslip.payPeriod}</td>
                             <td className="py-4 px-4 font-medium">
                               {(() => {
-                                const remunerationTotal = payslip.remuneration?.total || 0;
-                                const deductionsTotal = payslip.deductions?.total || 0;
-                                const netToPay = Math.max(0, remunerationTotal - deductionsTotal);
+                                // Calcul corrigé : base + primes + indemnités - déductions
+                                const baseSalary = Number(payslip.salaryDetails?.baseSalary || 0);
+                                const primesSum = Array.isArray(payslip.primes)
+                                  ? payslip.primes.reduce((sum, p) => sum + Number(p.montant || 0), 0)
+                                  : 0;
+                                const indemSum = Array.isArray(payslip.indemnites)
+                                  ? payslip.indemnites.reduce((sum, i) => sum + Number(i.montant || 0), 0)
+                                  : 0;
+                                const remunerationBrute = baseSalary + primesSum + indemSum;
+                                const deductionsTotal = Number(payslip.deductions?.total || 0);
+                                const netToPay = Math.max(0, remunerationBrute - deductionsTotal);
                                 return netToPay.toLocaleString() + ' FCFA';
                               })()}
                             </td>
@@ -2296,10 +2500,20 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                       <td className="py-4 px-4">{payslip.employee?.poste || "N/A"}</td>
                       <td className="py-4 px-4">{payslip.payPeriod || "N/A"}</td>
                         <td className="py-4 px-4">
-                        {typeof payslip.remuneration?.total === 'number' && typeof payslip.deductions?.total === 'number'
-                          ? Math.max(0, payslip.remuneration.total - payslip.deductions.total).toLocaleString("fr-FR") + " FCFA"
-                          : "N/A"}
-                        </td>
+                        {(() => {
+                          if (!payslip) return "N/A";
+                          const baseSalary = Number(payslip.salaryDetails?.baseSalary || 0);
+                          const primesSum = Array.isArray(payslip.primes)
+                            ? payslip.primes.reduce((sum, p) => sum + Number(p.montant || 0), 0)
+                            : 0;
+                          const indemSum = Array.isArray(payslip.indemnites)
+                            ? payslip.indemnites.reduce((sum, i) => sum + Number(i.montant || 0), 0)
+                            : 0;
+                          const deductionsTotal = Number(payslip.deductions?.total || 0);
+                          const netToPay = Math.max(0, baseSalary + primesSum + indemSum - deductionsTotal);
+                          return netToPay.toLocaleString("fr-FR") + " FCFA";
+                        })()}
+                      </td>
                         <td className="py-4 px-4 flex gap-2">
                           <Button
                             size="sm"
@@ -2389,7 +2603,18 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                         Générée le {displayGeneratedAt(payslip.generatedAt)}
                       </p>
                       <p className="text-sm text-gray-600">
-                        Salaire net: {payslip.deductions?.netToPay?.toLocaleString()} FCFA
+                        Salaire net: {(() => {
+                          const baseSalary = Number(payslip.salaryDetails?.baseSalary || 0);
+                          const primesSum = Array.isArray(payslip.primes)
+                            ? payslip.primes.reduce((sum, p) => sum + Number(p.montant || 0), 0)
+                            : 0;
+                          const indemSum = Array.isArray(payslip.indemnites)
+                            ? payslip.indemnites.reduce((sum, i) => sum + Number(i.montant || 0), 0)
+                            : 0;
+                          const deductionsTotal = Number(payslip.deductions?.total || 0);
+                          const netToPay = Math.max(0, baseSalary + primesSum + indemSum - deductionsTotal);
+                          return netToPay.toLocaleString();
+                        })()} FCFA
                       </p>
                     </div>
                     <div className="flex gap-2">
@@ -2619,9 +2844,17 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                     <h3 className="text-xl font-bold text-purple-900 mb-2">NET À PAYER</h3>
                     <p className="text-3xl font-bold text-purple-700">
                       {(() => {
-                        const remunerationTotal = selectedPaySlip.remuneration?.total || 0;
-                        const deductionsTotal = selectedPaySlip.deductions?.total || 0;
-                        const netToPay = Math.max(0, remunerationTotal - deductionsTotal);
+                        // Correction : inclure primes et indemnités dans le calcul
+                        const baseSalary = Number(selectedPaySlip.salaryDetails?.baseSalary || 0);
+                        const primesSum = Array.isArray(selectedPaySlip.primes)
+                          ? selectedPaySlip.primes.reduce((sum, p) => sum + Number(p.montant || 0), 0)
+                          : 0;
+                        const indemSum = Array.isArray(selectedPaySlip.indemnites)
+                          ? selectedPaySlip.indemnites.reduce((sum, i) => sum + Number(i.montant || 0), 0)
+                          : 0;
+                        const remunerationBrute = baseSalary + primesSum + indemSum;
+                        const deductionsTotal = Number(selectedPaySlip.deductions?.total || 0);
+                        const netToPay = Math.max(0, remunerationBrute - deductionsTotal);
                         return netToPay.toLocaleString();
                       })()} FCFA
                     </p>

@@ -9,16 +9,27 @@ export const INDEMNITIES_IMPOSABLES = [
 
 // Indemnities specifically included in CNPS SBC base (historically: transport)
 export const SBC_INDEMNITIES = [
+  // Indemnités non imposables mais cotisables à AJOUTER au SBC (à ne pas compter dans le SBT)
+  // Par défaut: transport uniquement, pour éviter la double comptabilisation avec SBT
   "indemniteTransport",
+  "primeTransport", // alias/legacy
 ];
 
 export const INDEMNITIES_NON_IMPOSABLES = [
   // Indemnities excluded from SBT (per business rule)
+  "indemniteTransport",
+  "primeTransport",
   "indemniteNonImposable",            // legacy aggregate if provided
-  "indemniteTransport",               // transport non-taxable
   "representationAllowanceDisplay",   // indemnité de représentation non-taxable
   "dirtAllowanceDisplay",             // prime de salissures non-taxable
   "mealAllowanceDisplay",             // prime de panier non-taxable
+];
+
+// Indemnités imposables (pour SBT) : incluez ici toutes les indemnités taxables
+// Logement est taxable (non listée dans les exceptions)
+export const INDEMNITIES_TAXABLES = [
+  "housingAllowanceDisplay",
+  "housingAllowance", // alias éventuel
 ];
 
 export const PRIMES_IMPOSABLES = [
@@ -27,6 +38,7 @@ export const PRIMES_IMPOSABLES = [
   "bonus",
   "heuresSupp",
   "overtime",
+  // NE PAS inclure le transport ici (indemnité cotisable, non imposable)
 ];
 
 export const PRIMES_SOCIALES = [
@@ -57,6 +69,10 @@ export function getIndemnitesNonImposables(data = {}) {
   return sumFields(data, INDEMNITIES_NON_IMPOSABLES);
 }
 
+export function getIndemnitesTaxables(data = {}) {
+  return sumFields(data, INDEMNITIES_TAXABLES);
+}
+
 export function getPrimesImposables(data = {}) {
   return sumFields(data, PRIMES_IMPOSABLES);
 }
@@ -77,6 +93,7 @@ export function getSbcIndemnites(data = {}) {
 export function getPayComponents(data = {}) {
   const indemImposables = getIndemnitesImposables(data);
   const indemNonImposables = getIndemnitesNonImposables(data);
+  const indemTaxables = getIndemnitesTaxables(data);
   const primesImp = getPrimesImposables(data);
   const primesSoc = getPrimesSociales(data);
   const avNat = getAvantagesNature(data);
@@ -86,6 +103,7 @@ export function getPayComponents(data = {}) {
     brut,
     indemImposables,
     indemNonImposables,
+    indemTaxables,
     primesImp,
     primesSoc,
     avNat,
