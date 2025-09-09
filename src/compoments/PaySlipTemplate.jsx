@@ -1,6 +1,7 @@
 import React from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { computeNetPay, formatCFA } from '../utils/payrollCalculations';
 
 const PaySlipTemplate = ({ 
   employee, 
@@ -28,7 +29,14 @@ const PaySlipTemplate = ({
     return format(new Date(date), 'dd/MM/yyyy', { locale: fr });
   };
 
-  const netToPay = remuneration.total - deductions.total;
+  const payrollCalc = computeNetPay({
+    salaryDetails: salaryDetails || {},
+    remuneration: remuneration || {},
+    deductions: deductions || {},
+    primes: primes || [],
+    indemnites: indemnites || []
+  });
+  const netToPay = payrollCalc.netPay;
 
   const templates = {
     default: {

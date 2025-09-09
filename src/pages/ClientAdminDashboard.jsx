@@ -23,7 +23,7 @@ import { useNavigate } from "react-router-dom";
 import { exportToXLSX, exportToCSV } from "../utils/fileIO";
 import { buildCommonOptions } from "../utils/chartConfig";
 import { ToastContainer, toast } from "react-toastify";
-import { calculateDeductions, getNetToPay } from "../utils/payrollUtils";
+// import { calculateDeductions } from "../utils/payrollUtils"; // plus utilisé ici
 import "react-toastify/dist/ReactToastify.css";
 import {
   Users,
@@ -77,11 +77,10 @@ import { buildLeaveTypeDoughnut, buildDepartmentBar, buildMonthlyTrendsLine } fr
 import { generateQRCodeUrl, generateUserInfoQRCode, generateVCardQRCode } from "../utils/qrCodeUtils";
 import QRCodeScanner from "../compoments/QRCodeScanner";
 import UserInfoDisplay from "../compoments/UserInfoDisplay";
-import { computeGrossTotal, INDEMNITIES, BONUSES } from "../utils/payrollLabels";
+import { INDEMNITIES, BONUSES } from "../utils/payrollLabels";
  
 import { removeUndefined } from "../utils/objectUtils";
 import PaySlipGenerator from "../components/PaySlipGenerator";
-import { getSBT, getSBC, CNPS_CAP } from "../utils/cnpsCalc";
 import { subscribeEmployees, addEmployee as svcAddEmployee, updateEmployee as svcUpdateEmployee, updateEmployeeContract as svcUpdateEmployeeContract, updateEmployeePayslips as svcUpdateEmployeePayslips, updateEmployeeBaseSalary as svcUpdateEmployeeBaseSalary, deleteEmployee as svcDeleteEmployee, updateEmployeeBadge as svcUpdateEmployeeBadge } from "../services/employees";
 import { updateCompany as svcUpdateCompany, setCompanyUserCount as svcSetCompanyUserCount } from "../services/companies";
 import ExportsBar from "../components/ExportsBar";
@@ -94,6 +93,18 @@ import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardHeader from "../components/DashboardHeader";
 import generateBadgePDF from "../utils/badgePdf";
 import { VILLES_CAMEROUN, QUARTIERS_PAR_VILLE } from "../utils/constants";
+import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, computeGrossTotal, computeSBT, computeSBC, validateDeductions, formatCFA, computePVID, computeStatutoryDeductions } from "../utils/payrollCalculations";
+import ContractGenerator from "../components/ContractGenerator";
+import Contract from "../components/Contract";
+import PaySlip from "../components/PaySlip";
+import Button from "../components/Button";
+import Card from "../components/Card";
+import { useDashboardData } from "../hooks/useDashboardData";
+import { formatDateOfBirthInput, validateDateOfBirth, convertFrenchDateToISO, ensureEmployeeFields } from "../utils/dateHelpers";
+import EmployeeSelector from "../components/EmployeeSelector";
+import LogoUploader from "../components/LogoUploader";
+import EmployeeForm from "../components/EmployeeForm";
+
 // Lazy-loaded heavy sections
 const ChartsSection = lazy(() => import("../components/ChartsSection"));
 const QRSection = lazy(() => import("../components/QRSection"));
@@ -110,760 +121,6 @@ ChartJS.register(
   Legend
 );
 // PaySlipGenerator extracted to src/components/PaySlipGenerator.jsx
-
-// Composant ContractGenerator (à ajouter pour éviter l'erreur)
-const ContractGenerator = ({ employee, companyData, onSave, onCancel, actionLoading = false }) => {
-  const [contract, setContract] = useState({
-    employeeId: employee?.id || "",
-    contractType: employee?.contract?.contractType || "CDI",
-    trialPeriod: employee?.hasTrialPeriod ? employee?.trialPeriodDuration || "" : "",
-    workPlace: employee?.contract?.workPlace || "",
-    startDate: employee?.contract?.startDate || employee?.hireDate || "",
-    endDate: employee?.contract?.endDate || "",
-    baseSalary: employee?.baseSalary || 0,
-    clauses: employee?.contract?.clauses || "",
-    fileUrl: employee?.contractFile || null,
-  });
-
-  const handleSalaryChange = (e) => {
-    const baseSalary = parseFloat(e.target.value) || 0;
-    if (baseSalary < 36270) {
-      toast.error("Le salaire de base doit être supérieur ou égal à 36270 FCFA.");
-      return;
-    }
-    setContract((prev) => ({ ...prev, baseSalary }));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!contract.employeeId || !contract.contractType || !contract.startDate) {
-      toast.error("Veuillez remplir tous les champs obligatoires.");
-      return;
-    }
-    if (contract.baseSalary < 36270) {
-      toast.error("Le salaire de base doit être supérieur ou égal à 36270 FCFA.");
-      return;
-    }
-    onSave({
-      ...contract,
-      baseSalary: Number(contract.baseSalary),
-    });
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Type de contrat</label>
-        <select
-          value={contract.contractType}
-          onChange={(e) => setContract({ ...contract, contractType: e.target.value })}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-          required
-        >
-          <option value="CDI">CDI</option>
-          <option value="CDD">CDD</option>
-        </select>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Salaire de base (FCFA)</label>
-        <input
-          type="number"
-          value={contract.baseSalary}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-gray-100 cursor-not-allowed"
-          readOnly
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Lieu de travail</label>
-        <input
-          type="text"
-          value={contract.workPlace}
-          onChange={(e) => setContract({ ...contract, workPlace: e.target.value })}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Date de début</label>
-        <input
-          type="date"
-          value={contract.startDate}
-          onChange={(e) => setContract({ ...contract, startDate: e.target.value })}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Représentant légal</label>
-        <input
-          type="text"
-          value={contract.representant || companyData?.representant || ''}
-          onChange={(e) => setContract({ ...contract, representant: e.target.value })}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-          placeholder="Nom du représentant légal"
-        />
-      </div>
-      <div className="flex justify-end space-x-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
-          disabled={actionLoading}
-        >
-          Annuler
-        </button>
-        {/* <button
-          type="submit"
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          disabled={actionLoading}
-        >
-          {actionLoading ? "Enregistrement..." : "Enregistrer"}
-        </button> */}
-      </div>
-      
-      {/* Composant ExportContrat pour générer le PDF */}
-      <ExportContrat 
-        employee={employee}
-        employer={companyData}
-        contractData={contract}
-      />
-    </form>
-  );
-};
-// Composant PaySlip (adapté de l'ancien code)
-// Update the PaySlip component
-
-const Contract = ({ employee, employer, contract }) => {
-  const safeEmployee = employee || {};
-  const safeEmployer = employer || {};
-  const safeContract = contract || {};
-
-  return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-bold text-center">Contrat de Travail</h2>
-              <p className="text-center">Généré le: {displayGeneratedAt(safeContract.generatedAt || Date.now())}</p>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <h3 className="font-semibold">Employé</h3>
-          <p>Nom: {safeEmployee.name || "N/A"}</p>
-          <p>Email: {safeEmployee.email || "N/A"}</p>
-          <p>Poste: {safeEmployee.poste || "N/A"}</p>
-          <p>Numéro CNPS: {safeEmployee.cnpsNumber || "N/A"}</p>
-        </div>
-        <div>
-          <h3 className="font-semibold">Employeur</h3>
-          <p>Entreprise: {safeEmployer.companyName}</p>
-          <p>Adresse: {safeEmployer.address}</p>
-          <p>Numéro contribuable: {safeEmployer?.taxpayerNumber || "N/A"}</p>
-          <p>Numéro CNPS: {safeEmployer.cnpsNumber}</p>
-        </div>
-      </div>
-      <h3 className="font-semibold mt-4">Détails du Contrat</h3>
-      <table className="w-full border-collapse">
-        <tbody>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">Type de contrat</td>
-            <td className="py-2 px-4">{safeContract.contractType || "N/A"}</td>
-          </tr>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">Période d'essai</td>
-            <td className="py-2 px-4">{safeContract.trialPeriod || "N/A"}</td>
-          </tr>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">Lieu de travail</td>
-            <td className="py-2 px-4">{safeContract.workPlace || "N/A"}</td>
-          </tr>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">Date de début</td>
-            <td className="py-2 px-4">{displayContractStartDate(safeContract.startDate)}</td>
-          </tr>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">Date de fin</td>
-            <td className="py-2 px-4">{displayContractEndDate(safeContract.endDate)}</td>
-          </tr>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">Salaire de base</td>
-            <td className="py-2 px-4">{(safeContract.baseSalary || 0).toLocaleString()} FCFA</td>
-          </tr>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">Clauses particulières</td>
-            <td className="py-2 px-4">{safeContract.clauses || "N/A"}</td>
-          </tr>
-          {safeEmployee.contractFile && (
-            <tr className="border-b border-blue-100">
-              <td className="py-2 px-4">Fichier Contrat</td>
-              <td className="py-2 px-4">
-                <a href={safeEmployee.contractFile} download={`Contrat_${safeEmployee.name || "Inconnu"}.pdf`} className="text-blue-600 hover:underline">
-                  Télécharger le contrat
-                </a>
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-      
-      {/* Composant ExportContrat pour générer le PDF */}
-      <ExportContrat 
-        employee={safeEmployee}
-        employer={safeEmployer}
-        contractData={safeContract}
-      />
-    </div>
-  );
-};
-
-const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, payPeriod, generatedAt, primes = [], indemnites = [] }) => {
-  // État pour gérer la modale et les champs manquants
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [missingFields, setMissingFields] = useState([]);
-  const [formData, setFormData] = useState({
-    matricule: "",
-    pvis: "",
-    irpp: "",
-  });
-
-  // Validation et uniformisation du salaire de base
-  const baseSalary = employee?.baseSalary || salaryDetails?.baseSalary || 0;
-  if (baseSalary === 0 || isNaN(baseSalary)) {
-    console.warn("[PaySlip] Salaire de base non défini, nul ou invalide. Utilisation de 0 comme valeur par défaut.");
-    toast.warn("Aucun salaire de base valide défini. La fiche de paie sera générée avec un salaire de base de 0 FCFA.");
-  }
-
-  // Validation des props avec détection des champs manquants
-  const validateProps = () => {
-    const missing = [];
-    if (!employee || !employee.matricule) missing.push("matricule de l'employé");
-    if (!deductions || deductions.pvis === undefined) missing.push("PVIS");
-    if (!deductions || deductions.irpp === undefined) missing.push("IRPP");
-    return missing;
-  };
-
-  // Validation des déductions
-  const validateDeductions = (deductions, baseSalary, formData) => {
-    const warnings = [];
-    const pvis = deductions?.pvis || formData?.pvis || 0;
-    const irpp = deductions?.irpp || formData?.irpp || 0;
-    
-    // Validation PVIS (4,2% du salaire plafonné à 750 000 FCFA)
-    const pvisBase = Math.min(Number(baseSalary) || 0, 750000);
-    const expectedPvis = pvisBase * 0.042;
-    // Tolérance pour éviter les faux positifs liés aux arrondis
-    if (Math.abs(pvis - expectedPvis) > 100) {
-      warnings.push(`PVIS: ${pvis.toLocaleString()} FCFA (attendu: ${expectedPvis.toLocaleString()} FCFA, 4,2% plafonné à 750 000)`);
-    }
-    
-    // Validation IRPP (basique)
-    if (irpp > baseSalary * 0.3) {
-      warnings.push(`IRPP: ${irpp.toLocaleString()} FCFA (semble élevé)`);
-    }
-    
-    return warnings;
-  };
-
-  // Cache du logo
-  const cacheLogo = (companyId) => {
-    try {
-      const logoData = localStorage.getItem(`logo_${companyId}`);
-      if (logoData) {
-        return logoData;
-      }
-    } catch (error) {
-      console.error("Erreur lors de la récupération du logo:", error);
-    }
-    return null;
-  };
-
-  // Gestion de la modale
-  const handleModalSubmit = () => {
-    // Mettre à jour les données avec les champs manquants
-    const updatedDeductions = {
-      ...deductions,
-      pvis: parseFloat(formData.pvis) || 0,
-      irpp: parseFloat(formData.irpp) || 0,
-    };
-    
-    // Recalculer explicitement le total des déductions (évite le double comptage)
-    const n = (v) => (Number(v) || 0);
-    const totalDeductions =
-      n(updatedDeductions.pvis) +
-      n(updatedDeductions.irpp) +
-      n(updatedDeductions.cac) +
-      n(updatedDeductions.cfc) +
-      n(updatedDeductions.rav) +
-      n(updatedDeductions.tdl) +
-      n(updatedDeductions.advance) +
-      n(updatedDeductions.other);
-
-    updatedDeductions.total = totalDeductions;
-    
-    // Fermer la modale
-    setIsModalOpen(false);
-    
-    // Générer le PDF avec les données mises à jour
-    // Le composant ExportPaySlip s'occupera de la génération
-  };
-
-  const handleModalSkip = () => {
-    setIsModalOpen(false);
-    // Continuer sans les champs manquants
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  // Vérifier les champs manquants au chargement
-  useEffect(() => {
-    const missing = validateProps();
-    if (missing.length > 0) {
-      setMissingFields(missing);
-      setIsModalOpen(true);
-    }
-  }, [employee, deductions]);
-
-  // Calculs
-  // Fallback: si remuneration.total est absent ou nul, on recalcule le brut à partir des montants connus
-  const num = (v) => {
-    if (v === null || v === undefined) return 0;
-    if (typeof v === 'number') return isFinite(v) ? v : 0;
-    const s = String(v).replace(/[^0-9+\-.,]/g, '').replace(/,/g, '.');
-    // Garder seulement le dernier point comme séparateur décimal
-    const parts = s.split('.');
-    const normalized = parts.length > 1 ? parts.slice(0, -1).join('') + '.' + parts[parts.length - 1] : s;
-    const n = Number(normalized);
-    return isNaN(n) ? 0 : n;
-  };
-  const remunerationAmounts = { ...(salaryDetails || {}), ...(remuneration || {}) };
-  // Unifier la source des primes/indemnités: props > remuneration.* > vide
-  const primesAll = Array.isArray(primes) && primes.length > 0
-    ? primes
-    : (Array.isArray(remuneration?.primes) ? remuneration.primes : []);
-  const indemAll = Array.isArray(indemnites) && indemnites.length > 0
-    ? indemnites
-    : (Array.isArray(remuneration?.indemnites) ? remuneration.indemnites : []);
-  const primesSum = Array.isArray(primesAll)
-    ? primesAll.reduce((sum, p) => sum + num(p?.montant ?? p?.amount ?? p?.value ?? p?.total ?? p?.somme), 0)
-    : 0;
-  const indemSum = Array.isArray(indemAll)
-    ? indemAll.reduce((sum, i) => sum + num(i?.montant ?? i?.amount ?? i?.value ?? i?.total ?? i?.somme), 0)
-    : 0;
-  // Éviter les doubles comptes: clés déjà comptées par computeGrossTotal
-  const knownKeys = new Set([
-    'baseSalary',
-    ...INDEMNITIES.map(i => i.key),
-    ...BONUSES.map(b => b.key),
-  ]);
-  const dynamicPrimeSum = Object.entries(remunerationAmounts).reduce((sum, [key, val]) => {
-    if (!knownKeys.has(key) && /^prime/i.test(key)) return sum + num(val);
-    return sum;
-  }, 0);
-  const dynamicIndemSum = Object.entries(remunerationAmounts).reduce((sum, [key, val]) => {
-    // capture clés type indemnite*, indemn*, ou *Allowance (ex: housingAllowance)
-    if (!knownKeys.has(key) && (/^indem/i.test(key) || /Allowance$/i.test(key))) {
-      return sum + num(val);
-    }
-    return sum;
-  }, 0);
-  const remunerationFallback = computeGrossTotal(remunerationAmounts) + primesSum + indemSum + dynamicPrimeSum + dynamicIndemSum;
-  const providedTotal = num(remuneration?.total) || 0;
-  const remunerationTotal = Math.max(providedTotal, remunerationFallback);
-
-  // Calculs SBT/SBC selon règle Cameroun
-  const baseDataForBases = {
-    ...remunerationAmounts,
-    brut: baseSalary,
-    baseSalary: baseSalary,
-  };
-  const sbt = Math.round(getSBT(baseDataForBases));
-  const sbc = Math.round(Math.min(getSBC(baseDataForBases), CNPS_CAP));
-
-  // Normalisation/arrondi des déductions à l'unité FCFA
-  const r = (v) => Math.round(num(v));
-  const deductionsRounded = {
-    pvis: r(deductions?.pvis),
-    irpp: r(deductions?.irpp),
-    cac: r(deductions?.cac),
-    cfc: r(deductions?.cfc),
-    rav: r(deductions?.rav),
-    tdl: r(deductions?.tdl),
-    advance: r(deductions?.advance),
-    other: r(deductions?.other),
-  };
-  const deductionsTotal =
-    deductionsRounded.pvis +
-    deductionsRounded.irpp +
-    deductionsRounded.cac +
-    deductionsRounded.cfc +
-    deductionsRounded.rav +
-    deductionsRounded.tdl +
-    deductionsRounded.advance +
-    deductionsRounded.other;
-  const netToPay = Math.max(0, Math.round(remunerationTotal) - deductionsTotal);
-
-  // Validation des déductions
-  const deductionWarnings = validateDeductions(deductions, baseSalary, formData);
-
-  // DEBUG: tracer les valeurs utilisées pour le calcul
-  useEffect(() => {
-    try {
-      // Limiter le bruit en prod
-      if (process.env.NODE_ENV === 'production') return;
-      console.debug('[PaySlip][DEBUG] Calcul brut/net', {
-        employee: employee?.name,
-        baseSalary,
-        providedTotal,
-        computeGrossTotalBase: computeGrossTotal({ ...(salaryDetails || {}), ...(remuneration || {}) }),
-        primesArrayCount: Array.isArray(primes) ? primes.length : 0,
-        primesSum,
-        indemnitesArrayCount: Array.isArray(indemnites) ? indemnites.length : 0,
-        indemSum,
-        dynamicPrimeSum,
-        dynamicIndemSum,
-        remunerationFallback,
-        remunerationTotal,
-        deductionsRounded,
-        deductionsTotal,
-        netToPay,
-      });
-    } catch (e) {
-      // no-op
-    }
-  }, [employee?.name, baseSalary, providedTotal, primesSum, indemSum, dynamicPrimeSum, dynamicIndemSum, remunerationFallback, remunerationTotal, deductionsTotal, netToPay]);
-
-  // Fonction utilitaire pour calculer le net à payer en prenant en compte salaire de base, primes, indemnités et déductions
-  const getNetToPay = (paySlip) => {
-    // Salaire de base
-    const base = Number(paySlip.salaryDetails?.baseSalary || 0);
-    // Primes
-    const primes = Array.isArray(paySlip.primes) ? paySlip.primes.reduce((sum, p) => sum + Number(p.montant || 0), 0) : 0;
-    // Indemnités
-    const indemnites = Array.isArray(paySlip.indemnites) ? paySlip.indemnites.reduce((sum, i) => sum + Number(i.montant || 0), 0) : 0;
-    // Rémunération brute
-    const remunerationBrute = base + primes + indemnites;
-    // Total des déductions
-    const deductions = Number(paySlip.deductions?.total || 0);
-    // Net à payer
-    return Math.max(0, remunerationBrute - deductions);
-  };
-
-  return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-bold text-center">Fiche de Paie</h2>
-      <p className="text-center">Période: {payPeriod || 'N/A'}</p>
-              <p className="text-center">Généré le: {displayGeneratedAt(generatedAt || Date.now())}</p>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <h3 className="font-semibold">Employé</h3>
-          <p>Nom: {employee?.name || "N/A"}</p>
-          <p>Matricule: {employee?.matricule || "N/A"}</p>
-          <p>Poste: {employee?.poste || "N/A"}</p>
-          <p>Catégorie: {employee?.professionalCategory || "N/A"}</p>
-          <p>Numéro CNPS: {employee?.cnpsNumber || "N/A"}</p>
-          <p>Email: {employee?.email || "N/A"}</p>
-        </div>
-        <div>
-          <h3 className="font-semibold">Employeur</h3>
-          <p>Entreprise: {employer?.companyName}</p>
-          <p>Adresse: {employer?.address}</p>
-          <p>Numéro contribuable: {employer?.taxpayerNumber || "N/A"}</p>
-          <p>Numéro CNPS: {employer?.cnpsNumber}</p>
-        </div>
-      </div>
-      
-      <h3 className="font-semibold mt-4">Rémunération</h3>
-      <table className="w-full border-collapse">
-        <tbody>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">Salaire de base</td>
-            <td className="py-2 px-4">{(salaryDetails?.baseSalary || 0).toLocaleString()} FCFA</td>
-          </tr>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">Taux journalier</td>
-            <td className="py-2 px-4">{(salaryDetails?.dailyRate || 0).toLocaleString()} FCFA</td>
-          </tr>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">Taux horaire</td>
-            <td className="py-2 px-4">{(salaryDetails?.hourlyRate || 0).toLocaleString()} FCFA</td>
-          </tr>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">Prime de transport</td>
-            <td className="py-2 px-4">{(
-              // Priorité à la nouvelle clé primeTransport, fallback sur anciens champs
-              remuneration?.primeTransport || salaryDetails?.primeTransport || salaryDetails?.transportAllowance || 0
-            ).toLocaleString()} FCFA</td>
-          </tr>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">Jours travaillés</td>
-            <td className="py-2 px-4">{remuneration?.workedDays || 0}</td>
-          </tr>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">Heures supplémentaires</td>
-            <td className="py-2 px-4">{(remuneration?.overtime || 0).toLocaleString()} FCFA</td>
-          </tr>
-
-          {/* Injecter primes/indemnités directement dans le tableau de rémunération */}
-          {Array.isArray(primesAll) && primesAll.length > 0 && (
-            <>
-              {primesAll.map((p, idx) => (
-                <tr key={`rem-prime-${idx}`} className="border-b border-blue-100">
-                  <td className="py-2 px-4">{p?.label || p?.type || p?.name || `Prime ${idx + 1}`}</td>
-                  <td className="py-2 px-4">{(Number(p?.montant) || 0).toLocaleString()} FCFA</td>
-                </tr>
-              ))}
-              <tr className="border-b border-blue-100">
-                <td className="py-2 px-4 font-medium">Sous-total primes</td>
-                <td className="py-2 px-4 font-medium">{primesSum.toLocaleString()} FCFA</td>
-              </tr>
-            </>
-          )}
-
-          {Array.isArray(indemAll) && indemAll.length > 0 && (
-            <>
-              {indemAll.map((i, idx) => (
-                <tr key={`rem-indem-${idx}`} className="border-b border-blue-100">
-                  <td className="py-2 px-4">{i?.label || i?.type || i?.name || `Indemnité ${idx + 1}`}</td>
-                  <td className="py-2 px-4">{(Number(i?.montant) || 0).toLocaleString()} FCFA</td>
-                </tr>
-              ))}
-              <tr className="border-b border-blue-100">
-                <td className="py-2 px-4 font-medium">Sous-total indemnités</td>
-                <td className="py-2 px-4 font-medium">{indemSum.toLocaleString()} FCFA</td>
-              </tr>
-            </>
-          )}
-          <tr className="border-b border-blue-100 bg-blue-50">
-            <td className="py-2 px-4 font-semibold">TOTAL RÉMUNÉRATION</td>
-            <td className="py-2 px-4 font-semibold">{remunerationTotal.toLocaleString()} FCFA</td>
-          </tr>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">Salaire Brut Taxable (SBT)</td>
-            <td className="py-2 px-4">{sbt.toLocaleString()} FCFA</td>
-          </tr>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">Salaire Brut Cotisable (SBC)</td>
-            <td className="py-2 px-4">{sbc.toLocaleString()} FCFA</td>
-          </tr>
-        </tbody>
-      </table>
-      
-      {/* Primes détaillées */}
-      {Array.isArray(primesAll) && primesAll.length > 0 && (
-        <>
-          <h3 className="font-semibold mt-4">Primes</h3>
-          <table className="w-full border-collapse">
-            <tbody>
-              {primesAll.map((p, idx) => (
-                <tr key={`prime-${idx}`} className="border-b border-blue-100">
-                  <td className="py-2 px-4">{p?.label || p?.type || p?.name || `Prime ${idx + 1}`}</td>
-                  <td className="py-2 px-4">{(Number(p?.montant) || 0).toLocaleString()} FCFA</td>
-                </tr>
-              ))}
-              <tr className="border-b border-blue-100 bg-blue-50">
-                <td className="py-2 px-4 font-semibold">TOTAL PRIMES</td>
-                <td className="py-2 px-4 font-semibold">{primesSum.toLocaleString()} FCFA</td>
-              </tr>
-            </tbody>
-          </table>
-        </>
-      )}
-
-      {/* Indemnités détaillées */}
-      {Array.isArray(indemAll) && indemAll.length > 0 && (
-        <>
-          <h3 className="font-semibold mt-4">Indemnités</h3>
-          <table className="w-full border-collapse">
-            <tbody>
-              {indemAll.map((i, idx) => (
-                <tr key={`indem-${idx}`} className="border-b border-blue-100">
-                  <td className="py-2 px-4">{i?.label || i?.type || i?.name || `Indemnité ${idx + 1}`}</td>
-                  <td className="py-2 px-4">{(Number(i?.montant) || 0).toLocaleString()} FCFA</td>
-                </tr>
-              ))}
-              <tr className="border-b border-blue-100 bg-blue-50">
-                <td className="py-2 px-4 font-semibold">TOTAL INDEMNITÉS</td>
-                <td className="py-2 px-4 font-semibold">{indemSum.toLocaleString()} FCFA</td>
-              </tr>
-            </tbody>
-          </table>
-        </>
-      )}
-
-      <h3 className="font-semibold mt-4">Déductions</h3>
-      <table className="w-full border-collapse">
-        <tbody>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">PVIS</td>
-            <td className="py-2 px-4">{r(deductions?.pvis).toLocaleString()} FCFA</td>
-            </tr>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">IRPP</td>
-            <td className="py-2 px-4">{r(deductions?.irpp).toLocaleString()} FCFA</td>
-          </tr>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">CAC</td>
-            <td className="py-2 px-4">{r(deductions?.cac).toLocaleString()} FCFA</td>
-          </tr>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">CFC</td>
-            <td className="py-2 px-4">{r(deductions?.cfc).toLocaleString()} FCFA</td>
-          </tr>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">RAV</td>
-            <td className="py-2 px-4">{r(deductions?.rav).toLocaleString()} FCFA</td>
-          </tr>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">TDL</td>
-            <td className="py-2 px-4">{r(deductions?.tdl).toLocaleString()} FCFA</td>
-          </tr>
-          <tr className="border-b border-blue-100 bg-red-50">
-            <td className="py-2 px-4 font-semibold">TOTAL DÉDUCTIONS</td>
-            <td className="py-2 px-4 font-semibold">{deductionsTotal.toLocaleString()} FCFA</td>
-          </tr>
-        </tbody>
-      </table>
-      
-      {/* Calcul du net à payer : salaire de base + primes + indemnités - déductions */}
-      <div className="bg-green-50 p-4 rounded-lg">
-        <h3 className="font-bold text-lg">NET À PAYER: {netToPay.toLocaleString()} FCFA</h3>
-      </div>
-      
-      {/* Avertissements sur les déductions */}
-      {deductionWarnings.length > 0 && (
-        <div className="bg-yellow-50 p-4 rounded-lg">
-          <h4 className="font-semibold text-yellow-800">Avertissements:</h4>
-          <ul className="text-yellow-700">
-            {deductionWarnings.map((warning, index) => (
-              <li key={index}>• {warning}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      
-      {/* Composant ExportPaySlip pour générer le PDF */}
-      <ExportPaySlip 
-        employee={employee}
-        employer={employer}
-        salaryDetails={salaryDetails}
-        remuneration={remuneration}
-        deductions={deductions}
-        payPeriod={payPeriod}
-        generatedAt={generatedAt}
-      />
-      
-      {/* Modale pour les champs manquants */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-        <div className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Informations manquantes</h3>
-          <p className="mb-4">Certaines informations sont manquantes pour générer la fiche de paie :</p>
-          <ul className="mb-4">
-            {missingFields.map((field, index) => (
-              <li key={index} className="text-red-600">• {field}</li>
-            ))}
-          </ul>
-          
-          <div className="space-y-4">
-            {missingFields.includes("matricule de l'employé") && (
-              <div>
-                <label className="block text-sm font-medium mb-1">Matricule de l'employé</label>
-                <input
-                  type="text"
-                  name="matricule"
-                  value={formData.matricule}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded"
-                  placeholder="Entrez le matricule"
-                />
-              </div>
-            )}
-            
-            {missingFields.includes("PVIS") && (
-              <div>
-                <label className="block text-sm font-medium mb-1">PVIS</label>
-                <input
-                  type="number"
-                  name="pvis"
-                  value={formData.pvis}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded"
-                  placeholder="Montant PVIS"
-                />
-              </div>
-            )}
-            
-            {missingFields.includes("IRPP") && (
-              <div>
-                <label className="block text-sm font-medium mb-1">IRPP</label>
-                <input
-                  type="number"
-                  name="irpp"
-                  value={formData.irpp}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded"
-                  placeholder="Montant IRPP"
-                />
-              </div>
-            )}
-          </div>
-          
-          <div className="flex justify-end space-x-2 mt-6">
-            <button
-                onClick={handleModalSkip}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
-            >
-              Continuer sans
-            </button>
-            <button
-                onClick={handleModalSubmit}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-              Compléter et continuer
-            </button>
-            </div>
-          </div>
-      </Modal>
-    </div>
-  );
-};
-
-// Composant Button (inchangé)
-const Button = ({ children, onClick, icon: Icon, variant = "default", size = "default", className = "", disabled }) => {
-  const baseStyles = "flex items-center gap-2 rounded-lg font-medium transition-all duration-200";
-  const variantStyles =
-    variant === "outline"
-      ? "border border-gray-200 text-gray-600 hover:bg-gray-50"
-      : variant === "danger"
-      ? "bg-red-600 text-white hover:bg-red-700"
-      : "bg-blue-600 text-white hover:bg-blue-700";
-  const sizeStyles = size === "sm" ? "px-3 py-1 text-sm" : "px-4 py-2";
-
-  return (
-    <button
-      onClick={onClick}
-      className={`${baseStyles} ${variantStyles} ${sizeStyles} ${className} disabled:opacity-50 disabled:cursor-not-allowed`}
-      disabled={disabled}
-    >
-      {Icon && <Icon className="w-4 h-4" />}
-      {children}
-    </button>
-  );
-};
-
-// Composant Card (inchangé)
-const Card = ({ title, children, className = "" }) => (
-  <div className={`bg-white rounded-lg shadow-md border-0 ${className}`}>
-    {title && (
-      <div className="p-6 border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">{title}</h2>
-      </div>
-    )}
-    <div className="p-6">{children}</div>
-  </div>
-);
 
 // Modal moved to shared component: ../components/Modal
 
@@ -1595,7 +852,16 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
     if (newBaseSalary !== Number(employee.baseSalary)) {
       await svcUpdateEmployeeBaseSalary(db, companyData.id, selectedEmployee.id, newBaseSalary);
     }
-    // Harmonisation : structure directe, ajout id unique si création
+    // Recalcul avec fonctions centralisées pour garantir la cohérence
+    const payrollCalc = computeNetPay({
+      salaryDetails: paySlipData?.salaryDetails || {},
+      remuneration: paySlipData?.remuneration || {},
+      deductions: paySlipData?.deductions || {},
+      primes: paySlipData?.primes || [],
+      indemnites: paySlipData?.indemnites || []
+    });
+
+    // Harmonisation : structure directe avec calculs corrects
     const safePaySlipData = {
       ...paySlipData,
       id: paySlipData?.id || uuidv4(),
@@ -1608,17 +874,20 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
       remuneration: {
         workedDays: Number(paySlipData?.remuneration?.workedDays || 30),
         overtime: Number(paySlipData?.remuneration?.overtime || 0),
-        total: Number(paySlipData?.remuneration?.total || 0),
+        total: payrollCalc.grossTotal, // Utilise le calcul centralisé
       },
       deductions: {
-        pvis: Number(paySlipData?.deductions?.pvis || 0),
-        irpp: Number(paySlipData?.deductions?.irpp || 0),
-        cac: Number(paySlipData?.deductions?.cac || 0),
-        cfc: Number(paySlipData?.deductions?.cfc || 0),
-        rav: Number(paySlipData?.deductions?.rav || 0),
-        tdl: Number(paySlipData?.deductions?.tdl || 0),
-        total: Number(paySlipData?.deductions?.total || 0),
+        pvid: payrollCalc.deductions.pvid, // PVID corrigé (4.2% du salaire de base)
+        pvis: payrollCalc.deductions.pvid, // Backward compatibility
+        irpp: payrollCalc.deductions.irpp,
+        cac: payrollCalc.deductions.cac,
+        cfc: payrollCalc.deductions.cfc,
+        rav: payrollCalc.deductions.rav,
+        tdl: payrollCalc.deductions.tdl, // TDL corrigé (10% de l'IRPP)
+        total: payrollCalc.deductionsTotal,
       },
+      // Ajouter le net à payer calculé
+      netPay: payrollCalc.netPay,
     };
     let updatedPayslips = [...(employee.payslips || [])];
     if (payslipId) {
@@ -1930,18 +1199,28 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                             <td className="py-4 px-4">{payslip.payPeriod}</td>
                             <td className="py-4 px-4 font-medium">
                               {(() => {
-                                // Calcul corrigé : base + primes + indemnités - déductions
-                                const baseSalary = Number(payslip.salaryDetails?.baseSalary || 0);
-                                const primesSum = Array.isArray(payslip.primes)
-                                  ? payslip.primes.reduce((sum, p) => sum + Number(p.montant || 0), 0)
-                                  : 0;
-                                const indemSum = Array.isArray(payslip.indemnites)
-                                  ? payslip.indemnites.reduce((sum, i) => sum + Number(i.montant || 0), 0)
-                                  : 0;
-                                const remunerationBrute = baseSalary + primesSum + indemSum;
-                                const deductionsTotal = Number(payslip.deductions?.total || 0);
-                                const netToPay = Math.max(0, remunerationBrute - deductionsTotal);
-                                return netToPay.toLocaleString() + ' FCFA';
+                                const payslipCalc = computeNetPay({
+                                  salaryDetails: payslip.salaryDetails || {},
+                                  remuneration: payslip.remuneration || {},
+                                  deductions: payslip.deductions || {},
+                                  primes: payslip.primes || [],
+                                  indemnites: payslip.indemnites || []
+                                });
+                                
+                                // Debug: Log calculation details
+                                if (process.env.NODE_ENV === 'development') {
+                                  console.log('[DEBUG] Payslip calculation:', {
+                                    employee: payslip.employee?.name,
+                                    baseSalary: payslip.salaryDetails?.baseSalary,
+                                    grossTotal: payslipCalc.grossTotal,
+                                    pvid: payslipCalc.deductions.pvid,
+                                    deductionsTotal: payslipCalc.deductionsTotal,
+                                    netPay: payslipCalc.netPay,
+                                    rawDeductions: payslip.deductions
+                                  });
+                                }
+                                
+                                return formatCFA(payslipCalc.netPay);
                               })()}
                             </td>
                             <td className="py-4 px-4 text-sm text-gray-600">
@@ -2501,17 +1780,14 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                       <td className="py-4 px-4">{payslip.payPeriod || "N/A"}</td>
                         <td className="py-4 px-4">
                         {(() => {
-                          if (!payslip) return "N/A";
-                          const baseSalary = Number(payslip.salaryDetails?.baseSalary || 0);
-                          const primesSum = Array.isArray(payslip.primes)
-                            ? payslip.primes.reduce((sum, p) => sum + Number(p.montant || 0), 0)
-                            : 0;
-                          const indemSum = Array.isArray(payslip.indemnites)
-                            ? payslip.indemnites.reduce((sum, i) => sum + Number(i.montant || 0), 0)
-                            : 0;
-                          const deductionsTotal = Number(payslip.deductions?.total || 0);
-                          const netToPay = Math.max(0, baseSalary + primesSum + indemSum - deductionsTotal);
-                          return netToPay.toLocaleString("fr-FR") + " FCFA";
+                          const payslipCalc = computeNetPay({
+                            salaryDetails: payslip.salaryDetails || {},
+                            remuneration: payslip.remuneration || {},
+                            deductions: payslip.deductions || {},
+                            primes: payslip.primes || [],
+                            indemnites: payslip.indemnites || []
+                          });
+                          return formatCFA(payslipCalc.netPay) + " FCFA";
                         })()}
                       </td>
                         <td className="py-4 px-4 flex gap-2">
@@ -2603,17 +1879,15 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                         Générée le {displayGeneratedAt(payslip.generatedAt)}
                       </p>
                       <p className="text-sm text-gray-600">
-                        Salaire net: {(() => {
-                          const baseSalary = Number(payslip.salaryDetails?.baseSalary || 0);
-                          const primesSum = Array.isArray(payslip.primes)
-                            ? payslip.primes.reduce((sum, p) => sum + Number(p.montant || 0), 0)
-                            : 0;
-                          const indemSum = Array.isArray(payslip.indemnites)
-                            ? payslip.indemnites.reduce((sum, i) => sum + Number(i.montant || 0), 0)
-                            : 0;
-                          const deductionsTotal = Number(payslip.deductions?.total || 0);
-                          const netToPay = Math.max(0, baseSalary + primesSum + indemSum - deductionsTotal);
-                          return netToPay.toLocaleString();
+                          {(() => {
+                          const payslipCalc = computeNetPay({
+                            salaryDetails: payslip.salaryDetails || {},
+                            remuneration: payslip.remuneration || {},
+                            deductions: payslip.deductions || {},
+                            primes: payslip.primes || [],
+                            indemnites: payslip.indemnites || []
+                          });
+                          return formatCFA(payslipCalc.netPay);
                         })()} FCFA
                       </p>
                     </div>
@@ -2804,38 +2078,45 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                 {/* Déductions */}
                 <div className="bg-red-50 p-4 rounded-lg">
                   <h3 className="text-lg font-semibold text-red-900 mb-3">Déductions</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-600">PVIS</p>
-                      <p className="font-medium">{selectedPaySlip.deductions?.pvis?.toLocaleString()} FCFA</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">IRPP</p>
-                      <p className="font-medium">{selectedPaySlip.deductions?.irpp?.toLocaleString()} FCFA</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">CAC</p>
-                      <p className="font-medium">{selectedPaySlip.deductions?.cac?.toLocaleString()} FCFA</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">CFC</p>
-                      <p className="font-medium">{selectedPaySlip.deductions?.cfc?.toLocaleString()} FCFA</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">RAV</p>
-                      <p className="font-medium">{selectedPaySlip.deductions?.rav?.toLocaleString()} FCFA</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">TDL</p>
-                      <p className="font-medium">{selectedPaySlip.deductions?.tdl?.toLocaleString()} FCFA</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Total déductions</p>
-                      <p className="font-medium text-lg text-red-700">
-                        {selectedPaySlip.deductions?.total?.toLocaleString()} FCFA
-                      </p>
-                    </div>
-                  </div>
+                  {(() => {
+                    const eff = computeEffectiveDeductions(selectedPaySlip?.deductions || {});
+                    const d = computeRoundedDeductions(selectedPaySlip?.deductions || {});
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-600">PVID</p>
+                          <p className="font-medium">{formatCFA(d.pvis)} FCFA</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">IRPP</p>
+                          <p className="font-medium">{formatCFA(d.irpp)} FCFA</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">CAC</p>
+                          <p className="font-medium">{formatCFA(d.cac)} FCFA</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">CFC</p>
+                          <p className="font-medium">{formatCFA(d.cfc)} FCFA</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">RAV</p>
+                          <p className="font-medium">{formatCFA(d.rav)} FCFA</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">TDL</p>
+                          <p className="font-medium">{formatCFA(d.tdl)} FCFA</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Total déductions</p>
+                          <p className="font-medium text-lg text-red-700">
+                            {formatCFA(d.total)} FCFA
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()
+                  }
                 </div>
 
                 {/* Net à payer */}
@@ -2844,19 +2125,15 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                     <h3 className="text-xl font-bold text-purple-900 mb-2">NET À PAYER</h3>
                     <p className="text-3xl font-bold text-purple-700">
                       {(() => {
-                        // Correction : inclure primes et indemnités dans le calcul
-                        const baseSalary = Number(selectedPaySlip.salaryDetails?.baseSalary || 0);
-                        const primesSum = Array.isArray(selectedPaySlip.primes)
-                          ? selectedPaySlip.primes.reduce((sum, p) => sum + Number(p.montant || 0), 0)
-                          : 0;
-                        const indemSum = Array.isArray(selectedPaySlip.indemnites)
-                          ? selectedPaySlip.indemnites.reduce((sum, i) => sum + Number(i.montant || 0), 0)
-                          : 0;
-                        const remunerationBrute = baseSalary + primesSum + indemSum;
-                        const deductionsTotal = Number(selectedPaySlip.deductions?.total || 0);
-                        const netToPay = Math.max(0, remunerationBrute - deductionsTotal);
-                        return netToPay.toLocaleString();
-                      })()} FCFA
+                        const netCalc = computeNetPay({
+                          salaryDetails: selectedPaySlip.salaryDetails || {},
+                          remuneration: selectedPaySlip.remuneration || {},
+                          deductions: selectedPaySlip.deductions || {},
+                          primes: selectedPaySlip.primes || [],
+                          indemnites: selectedPaySlip.indemnites || []
+                        });
+                        return formatCFA(netCalc.netPay) + ' FCFA';
+                      })()}
                     </p>
                   </div>
                 </div>

@@ -17,6 +17,7 @@ import ExportPaySlip from '../compoments/ExportPaySlip';
 import ExportContrat from '../compoments/ExportContrat';
 import { createRoot } from 'react-dom/client';
 import { displayDate, displayDateWithOptions, displayGeneratedAt, displayContractStartDate } from "../utils/displayUtils";
+import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, formatCFA } from "../utils/payrollCalculations";
 
 // Configurer pdfjs
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
@@ -328,6 +329,18 @@ const EmployeeDashboard = () => {
         : employeeData.payslips.filter((slip) => new Date(slip.date).getFullYear() === Number(yearFilter)).length;
     return Math.ceil(filteredCount / itemsPerPage);
   }, [employeeData, yearFilter]);
+
+  // Calculs centralisés pour la fiche sélectionnée
+  const selectedPayrollCalc = useMemo(() => {
+    if (!selectedPaySlip) return null;
+    return computeNetPay({
+      salaryDetails: selectedPaySlip.salaryDetails || {},
+      remuneration: selectedPaySlip.remuneration || {},
+      deductions: selectedPaySlip.deductions || {},
+      primes: selectedPaySlip.primes || [],
+      indemnites: selectedPaySlip.indemnites || []
+    });
+  }, [selectedPaySlip]);
 
   // Export payslips to CSV
   const exportPaySlipsToCSV = () => {
@@ -897,42 +910,37 @@ const EmployeeDashboard = () => {
                         <tbody>
                           <tr className="border-b border-blue-100">
                             <td className="py-2 px-4">PVIS</td>
-                            <td className="py-2 px-4">{(selectedPaySlip.deductions?.pvis || 0).toLocaleString()} FCFA</td>
+                            <td className="py-2 px-4">{formatCFA(selectedPayrollCalc?.roundedDeductions.pvis)} FCFA</td>
                           </tr>
                           <tr className="border-b border-blue-100">
                             <td className="py-2 px-4">IRPP</td>
-                            <td className="py-2 px-4">{(selectedPaySlip.deductions?.irpp || 0).toLocaleString()} FCFA</td>
+                            <td className="py-2 px-4">{formatCFA(selectedPayrollCalc?.roundedDeductions.irpp)} FCFA</td>
                           </tr>
                           <tr className="border-b border-blue-100">
                             <td className="py-2 px-4">CAC</td>
-                            <td className="py-2 px-4">{(selectedPaySlip.deductions?.cac || 0).toLocaleString()} FCFA</td>
+                            <td className="py-2 px-4">{formatCFA(selectedPayrollCalc?.roundedDeductions.cac)} FCFA</td>
                           </tr>
                           <tr className="border-b border-blue-100">
                             <td className="py-2 px-4">CFC</td>
-                            <td className="py-2 px-4">{(selectedPaySlip.deductions?.cfc || 0).toLocaleString()} FCFA</td>
+                            <td className="py-2 px-4">{formatCFA(selectedPayrollCalc?.roundedDeductions.cfc)} FCFA</td>
                           </tr>
                           <tr className="border-b border-blue-100">
                             <td className="py-2 px-4">RAV</td>
-                            <td className="py-2 px-4">{(selectedPaySlip.deductions?.rav || 0).toLocaleString()} FCFA</td>
+                            <td className="py-2 px-4">{formatCFA(selectedPayrollCalc?.roundedDeductions.rav)} FCFA</td>
                           </tr>
                           <tr className="border-b border-blue-100">
                             <td className="py-2 px-4">TDL</td>
-                            <td className="py-2 px-4">{(selectedPaySlip.deductions?.tdl || 0).toLocaleString()} FCFA</td>
+                            <td className="py-2 px-4">{formatCFA(selectedPayrollCalc?.roundedDeductions.tdl)} FCFA</td>
                           </tr>
                           <tr className="border-b border-blue-100 bg-red-50">
                             <td className="py-2 px-4 font-semibold">TOTAL DÉDUCTIONS</td>
-                            <td className="py-2 px-4 font-semibold">{(selectedPaySlip.deductions?.total || 0).toLocaleString()} FCFA</td>
+                            <td className="py-2 px-4 font-semibold">{formatCFA(selectedPayrollCalc?.deductionsTotal)} FCFA</td>
                           </tr>
                         </tbody>
                       </table>
                       {/* Net à payer */}
                       <div className="bg-green-50 p-4 rounded-lg">
-                        <h3 className="font-bold text-lg">NET À PAYER: {(() => {
-                          const remunerationTotal = selectedPaySlip.remuneration?.total || 0;
-                          const deductionsTotal = selectedPaySlip.deductions?.total || 0;
-                          const netToPay = Math.max(0, remunerationTotal - deductionsTotal);
-                          return netToPay.toLocaleString();
-                        })()} FCFA</h3>
+                        <h3 className="font-bold text-lg">NET À PAYER: {formatCFA(selectedPayrollCalc?.netPay || 0)} FCFA</h3>
                         </div>
                       {/* Boutons d'action en bas */}
                       <div className="flex justify-center gap-4 mt-8">
@@ -956,7 +964,7 @@ const EmployeeDashboard = () => {
                                 employer={employerData}
                                 salaryDetails={selectedPaySlip.salaryDetails}
                                 remuneration={selectedPaySlip.remuneration}
-                                deductions={selectedPaySlip.deductions}
+                                deductions={selectedPayrollCalc?.deductions || selectedPaySlip.deductions}
                                 payPeriod={selectedPaySlip.payPeriod}
                                 generatedAt={selectedPaySlip.generatedAt}
                                 auto={true}

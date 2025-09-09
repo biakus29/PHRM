@@ -1,0 +1,503 @@
+import React, { useState, useEffect } from "react";
+import { toast } from "react-toastify";
+import { INDEMNITIES, BONUSES } from "../utils/payrollLabels";
+import { displayGeneratedAt } from "../utils/displayUtils";
+import { 
+  computeEffectiveDeductions, 
+  computeRoundedDeductions, 
+  computeNetPay, 
+  computeGrossTotal, 
+  computeSBT, 
+  computeSBC, 
+  validateDeductions, 
+  formatCFA, 
+  computePVID, 
+  computeStatutoryDeductions 
+} from "../utils/payrollCalculations";
+import ExportPaySlip from "../compoments/ExportPaySlip";
+import Modal from "./Modal";
+
+const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, payPeriod, generatedAt, primes = [], indemnites = [] }) => {
+  // État pour gérer la modale et les champs manquants
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [missingFields, setMissingFields] = useState([]);
+  const [formData, setFormData] = useState({
+    matricule: "",
+    pvis: "",
+    irpp: "",
+  });
+
+  // Validation et uniformisation du salaire de base
+  const baseSalary = employee?.baseSalary || salaryDetails?.baseSalary || 0;
+  if (baseSalary === 0 || isNaN(baseSalary)) {
+    console.warn("[PaySlip] Salaire de base non défini, nul ou invalide. Utilisation de 0 comme valeur par défaut.");
+    toast.warn("Aucun salaire de base valide défini. La fiche de paie sera générée avec un salaire de base de 0 FCFA.");
+  }
+
+  // Validation des props avec détection des champs manquants
+  const validateProps = () => {
+    const missing = [];
+    if (!employee || !employee.matricule) missing.push("matricule de l'employé");
+    if (!deductions || deductions.pvis === undefined) missing.push("PVIS");
+    if (!deductions || deductions.irpp === undefined) missing.push("IRPP");
+    return missing;
+  };
+
+  // Validation des déductions locale (évite conflit avec fonction centralisée)
+  const validateDeductionsLocal = (deductions, baseSalary, formData) => {
+    const warnings = [];
+    const pvis = deductions?.pvis || formData?.pvis || 0;
+    const irpp = deductions?.irpp || formData?.irpp || 0;
+    
+    // Validation via fonction centralisée
+    const validationWarnings = validateDeductions(deductions, baseSalary);
+    warnings.push(...validationWarnings);
+    
+    // Validation IRPP (basique)
+    if (irpp > baseSalary * 0.3) {
+      warnings.push(`IRPP: ${irpp.toLocaleString()} FCFA (semble élevé)`);
+    }
+    
+    return warnings;
+  };
+
+  // Cache du logo
+  const cacheLogo = (companyId) => {
+    try {
+      const logoData = localStorage.getItem(`logo_${companyId}`);
+      if (logoData) {
+        return logoData;
+      }
+    } catch (error) {
+      console.error("Erreur lors de la récupération du logo:", error);
+    }
+    return null;
+  };
+
+  // Gestion de la modale
+  const handleModalSubmit = () => {
+    // Mettre à jour les données avec les champs manquants
+    const updatedDeductions = {
+      ...deductions,
+      pvis: parseFloat(formData.pvis) || 0,
+      irpp: parseFloat(formData.irpp) || 0,
+    };
+    
+    // Recalculer explicitement le total des déductions (évite le double comptage)
+    const n = (v) => (Number(v) || 0);
+    const totalDeductions =
+      n(updatedDeductions.pvis) +
+      n(updatedDeductions.irpp) +
+      n(updatedDeductions.cac) +
+      n(updatedDeductions.cfc) +
+      n(updatedDeductions.rav) +
+      n(updatedDeductions.tdl) +
+      n(updatedDeductions.advance) +
+      n(updatedDeductions.other);
+
+    updatedDeductions.total = totalDeductions;
+    
+    // Fermer la modale
+    setIsModalOpen(false);
+    
+    // Générer le PDF avec les données mises à jour
+    // Le composant ExportPaySlip s'occupera de la génération
+  };
+
+  const handleModalSkip = () => {
+    setIsModalOpen(false);
+    // Continuer sans les champs manquants
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // Vérifier les champs manquants au chargement
+  useEffect(() => {
+    const missing = validateProps();
+    if (missing.length > 0) {
+      setMissingFields(missing);
+      setIsModalOpen(true);
+    }
+  }, [employee, deductions]);
+
+  // Calculs
+  // Fallback: si remuneration.total est absent ou nul, on recalcule le brut à partir des montants connus
+  const num = (v) => {
+    if (v === null || v === undefined) return 0;
+    if (typeof v === 'number') return isFinite(v) ? v : 0;
+    const s = String(v).replace(/[^0-9+\-.,]/g, '').replace(/,/g, '.');
+    // Garder seulement le dernier point comme séparateur décimal
+    const parts = s.split('.');
+    const normalized = parts.length > 1 ? parts.slice(0, -1).join('') + '.' + parts[parts.length - 1] : s;
+    const n = Number(normalized);
+    return isNaN(n) ? 0 : n;
+  };
+  const remunerationAmounts = { ...(salaryDetails || {}), ...(remuneration || {}) };
+  // Unifier la source des primes/indemnités: props > remuneration.* > vide
+  const primesAll = Array.isArray(primes) && primes.length > 0
+    ? primes
+    : (Array.isArray(remuneration?.primes) ? remuneration.primes : []);
+  const indemAll = Array.isArray(indemnites) && indemnites.length > 0
+    ? indemnites
+    : (Array.isArray(remuneration?.indemnites) ? remuneration.indemnites : []);
+  const primesSum = Array.isArray(primesAll)
+    ? primesAll.reduce((sum, p) => sum + num(p?.montant ?? p?.amount ?? p?.value ?? p?.total ?? p?.somme), 0)
+    : 0;
+  const indemSum = Array.isArray(indemAll)
+    ? indemAll.reduce((sum, i) => sum + num(i?.montant ?? i?.amount ?? i?.value ?? i?.total ?? i?.somme), 0)
+    : 0;
+  // Éviter les doubles comptes: clés déjà comptées par computeGrossTotal
+  const knownKeys = new Set([
+    'baseSalary',
+    ...INDEMNITIES.map(i => i.key),
+    ...BONUSES.map(b => b.key),
+  ]);
+  const dynamicPrimeSum = Object.entries(remunerationAmounts).reduce((sum, [key, val]) => {
+    if (!knownKeys.has(key) && /^prime/i.test(key)) return sum + num(val);
+    return sum;
+  }, 0);
+  const dynamicIndemSum = Object.entries(remunerationAmounts).reduce((sum, [key, val]) => {
+    // capture clés type indemnite*, indemn*, ou *Allowance (ex: housingAllowance)
+    if (!knownKeys.has(key) && (/^indem/i.test(key) || /Allowance$/i.test(key))) {
+      return sum + num(val);
+    }
+    return sum;
+  }, 0);
+  // Removed redundant calculation - using centralized computeNetPay
+
+  // Calculs SBT/SBC via utils centralisés
+  const sbt = computeSBT(salaryDetails || {}, remuneration || {});
+  const sbc = computeSBC(salaryDetails || {}, remuneration || {});
+
+  // Calculs centralisés via utils
+  const r = (v) => Math.round(num(v));
+  // Construire des déductions statutaires si manquantes (IRPP, CAC, TDL, CFC, RAV, FNE)
+  const statutory = computeStatutoryDeductions(salaryDetails || {}, remuneration || {}, primesAll, indemAll);
+  const mergedDeductions = { ...statutory, ...(deductions || {}) };
+
+  const payrollCalc = computeNetPay({
+    salaryDetails: salaryDetails || {},
+    remuneration: remuneration || {},
+    deductions: mergedDeductions,
+    primes: primesAll,
+    indemnites: indemAll
+  });
+  const { grossTotal: remunerationTotal, deductions: effectiveDeductions, roundedDeductions: deductionsRounded, deductionsTotal, netPay: netToPay } = payrollCalc;
+
+  // Validation des déductions via utils
+  const deductionWarnings = validateDeductions(deductions, baseSalary);
+
+  // DEBUG: tracer les valeurs utilisées pour le calcul
+  useEffect(() => {
+    try {
+      // Limiter le bruit en prod
+      if (process.env.NODE_ENV === 'production') return;
+      console.debug('[PaySlip][DEBUG] Calcul brut/net', {
+        employee: employee?.name,
+        baseSalary,
+        computeGrossTotalBase: computeGrossTotal({ ...(salaryDetails || {}), ...(remuneration || {}) }),
+        primesArrayCount: Array.isArray(primes) ? primes.length : 0,
+        primesSum,
+        indemnitesArrayCount: Array.isArray(indemnites) ? indemnites.length : 0,
+        indemSum,
+        dynamicPrimeSum,
+        dynamicIndemSum,
+        grossTotal: payrollCalc.grossTotal,
+        deductionsRounded,
+        deductionsTotal,
+        netToPay,
+      });
+    } catch (e) {
+      // no-op
+    }
+  }, [employee?.name, baseSalary, primesSum, indemSum, dynamicPrimeSum, dynamicIndemSum, payrollCalc.grossTotal, deductionsTotal, netToPay]);
+
+  // getNetToPay centralisé importé depuis utils/deductionsUtils
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-2xl font-bold text-center">Fiche de Paie</h2>
+      <p className="text-center">Période: {payPeriod || 'N/A'}</p>
+              <p className="text-center">Généré le: {displayGeneratedAt(generatedAt || Date.now())}</p>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <h3 className="font-semibold">Employé</h3>
+          <p>Nom: {employee?.name || "N/A"}</p>
+          <p>Matricule: {employee?.matricule || "N/A"}</p>
+          <p>Poste: {employee?.poste || "N/A"}</p>
+          <p>Catégorie: {employee?.professionalCategory || "N/A"}</p>
+          <p>Numéro CNPS: {employee?.cnpsNumber || "N/A"}</p>
+          <p>Email: {employee?.email || "N/A"}</p>
+        </div>
+        <div>
+          <h3 className="font-semibold">Employeur</h3>
+          <p>Entreprise: {employer?.companyName}</p>
+          <p>Adresse: {employer?.address}</p>
+          <p>Numéro contribuable: {employer?.taxpayerNumber || "N/A"}</p>
+          <p>Numéro CNPS: {employer?.cnpsNumber}</p>
+        </div>
+      </div>
+      
+      <h3 className="font-semibold mt-4">Rémunération</h3>
+      <table className="w-full border-collapse">
+        <tbody>
+          <tr className="border-b border-blue-100">
+            <td className="py-2 px-4">Salaire de base</td>
+            <td className="py-2 px-4">{(salaryDetails?.baseSalary || 0).toLocaleString()} FCFA</td>
+          </tr>
+          <tr className="border-b border-blue-100">
+            <td className="py-2 px-4">Taux journalier</td>
+            <td className="py-2 px-4">{(salaryDetails?.dailyRate || 0).toLocaleString()} FCFA</td>
+          </tr>
+          <tr className="border-b border-blue-100">
+            <td className="py-2 px-4">Taux horaire</td>
+            <td className="py-2 px-4">{(salaryDetails?.hourlyRate || 0).toLocaleString()} FCFA</td>
+          </tr>
+          <tr className="border-b border-blue-100">
+            <td className="py-2 px-4">Prime de transport</td>
+            <td className="py-2 px-4">{(
+              // Priorité à la nouvelle clé primeTransport, fallback sur anciens champs
+              remuneration?.primeTransport || salaryDetails?.primeTransport || salaryDetails?.transportAllowance || 0
+            ).toLocaleString()} FCFA</td>
+          </tr>
+          <tr className="border-b border-blue-100">
+            <td className="py-2 px-4">Jours travaillés</td>
+            <td className="py-2 px-4">{remuneration?.workedDays || 0}</td>
+          </tr>
+          <tr className="border-b border-blue-100">
+            <td className="py-2 px-4">Heures supplémentaires</td>
+            <td className="py-2 px-4">{(remuneration?.overtime || 0).toLocaleString()} FCFA</td>
+          </tr>
+
+          {/* Injecter primes/indemnités directement dans le tableau de rémunération */}
+          {Array.isArray(primesAll) && primesAll.length > 0 && (
+            <>
+              {primesAll.map((p, idx) => (
+                <tr key={`rem-prime-${idx}`} className="border-b border-blue-100">
+                  <td className="py-2 px-4">{p?.label || p?.type || p?.name || `Prime ${idx + 1}`}</td>
+                  <td className="py-2 px-4">{(Number(p?.montant) || 0).toLocaleString()} FCFA</td>
+                </tr>
+              ))}
+              <tr className="border-b border-blue-100">
+                <td className="py-2 px-4 font-medium">Sous-total primes</td>
+                <td className="py-2 px-4 font-medium">{primesSum.toLocaleString()} FCFA</td>
+              </tr>
+            </>
+          )}
+
+          {Array.isArray(indemAll) && indemAll.length > 0 && (
+            <>
+              {indemAll.map((i, idx) => (
+                <tr key={`rem-indem-${idx}`} className="border-b border-blue-100">
+                  <td className="py-2 px-4">{i?.label || i?.type || i?.name || `Indemnité ${idx + 1}`}</td>
+                  <td className="py-2 px-4">{(Number(i?.montant) || 0).toLocaleString()} FCFA</td>
+                </tr>
+              ))}
+              <tr className="border-b border-blue-100">
+                <td className="py-2 px-4 font-medium">Sous-total indemnités</td>
+                <td className="py-2 px-4 font-medium">{indemSum.toLocaleString()} FCFA</td>
+              </tr>
+            </>
+          )}
+          <tr className="border-b border-blue-100 bg-blue-50">
+            <td className="py-2 px-4 font-semibold">TOTAL RÉMUNÉRATION</td>
+            <td className="py-2 px-4 font-semibold">{remunerationTotal.toLocaleString()} FCFA</td>
+          </tr>
+          <tr className="border-b border-blue-100">
+            <td className="py-2 px-4">Salaire Brut Taxable (SBT)</td>
+            <td className="py-2 px-4">{sbt.toLocaleString()} FCFA</td>
+          </tr>
+          <tr className="border-b border-blue-100">
+            <td className="py-2 px-4">Salaire Brut Cotisable (SBC)</td>
+            <td className="py-2 px-4">{sbc.toLocaleString()} FCFA</td>
+          </tr>
+        </tbody>
+      </table>
+      
+      {/* Primes détaillées */}
+      {Array.isArray(primesAll) && primesAll.length > 0 && (
+        <>
+          <h3 className="font-semibold mt-4">Primes</h3>
+          <table className="w-full border-collapse">
+            <tbody>
+              {primesAll.map((p, idx) => (
+                <tr key={`prime-${idx}`} className="border-b border-blue-100">
+                  <td className="py-2 px-4">{p?.label || p?.type || p?.name || `Prime ${idx + 1}`}</td>
+                  <td className="py-2 px-4">{(Number(p?.montant) || 0).toLocaleString()} FCFA</td>
+                </tr>
+              ))}
+              <tr className="border-b border-blue-100 bg-blue-50">
+                <td className="py-2 px-4 font-semibold">TOTAL PRIMES</td>
+                <td className="py-2 px-4 font-semibold">{primesSum.toLocaleString()} FCFA</td>
+              </tr>
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {/* Indemnités détaillées */}
+      {Array.isArray(indemAll) && indemAll.length > 0 && (
+        <>
+          <h3 className="font-semibold mt-4">Indemnités</h3>
+          <table className="w-full border-collapse">
+            <tbody>
+              {indemAll.map((i, idx) => (
+                <tr key={`indem-${idx}`} className="border-b border-blue-100">
+                  <td className="py-2 px-4">{i?.label || i?.type || i?.name || `Indemnité ${idx + 1}`}</td>
+                  <td className="py-2 px-4">{(Number(i?.montant) || 0).toLocaleString()} FCFA</td>
+                </tr>
+              ))}
+              <tr className="border-b border-blue-100 bg-blue-50">
+                <td className="py-2 px-4 font-semibold">TOTAL INDEMNITÉS</td>
+                <td className="py-2 px-4 font-semibold">{indemSum.toLocaleString()} FCFA</td>
+              </tr>
+            </tbody>
+          </table>
+        </>
+      )}
+
+      <h3 className="font-semibold mt-4">Déductions</h3>
+      <table className="w-full border-collapse">
+        <tbody>
+          <tr className="border-b border-blue-100">
+            <td className="py-2 px-4">PVID</td>
+            <td className="py-2 px-4">{r(effectiveDeductions?.pvid).toLocaleString()} FCFA</td>
+            </tr>
+          <tr className="border-b border-blue-100">
+            <td className="py-2 px-4">IRPP</td>
+            <td className="py-2 px-4">{r(effectiveDeductions?.irpp).toLocaleString()} FCFA</td>
+          </tr>
+          <tr className="border-b border-blue-100">
+            <td className="py-2 px-4">CAC</td>
+            <td className="py-2 px-4">{r(effectiveDeductions?.cac).toLocaleString()} FCFA</td>
+          </tr>
+          <tr className="border-b border-blue-100">
+            <td className="py-2 px-4">CFC</td>
+            <td className="py-2 px-4">{r(effectiveDeductions?.cfc).toLocaleString()} FCFA</td>
+          </tr>
+          <tr className="border-b border-blue-100">
+            <td className="py-2 px-4">RAV</td>
+            <td className="py-2 px-4">{r(effectiveDeductions?.rav).toLocaleString()} FCFA</td>
+          </tr>
+          <tr className="border-b border-blue-100">
+            <td className="py-2 px-4">TDL</td>
+            <td className="py-2 px-4">{r(effectiveDeductions?.tdl).toLocaleString()} FCFA</td>
+          </tr>
+          <tr className="border-b border-blue-100 bg-red-50">
+            <td className="py-2 px-4 font-semibold">TOTAL DÉDUCTIONS</td>
+            <td className="py-2 px-4 font-semibold">{deductionsTotal.toLocaleString()} FCFA</td>
+          </tr>
+        </tbody>
+      </table>
+      
+      {/* Calcul du net à payer : salaire de base + primes + indemnités - déductions */}
+      <div className="bg-green-50 p-4 rounded-lg">
+        <h3 className="font-bold text-lg">NET À PAYER: {netToPay.toLocaleString()} FCFA</h3>
+      </div>
+      
+      {/* Avertissements sur les déductions */}
+      {deductionWarnings.length > 0 && (
+        <div className="bg-yellow-50 p-4 rounded-lg">
+          <h4 className="font-semibold text-yellow-800">Avertissements:</h4>
+          <ul className="text-yellow-700">
+            {deductionWarnings.map((warning, index) => (
+              <li key={index}>• {warning}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      
+      {/* Composant ExportPaySlip pour générer le PDF */}
+      <ExportPaySlip 
+        employee={employee}
+        employer={employer}
+        salaryDetails={salaryDetails}
+        remuneration={remuneration}
+        deductions={deductions}
+        payPeriod={payPeriod}
+        generatedAt={generatedAt}
+      />
+      
+      {/* Modale pour les champs manquants */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Informations manquantes</h3>
+          <p className="mb-4">Certaines informations sont manquantes pour générer la fiche de paie :</p>
+          <ul className="mb-4">
+            {missingFields.map((field, index) => (
+              <li key={index} className="text-red-600">• {field}</li>
+            ))}
+          </ul>
+          
+          <div className="space-y-4">
+            {missingFields.includes("matricule de l'employé") && (
+              <div>
+                <label className="block text-sm font-medium mb-1">Matricule de l'employé</label>
+                <input
+                  type="text"
+                  name="matricule"
+                  value={formData.matricule}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border rounded"
+                  placeholder="Entrez le matricule"
+                />
+              </div>
+            )}
+            
+            {missingFields.includes("PVIS") && (
+              <div>
+                <label className="block text-sm font-medium mb-1">PVIS</label>
+                <input
+                  type="number"
+                  name="pvis"
+                  value={formData.pvis}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border rounded"
+                  placeholder="Montant PVIS"
+                />
+              </div>
+            )}
+            
+            {missingFields.includes("IRPP") && (
+              <div>
+                <label className="block text-sm font-medium mb-1">IRPP</label>
+                <input
+                  type="number"
+                  name="irpp"
+                  value={formData.irpp}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border rounded"
+                  placeholder="Montant IRPP"
+                />
+              </div>
+            )}
+          </div>
+          
+          <div className="flex justify-end space-x-2 mt-6">
+            <button
+                onClick={handleModalSkip}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+            >
+              Continuer sans
+            </button>
+            <button
+                onClick={handleModalSubmit}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+              Compléter et continuer
+            </button>
+            </div>
+          </div>
+      </Modal>
+    </div>
+  );
+};
+
+export default PaySlip;

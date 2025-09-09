@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import { FiFileText, FiX, FiFile, FiUpload } from "react-icons/fi";
-import { toast } from "react-toastify";
+import { computeNetPay, computeEffectiveDeductions, computeRoundedDeductions, formatCFA, computeSBT, computeSBC } from "../utils/payrollCalculations";
 import { jsPDF } from "jspdf";
 
 // Fonction utilitaire pour échapper le texte
@@ -221,10 +221,14 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
 
   const calculateDeductions = (salaryBrut) => {
     console.log(`[PaySlipGenerator] Calcul des retenues pour salaire brut: ${salaryBrut}`);
-    const taxableSalary = salaryBrut;
-    const pvidRate = 0.042; // 4.2% à la charge de l'employé
-    const pvidCap = 750000;
-    const pvid = Math.min(taxableSalary, pvidCap) * pvidRate;
+    const payrollCalc = computeNetPay({
+      salaryDetails: { baseSalary: salaryBrut },
+      remuneration: { total: salaryBrut },
+      deductions: { pvis: 0, irpp: 0, cac: 0, cfc: 0, rav: 0, tdl: 0, fne: 0 },
+      primes: [],
+      indemnites: []
+    });
+    const d = payrollCalc.roundedDeductions;
 
     // Calcul du salaire net catégoriel mensuel (SNC)
     const annualTaxableSalary = taxableSalary * 12;
@@ -248,23 +252,16 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
       }
     }
 
-    const cac = irpp * 0.10; // 10% de l'IRPP
-    const cfc = taxableSalary * 0.01; // 1% du salaire brut
-    // RAV uniquement si salaire brut > 50000
-    const rav = salaryBrut > 50000 ? 750 : 0; // 750 FCFA ou adapte selon ta règle
-    const tdl = 0; // Toujours 0
-    const fne = 0; // À confirmer si applicable
-
+    const cac = irpp * 0.10;    // Calculs centralisés via utils
     const deductions = {
-      pvid,
-      irpp,
-      cac,
-      cfc,
-      rav,
-      tdl,
-      fne,
-      communalTax: 0,
-      total: pvid + irpp + cac + cfc + rav + tdl + fne,
+      pvis: d.pvis,
+      irpp: d.irpp,
+      cac: d.cac,
+      cfc: d.cfc,
+      rav: d.rav,
+      tdl: d.tdl,
+      fne: d.fne,
+      total: payrollCalc.deductionsTotal,
     };
     console.log(`[PaySlipGenerator] Résultat calcul retenues: ${JSON.stringify(deductions)}`);
     return deductions;
@@ -736,31 +733,31 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
       doc.text("DÉTAILS DES RETENUES", leftMargin, y);
       y += lineHeight;
       doc.setFont("helvetica", "normal");
-      doc.text(`CNPS (PVID): ${paySlipData.deductions.pvid.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
+      doc.text(`CNPS (PVID) – salarié : ${paySlipData.deductions.pvid.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
       y += lineHeight;
-      doc.text(`IRPP: ${paySlipData.deductions.irpp.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
+      doc.text(`IRPP : ${paySlipData.deductions.irpp.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
       y += lineHeight;
-      doc.text(`CAC: ${paySlipData.deductions.cac.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
+      doc.text(`CAC : ${paySlipData.deductions.cac.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
       y += lineHeight;
-      doc.text(`CFC: ${paySlipData.deductions.cfc.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
+      doc.text(`CFC : ${paySlipData.deductions.cfc.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
       y += lineHeight;
-      doc.text(`RAV: ${paySlipData.deductions.rav.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
+      doc.text(`RAV : ${paySlipData.deductions.rav.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
       y += lineHeight;
-      doc.text(`TDL: ${paySlipData.deductions.tdl.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
+      doc.text(`TDL (10% IRPP) : ${paySlipData.deductions.tdl.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
       y += lineHeight;
-      doc.text(`FNE: ${paySlipData.deductions.fne.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
+      doc.text(`FNE : ${paySlipData.deductions.fne.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
       y += lineHeight;
-      doc.text(`Total retenues: ${paySlipData.deductions.total.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
+      doc.text(`Total retenues : ${paySlipData.deductions.total.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
       y += lineHeight * 2;
 
       doc.setFont("helvetica", "bold");
-      doc.text(`Net à payer: ${paySlipData.calculations.netSalary.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
+      doc.text(`Net à payer : ${paySlipData.calculations.netSalary.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
       y += lineHeight * 2;
 
       doc.setFont("helvetica", "normal");
-      doc.text(`Période: ${paySlipData.payPeriod}`, leftMargin, y);
+      doc.text(`Période : ${paySlipData.payPeriod}`, leftMargin, y);
       y += lineHeight;
-      doc.text(`Généré le: ${new Date(paySlipData.generatedAt).toLocaleString("fr-FR")}`, leftMargin, y);
+      doc.text(`Généré le : ${new Date(paySlipData.generatedAt).toLocaleString("fr-FR")}`, leftMargin, y);
 
       doc.save(`fiche_paie_${paySlipData.employee.firstName}_${paySlipData.employee.lastName}_${paySlipData.payPeriod}.pdf`);
       console.log("[PaySlipGenerator] Fiche de paie PDF sauvegardée");

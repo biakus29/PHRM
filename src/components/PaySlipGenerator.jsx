@@ -1,39 +1,51 @@
 import React from "react";
 import { v4 as uuidv4 } from 'uuid';
 import { ToastContainer, toast } from "react-toastify";
-import { calculateDeductions } from "../utils/payrollUtils";
+import { computeNetPay, computeEffectiveDeductions, computeRoundedDeductions, formatCFA, computeSBT, computeSBC, computeStatutoryDeductions, computeTDL } from "../utils/payrollCalculations";
 import PrimeIndemniteSelector from "../compoments/PrimeIndemniteSelector";
 import Button from "../compoments/Button";
 
 const PaySlipGenerator = ({ employee, company, initialData, selectedTemplate = "template1", onSave, onCancel, actionLoading, updateEmployee, setSelectedEmployee }) => {
-  const [formData, setFormData] = React.useState({
-    payPeriod: initialData?.payPeriod || '',
-    salaryDetails: {
-      baseSalary: initialData?.salaryDetails?.baseSalary || employee?.baseSalary || 0,
-      dailyRate: initialData?.salaryDetails?.dailyRate || (employee?.baseSalary || 0) / 30,
-      hourlyRate: initialData?.salaryDetails?.hourlyRate || (employee?.baseSalary || 0) / (30 * 8),
-      transportAllowance: initialData?.salaryDetails?.transportAllowance || 0,
-    },
-    remuneration: {
-      workedDays: initialData?.remuneration?.workedDays || 30,
-      overtime: initialData?.remuneration?.overtime || 0,
-      total: initialData?.remuneration?.total || employee?.baseSalary || 0,
-    },
-    deductions: {
-      pvis: initialData?.deductions?.pvis || 0,
-      irpp: initialData?.deductions?.irpp || 0,
-      cac: initialData?.deductions?.cac || 0,
-      cfc: initialData?.deductions?.cfc || 0,
-      rav: initialData?.deductions?.rav || 0,
-      tdl: initialData?.deductions?.tdl || 0,
-      total: initialData?.deductions?.total || 0,
-    },
-    primes: initialData?.primes || [],
-    indemnites: initialData?.indemnites || [],
-    generatedAt: initialData?.generatedAt || new Date().toISOString(),
-    month: initialData?.month || '',
-    year: initialData?.year || '',
-    id: initialData?.id || uuidv4(),
+  const [formData, setFormData] = React.useState(() => {
+    const baseSalaryInit = initialData?.salaryDetails?.baseSalary || employee?.baseSalary || 0;
+    const primesInit = initialData?.primes || [];
+    const indemnitesInit = initialData?.indemnites || [];
+    
+    // Calculer toutes les déductions statutaires dès l'initialisation
+    const statutoryDeductions = computeStatutoryDeductions(
+      { baseSalary: baseSalaryInit },
+      { workedDays: 30, overtime: 0 },
+      primesInit,
+      indemnitesInit
+    );
+    
+    const deductionsInit = {
+      ...statutoryDeductions,
+      advance: initialData?.deductions?.advance || 0,
+      other: initialData?.deductions?.other || 0,
+      total: Object.values(statutoryDeductions).reduce((sum, val) => sum + (Number(val) || 0), 0)
+    };
+    
+    return {
+      payPeriod: initialData?.payPeriod || '',
+      salaryDetails: {
+        baseSalary: baseSalaryInit,
+        dailyRate: initialData?.salaryDetails?.dailyRate || baseSalaryInit / 30,
+        hourlyRate: initialData?.salaryDetails?.hourlyRate || baseSalaryInit / (30 * 8),
+      },
+      remuneration: {
+        workedDays: initialData?.remuneration?.workedDays || 30,
+        overtime: initialData?.remuneration?.overtime || 0,
+        total: initialData?.remuneration?.total || baseSalaryInit,
+      },
+      deductions: deductionsInit,
+      primes: primesInit,
+      indemnites: indemnitesInit,
+      generatedAt: initialData?.generatedAt || new Date().toISOString(),
+      month: initialData?.month || '',
+      year: initialData?.year || '',
+      id: initialData?.id || uuidv4(),
+    };
   });
 
   const [showMissingInfoModal, setShowMissingInfoModal] = React.useState(false);
@@ -61,14 +73,28 @@ const PaySlipGenerator = ({ employee, company, initialData, selectedTemplate = "
 
   React.useEffect(() => {
     const baseSalary = formData.salaryDetails.baseSalary;
-    if (baseSalary > 0 && (!formData.deductions.pvis || formData.deductions.total === 0)) {
-      const calculatedDeductions = calculateDeductions({ baseSalary, applyTDL: true });
-      setFormData(prev => ({
-        ...prev,
-        deductions: calculatedDeductions,
-      }));
-    }
-  }, [formData.salaryDetails.baseSalary]);
+    const salaryDetails = formData.salaryDetails;
+    const overtime = formData.remuneration.overtime;
+    const primes = formData.primes;
+    const indemnites = formData.indemnites;
+
+    const payrollCalc = computeNetPay({
+      salaryDetails: { baseSalary, ...salaryDetails },
+      remuneration: { overtime, workedDays: formData.remuneration.workedDays },
+      deductions: formData.deductions,
+      primes,
+      indemnites
+    });
+    
+    setFormData(prev => ({
+      ...prev,
+      deductions: payrollCalc.deductions,
+      remuneration: { 
+        ...prev.remuneration, 
+        total: payrollCalc.grossTotal // Utiliser grossTotal, pas netPay
+      },
+    }));
+  }, [formData.salaryDetails.baseSalary, formData.primes, formData.indemnites]);
 
   const handleMissingInfoChange = (key, value) => {
     setMissingInfoValues(prev => ({ ...prev, [key]: value }));
@@ -87,11 +113,19 @@ const PaySlipGenerator = ({ employee, company, initialData, selectedTemplate = "
       toast.error("Le salaire de base ne peut pas être négatif.");
       return;
     }
+    
+    // Calculer les déductions statutaires avec les utilitaires centralisés
+    const statutoryDeductions = computeStatutoryDeductions(
+      { baseSalary }, 
+      {}, 
+      formData.primes, 
+      formData.indemnites
+    );
+    
     setFormData((prev) => ({
       ...prev,
       salaryDetails: { ...prev.salaryDetails, baseSalary },
-      remuneration: { ...prev.remuneration, total: baseSalary },
-      deductions: calculateDeductions({ baseSalary, applyTDL: true }),
+      deductions: { ...prev.deductions, ...statutoryDeductions },
     }));
   };
 
@@ -134,7 +168,11 @@ const PaySlipGenerator = ({ employee, company, initialData, selectedTemplate = "
         baseSalary: Number(formData.salaryDetails.baseSalary),
         dailyRate: Number(formData.salaryDetails.baseSalary) / 30,
         hourlyRate: Number(formData.salaryDetails.baseSalary) / (30 * 8),
-        transportAllowance: Number(formData.salaryDetails.transportAllowance || 0),
+      },
+      remuneration: {
+        workedDays: formData.remuneration.workedDays,
+        overtime: formData.remuneration.overtime,
+        total: formData.remuneration.total,
       },
       deductions: formData.deductions,
       primes: formData.primes,
@@ -166,23 +204,6 @@ const PaySlipGenerator = ({ employee, company, initialData, selectedTemplate = "
           min="0"
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
           required
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Indemnité de transport (FCFA)</label>
-        <input
-          type="number"
-          value={formData.salaryDetails.transportAllowance}
-          onChange={e =>
-            setFormData({
-              ...formData,
-              salaryDetails: {
-                ...formData.salaryDetails,
-                transportAllowance: parseFloat(e.target.value) || 0,
-              },
-            })
-          }
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
         />
       </div>
       <div>

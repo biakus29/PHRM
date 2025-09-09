@@ -1,12 +1,7 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "react-toastify";
-
-// Fonction utilitaire pour gérer le logo
-const cacheLogo = (companyId) => {
-  if (!companyId) return null;
-  return localStorage.getItem(`logo_${companyId}`);
-};
+import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, formatCFA } from "../utils/payrollCalculations";
 
 // Fonction utilitaire pour gérer les erreurs
 const handleError = (error, message) => {
@@ -209,24 +204,31 @@ const exportPaySlipToPDF = (paySlipData, employee, companyData, setActionLoading
       y = topMargin;
     }
 
-    // Retenues
+    // Retenues (déductions) avec fallback TDL = 10% IRPP via util centralisé
     doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
-    doc.text("Retenues", leftMargin, y);
-    y += lineHeight;
+    // Calculs centralisés via utils
+    const payrollCalc = computeNetPay({
+      salaryDetails: paySlipData.salaryDetails || {},
+      remuneration: paySlipData.remuneration || {},
+      deductions: paySlipData.deductions || {},
+      primes: paySlipData.primes || [],
+      indemnites: paySlipData.indemnites || []
+    });
+    const { grossTotal: remunerationTotal, roundedDeductions: d, deductionsTotal: totalRetenues, netPay: netAPayer } = payrollCalc;
     autoTable(doc, {
       startY: y,
       head: [["Description", "Montant (FCFA)"]],
       body: [
-        ["CNPS (PVIS)", Number(paySlipData.deductions?.pvis || 0).toLocaleString("fr-FR")],
-        ["IRPP", Number(paySlipData.deductions?.irpp || 0).toLocaleString("fr-FR")],
-        ["CAC", Number(paySlipData.deductions?.cac || 0).toLocaleString("fr-FR")],
-        ["CFC", Number(paySlipData.deductions?.cfc || 0).toLocaleString("fr-FR")],
-        ["RAV", Number(paySlipData.deductions?.rav || 0).toLocaleString("fr-FR")],
-        ["TDL", Number(paySlipData.deductions?.tdl || 0).toLocaleString("fr-FR")],
-        ["FNE", Number(paySlipData.deductions?.fne || 0).toLocaleString("fr-FR")],
-        ["Total retenues", Number(paySlipData.deductions?.total || 0).toLocaleString("fr-FR")],
-        ["Net à payer", Number((paySlipData.remuneration?.total || 0) - (paySlipData.deductions?.total || 0)).toLocaleString("fr-FR")],
+        ["CNPS (PVIS)", formatCFA(d.pvis)],
+        ["IRPP", formatCFA(d.irpp)],
+        ["CAC", formatCFA(d.cac)],
+        ["CFC", formatCFA(d.cfc)],
+        ["RAV", formatCFA(d.rav)],
+        ["TDL", formatCFA(d.tdl)],
+        ["FNE", formatCFA(d.fne)],
+        ["Total retenues", formatCFA(totalRetenues)],
+        ["Net à payer", formatCFA(netAPayer)],
       ],
       theme: "grid",
       styles: { font: "helvetica", fontSize: 7, cellPadding: 1, overflow: "linebreak" },

@@ -1,4 +1,6 @@
 // Configuration des modèles de fiches de paie
+import { computeNetPay, computeEffectiveDeductions, computeRoundedDeductions, formatCFA, computeSBT, computeSBC } from './payrollCalculations';
+
 export const PAYSLIP_TEMPLATE_CONFIGS = {
   template1: {
     name: 'Modèle Standard Camerounais',
@@ -46,7 +48,7 @@ export const CNPS_CALCULATIONS = {
   },
   // Impôts et taxes
   taxRates: {
-    cfc: 0.025,  // CFC SAL 2,5%
+    cfc: 0.01,   // CFC 1% du salaire brut
     fne: 0.01,   // FNE Salarié 1%
     fneEmp: 0.015 // FNE Employeur 1,5%
   },
@@ -94,14 +96,18 @@ function formatCurrency(amount) {
 /**
  * Calcule l'IRPP selon le barème progressif camerounais
  */
-function calculateIRPP(taxableSalary) {
-  if (taxableSalary < CNPS_CALCULATIONS.ceilings.irppThreshold) {
-    return 0;
-  }
+function calculateIRPP(taxableSalary, employeePVID) {
+  // taxableSalary doit être le SBT (salaire brut taxable)
+  if (!taxableSalary || taxableSalary <= 0) return 0;
+  // IRPP est nul si SBT < seuil d'exonération (62 000 FCFA)
+  if (taxableSalary < CNPS_CALCULATIONS.ceilings.irppThreshold) return 0;
   
-  // Salaire Net Catégoriel = 70% du salaire taxable - cotisations PVID - abattement mensuel
+  // Seuil d'exonération simple (si requis par la politique)
+  // On ne court-circuite pas si le taxableSalary dépasse le seuil, car l'abattement et la PVID seront appliqués dans le SNC
   const monthlyDeduction = CNPS_CALCULATIONS.annualDeduction / 12;
-  const pvid = Math.min(taxableSalary, CNPS_CALCULATIONS.ceilings.cnpsMax) * CNPS_CALCULATIONS.employeeRates.pvid;
+  const pvid = Math.max(0, Number(employeePVID) || 0);
+  
+  // SNC: 70% du SBT - PVID - abattement mensuel
   const snc = Math.max(0, (taxableSalary * 0.7) - pvid - monthlyDeduction);
   
   let irpp = 0;
@@ -109,8 +115,8 @@ function calculateIRPP(taxableSalary) {
   
   for (const bracket of CNPS_CALCULATIONS.irppBrackets) {
     if (remainingAmount <= 0) break;
-    
-    const taxableInBracket = Math.min(remainingAmount, bracket.max - bracket.min);
+    const width = bracket.max - bracket.min;
+    const taxableInBracket = Math.min(remainingAmount, width);
     irpp += taxableInBracket * bracket.rate;
     remainingAmount -= taxableInBracket;
   }
@@ -119,44 +125,83 @@ function calculateIRPP(taxableSalary) {
 }
 
 /**
+ * Calcule la RAV (redevance audio-visuelle) selon le brut mensuel
+ */
+function computeRAV(grossSalary) {
+  const g = Math.round(Number(grossSalary) || 0);
+  if (g < 50000) return 0;
+  if (g <= 100000) return 750;
+  if (g <= 200000) return 1950;
+  if (g <= 300000) return 3250;
+  if (g <= 400000) return 4550;
+  if (g <= 500000) return 5850;
+  if (g <= 600000) return 7150;
+  if (g <= 700000) return 8450;
+  if (g <= 800000) return 9750;
+  if (g <= 900000) return 11050;
+  if (g <= 1000000) return 12350;
+  return 13000;
+}
+
+/**
  * Calcule toutes les déductions sociales et fiscales
  */
-function calculateDeductions(grossSalary, baseSalary) {
-  const cnpsBase = Math.min(grossSalary, CNPS_CALCULATIONS.ceilings.cnpsMax);
-  
-  // Cotisations salariales
+function calculateDeductions(grossSalary, baseSalary, options = {}) {
+  // Détermination des bases:
+  // - Base cotisable CNPS (SBC): par défaut, on utilise le salaire de base (plafonné)
+  // - Base imposable (SBT): inclut salaire de base + heures sup + primes imposables (on exclut transport/logement par défaut)
+  const safeNum = (v) => (isNaN(Number(v)) ? 0 : Number(v));
+  const transportAllowance = safeNum(options.transportAllowance);
+  const housingAllowance = safeNum(options.housingAllowance);
+  const responsibilityAllowance = safeNum(options.responsibilityAllowance);
+  const otherPrimes = safeNum(options.otherPrimes);
+  const overtimeTotal = safeNum(options.overtimeTotal);
+
+  // SBC: on prend par défaut le salaire de base (plus heures sup si imposables/cotisables selon tes règles)
+  // On reste conservateur: SBC = baseSalary
+  const rawSBC = safeNum(baseSalary);
+  const cnpsBase = Math.min(rawSBC, CNPS_CALCULATIONS.ceilings.cnpsMax);
   const cnpsEmployee = Math.round(cnpsBase * CNPS_CALCULATIONS.employeeRates.pvid);
-  
+
+  // SBT: base imposable
+  // Hypothèses par défaut: responsibilityAllowance et otherPrimes imposables; transport/housing non imposables; heures sup imposables
+  const sbt = safeNum(baseSalary) + overtimeTotal + responsibilityAllowance + otherPrimes;
+
   // Cotisations patronales (pour information)
   const cnpsEmployerPVID = Math.round(cnpsBase * CNPS_CALCULATIONS.employerRates.pvid);
   const cnpsEmployerPF = Math.round(cnpsBase * CNPS_CALCULATIONS.employerRates.pf);
   const cnpsEmployerRP = Math.round(cnpsBase * CNPS_CALCULATIONS.employerRates.rp);
-  
-  // Impôts et taxes
-  const irpp = calculateIRPP(grossSalary);
-  const cac = Math.round(irpp * 0.10); // CAC = 10% de l'IRPP
-  const cfc = Math.round(grossSalary * CNPS_CALCULATIONS.taxRates.cfc);
-  const fne = Math.round(grossSalary * CNPS_CALCULATIONS.taxRates.fne);
-  
-  const totalEmployeeDeductions = cnpsEmployee + irpp + cac + cfc + fne;
-  
+
+  // IRPP sur SNC dérivé du SBT
+  const irpp = calculateIRPP(sbt, cnpsEmployee);
+  const cac = irpp > 0 ? Math.round(irpp * 0.10) : 0; // CAC = 10% de l'IRPP si IRPP>0
+  const tdl = irpp > 0 ? Math.round(irpp * 0.10) : 0; // TDL = 10% de l'IRPP si IRPP>0
+  const rav = computeRAV(grossSalary);                // RAV: barème fixe sur BRUT
+  const cfc = Math.round(grossSalary * CNPS_CALCULATIONS.taxRates.cfc); // CFC 1% du BRUT
+  const fne = Math.round(grossSalary * CNPS_CALCULATIONS.taxRates.fne); // FNE salarié 1% du BRUT
+
+  const totalEmployeeDeductions = cnpsEmployee + irpp + cac + cfc + fne + tdl + rav;
+
   return {
     employee: {
       cnps: cnpsEmployee,
       irpp: irpp,
       cac: cac,
+      rav: rav,
       cfc: cfc,
       fne: fne,
+      tdl: tdl,
       total: totalEmployeeDeductions
     },
     employer: {
       cnpsPVID: cnpsEmployerPVID,
       cnpsPF: cnpsEmployerPF,
       cnpsRP: cnpsEmployerRP,
-      fne: Math.round(grossSalary * CNPS_CALCULATIONS.taxRates.fneEmp),
+      fne: Math.round(grossSalary * CNPS_CALCULATIONS.taxRates.fneEmp), // FNE employeur 1,5% du BRUT
       total: cnpsEmployerPVID + cnpsEmployerPF + cnpsEmployerRP + Math.round(grossSalary * CNPS_CALCULATIONS.taxRates.fneEmp)
     },
-    taxableBase: grossSalary - cnpsEmployee
+    taxableBase: sbt,
+    cotisableBase: cnpsBase
   };
 }
 
@@ -196,8 +241,14 @@ export const generatePaySlipData = (employee, companyData, templateId, payPeriod
   const totalGross = baseSalary + transportAllowance + housingAllowance + responsibilityAllowance + 
                      otherPrimes + totalOvertimePay;
 
-  // Calcul des déductions
-  const deductions = calculateDeductions(totalGross, baseSalary);
+  // Calcul des déductions (on précise le contexte pour SBT/SBC)
+  const deductions = calculateDeductions(totalGross, baseSalary, {
+    transportAllowance,
+    housingAllowance,
+    responsibilityAllowance,
+    otherPrimes,
+    overtimeTotal: totalOvertimePay
+  });
   const netSalary = totalGross - deductions.employee.total;
 
   return {

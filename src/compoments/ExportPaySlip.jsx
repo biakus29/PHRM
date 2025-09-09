@@ -4,13 +4,10 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'react-toastify';
 import { displayGeneratedAt, displayDate } from "../utils/displayUtils";
+import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, formatCFA, computeStatutoryDeductions } from "../utils/payrollCalculations";
+import { getPayslipCacheKeyFromEmployee, setLastPayslipCache } from "../utils/payslipCache";
 
-// Formatage monétaire camerounais conventionnel (espaces comme séparateurs de milliers)
-const formatCFA = (amount) => {
-  const num = Number(amount) || 0;
-  const rounded = Math.round(num);
-  return rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-};
+// Formatage monétaire importé depuis utils centralisés
 
 // Formatage pourcentage
 const formatPercent = (rate) => {
@@ -79,38 +76,28 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
       const workedDays = Number(payslipData.remuneration.workedDays) || 0;
       const workedHours = Number(payslipData.remuneration.workedHours) || 0;
       
-      const totalGross = baseSalary + transportAllowance + housingAllowance + overtime + bonus;
+      // Calculs centralisés via utils
+      const statutory = computeStatutoryDeductions(payslipData.salaryDetails || {}, payslipData.remuneration || {}, payslipData.primes || [], payslipData.indemnites || []);
+      const mergedDeductions = { ...statutory, ...(payslipData.deductions || {}) };
+      const payrollCalc = computeNetPay({
+        salaryDetails: payslipData.salaryDetails || {},
+        remuneration: payslipData.remuneration || {},
+        deductions: mergedDeductions,
+        primes: payslipData.primes || [],
+        indemnites: payslipData.indemnites || []
+      });
+      const { grossTotal: totalGross, roundedDeductions: d, deductionsTotal: totalDeductions, netPay: netSalary } = payrollCalc;
       
-      // Calcul du SBT (Salaire Brut Taxable)
-      // Tous les gains sont taxables excepté: indemnité de transport, indemnité de représentation,
-      // prime de salissures, prime de panier.
+      // Calcul du SBT (Salaire Brut Taxable) pour affichage
       const representationAllowance = Number(payslipData.salaryDetails.representationAllowance) || 0;
-      const dirtAllowance = Number(payslipData.salaryDetails.dirtAllowance) || 0; // prime de salissures
-      const mealAllowance = Number(payslipData.salaryDetails.mealAllowance) || 0; // prime de panier
-      
-      // Inclure ici les éléments taxables connus: base, logement, heures supp, primes/bonus.
-      // Exclure: transport, représentation, salissures, panier.
-      const sbt = 
-        (Number(baseSalary) || 0) +
-        (Number(housingAllowance) || 0) +
-        (Number(overtime) || 0) +
-        (Number(bonus) || 0);
-      
-      // Calculs déductions (taux camerounais officiels)
-      const cnpsEmployee = Math.round(baseSalary * 0.042); // PVID salarié 4,2%
-      const creditsFonciers = Math.round(baseSalary * 0.015); // 1.5%
-      const irpp = Number(payslipData.deductions.irpp) || 0;
-      const advance = Number(payslipData.deductions.advance) || 0;
-      const otherDeductions = Number(payslipData.deductions.other) || 0;
-      
-      const totalDeductions = cnpsEmployee + creditsFonciers + irpp + advance + otherDeductions;
-      const netSalary = Math.max(0, totalGross - totalDeductions);
+      const dirtAllowance = Number(payslipData.salaryDetails.dirtAllowance) || 0;
+      const mealAllowance = Number(payslipData.salaryDetails.mealAllowance) || 0;
+      const sbt = baseSalary + housingAllowance + overtime + bonus;
       
       // Cache local des montants utiles pour CNPS (pré-remplissage)
       try {
-        const empKey = emp.matricule || empCNPS || empName;
+        const empKey = getPayslipCacheKeyFromEmployee(emp);
         if (empKey) {
-          const cacheKey = `lastPayslip_${empKey}`;
           const cachePayload = {
             baseSalary,
             transportAllowance,
@@ -120,6 +107,16 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
             representationAllowance,
             dirtAllowance,
             mealAllowance,
+            // Ajout des montants calculés pour CNPS
+            netToPay: Number(netSalary) || 0,
+            net: Number(netSalary) || 0,
+            sbt: Number(sbt) || 0,
+            irpp: Number(d.irpp) || 0,
+            cac: Number(d.cac) || 0,
+            cfc: Number(d.cfc) || 0,
+            tdl: Number(d.tdl) || 0,
+            rav: Number(d.rav) || 0,
+            pvis: Number(d.pvis) || 0,
             // Persist dynamic arrays when available
             primes: Array.isArray(primes)
               ? primes.map(p => ({ label: p.label || p.type, montant: Number(p.montant) || 0 }))
@@ -128,7 +125,7 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
               ? indemnites.map(i => ({ label: i.label || i.type, montant: Number(i.montant) || 0 }))
               : undefined,
           };
-          localStorage.setItem(cacheKey, JSON.stringify(cachePayload));
+          setLastPayslipCache(empKey, cachePayload);
         }
       } catch (e) {
         console.warn('Cache payslip CNPS indisponible:', e);
@@ -376,13 +373,15 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
       doc.text('RETENUES ET COTISATIONS', margin + 2, currentY + 4);
       currentY += 8;
       
-      // Tableau des retenues
+      // Tableau des retenues (affiche les principales lignes, dont TDL via util)
       const deductionsData = [
-        ['PVID (CNPS) – salarié', `${formatCFA(baseSalary)} × 4,2%`, formatCFA(cnpsEmployee), 'F CFA'],
-        ['Crédit Foncier du Cameroun', `${formatCFA(baseSalary)} × 1,5%`, formatCFA(creditsFonciers), 'F CFA'],
-        ['Impôt sur le Revenu (IRPP)', `${formatCFA(sbt)}`, formatCFA(irpp), 'F CFA'],
-        ['Avance sur salaire', '', formatCFA(advance), 'F CFA'],
-        ['Autres retenues', '', formatCFA(otherDeductions), 'F CFA']
+        ['PVID (CNPS) – salarié', `${formatCFA(baseSalary)} × 4,2%`, formatCFA(d.pvid), 'F CFA'],
+        ['IRPP', `${formatCFA(sbt)}`, formatCFA(d.irpp), 'F CFA'],
+        ['CAC', '', formatCFA(d.cac), 'F CFA'],
+        ['CFC (1% du brut)', '', formatCFA(d.cfc), 'F CFA'],
+        ['RAV', '', formatCFA(d.rav), 'F CFA'],
+        ['TDL (10% de l’IRPP)', `${formatCFA(d.irpp)} × 10%`, formatCFA(d.tdl), 'F CFA'],
+        ['FNE', '', formatCFA(d.fne), 'F CFA'],
       ];
       
       autoTable(doc, {
@@ -513,11 +512,23 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
   // Auto-met à jour le cache local des montants utiles pour CNPS dès qu'on modifie les données
   useEffect(() => {
     try {
-      const empKey = employee?.matricule || employee?.cnpsNumber || employee?.name;
+      const empKey = getPayslipCacheKeyFromEmployee(employee || {});
       if (!empKey) return;
-      const cacheKey = `lastPayslip_${empKey}`;
+      // Recalcule le bulletin pour obtenir net et retenues à jour
+      const statutory2 = computeStatutoryDeductions(salaryDetails || {}, remuneration || {}, primes || [], indemnites || []);
+      const mergedDeductions2 = { ...statutory2, ...(deductions || {}) };
+      const calc = computeNetPay({
+        salaryDetails: salaryDetails || {},
+        remuneration: remuneration || {},
+        deductions: mergedDeductions2,
+        primes: primes || [],
+        indemnites: indemnites || [],
+      });
+      const { roundedDeductions: d2, netPay: net2 } = calc;
+      const baseSalary2 = Number(salaryDetails?.baseSalary) || 0;
+      const sbt2 = baseSalary2 + (Number(salaryDetails?.housingAllowance) || 0) + (Number(remuneration?.overtime) || 0) + (Number(remuneration?.bonus) || 0);
       const payload = {
-        baseSalary: Number(salaryDetails?.baseSalary) || 0,
+        baseSalary: baseSalary2,
         transportAllowance: Number(salaryDetails?.transportAllowance) || 0,
         housingAllowance: Number(salaryDetails?.housingAllowance) || 0,
         representationAllowance: Number(salaryDetails?.representationAllowance) || 0,
@@ -525,6 +536,16 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
         mealAllowance: Number(salaryDetails?.mealAllowance) || 0,
         overtime: Number(remuneration?.overtime) || 0,
         bonus: Number(remuneration?.bonus) || 0,
+        // Champs pour CNPS
+        netToPay: Number(net2) || 0,
+        net: Number(net2) || 0,
+        sbt: Number(sbt2) || 0,
+        irpp: Number(d2?.irpp) || 0,
+        cac: Number(d2?.cac) || 0,
+        cfc: Number(d2?.cfc) || 0,
+        tdl: Number(d2?.tdl) || 0,
+        rav: Number(d2?.rav) || 0,
+        pvid: Number(d2?.pvid) || 0,
         // Persist dynamic arrays when available
         primes: Array.isArray(primes)
           ? primes.map(p => ({ label: p.label || p.type, montant: Number(p.montant) || 0 }))
@@ -533,7 +554,7 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
           ? indemnites.map(i => ({ label: i.label || i.type, montant: Number(i.montant) || 0 }))
           : undefined,
       };
-      localStorage.setItem(cacheKey, JSON.stringify(payload));
+      setLastPayslipCache(empKey, payload);
     } catch {}
   }, [
     employee?.matricule,
@@ -554,7 +575,17 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
 
   if (auto) return null;
 
-  const netToPay = Math.max(0, (remuneration?.total || 0) - (deductions?.total || 0));
+  // Calcul UI centralisé
+  const statutory3 = computeStatutoryDeductions(salaryDetails || {}, remuneration || {}, primes || [], indemnites || []);
+  const mergedDeductions3 = { ...statutory3, ...(deductions || {}) };
+  const uiCalc = computeNetPay({
+    salaryDetails: salaryDetails || {},
+    remuneration: remuneration || {},
+    deductions: mergedDeductions3,
+    primes: primes || [],
+    indemnites: indemnites || []
+  });
+  const netToPay = uiCalc.netPay;
 
   return (
     <div className="mt-6 p-6 border border-gray-300 rounded-lg bg-white shadow-md">
@@ -663,7 +694,7 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
             <p className="font-medium mb-1">Conforme à la réglementation camerounaise</p>
             <ul className="text-xs space-y-1">
               <li>• Cotisations CNPS : 4,2% (salarié PVID) + 11,9% (employeur hors RP)</li>
-              <li>• Crédit Foncier : 1,5% du salaire de base</li>
+              <li>• Crédit Foncier : 1% du salaire brut (part salarié)</li>
               <li>• Format officiel avec en-tête République du Cameroun</li>
               <li>• Calculs conformes au Code du Travail camerounais</li>
             </ul>

@@ -1,5 +1,5 @@
 // Fonctions utilitaires de calcul de paie pour toute l'application
-// Utilisation : import { calculateDeductions, getNetToPay } from "../utils/payrollUtils";
+// Utilisation : import { calculateDeductions, getNetToPay, calculateNetPay } from "../utils/payrollUtils";
 
 /**
  * Calcule toutes les déductions sociales et fiscales selon la législation camerounaise.
@@ -38,8 +38,9 @@ export function calculateDeductions({ baseSalary, applyTDL = true }) {
   const rav = baseSalary > 50000 ? 417 : 0;
 
   // TDL = Taxe de Développement Local (optionnelle)
-  // Cette taxe n'est pas systématiquement prélevée au Cameroun. Elle est appliquée uniquement si applyTDL est true.
-  const tdl = applyTDL ? 0 : 0;
+  // Cameroun: TDL = 10% de l'IRPP lorsque applicable
+  // Elle est appliquée uniquement si applyTDL est true.
+  const tdl = applyTDL ? Math.round(irpp * 0.10) : 0;
 
   // Total des déductions
   const total = pvis + irpp + cac + cfc + rav + tdl;
@@ -69,4 +70,15 @@ export function getNetToPay({ salaryDetails, primes, indemnites, deductions }) {
   const deductionsTotal = Number(deductions?.total || 0);
   // Net à payer
   return Math.max(0, remunerationBrute - deductionsTotal);
-} 
+}
+
+export const calculateNetPay = (salaryDetails, remuneration, deductions, primes = [], indemnites = []) => {
+  const payrollCalc = computeNetPay({
+    salaryDetails: salaryDetails || {},
+    remuneration: remuneration || {},
+    deductions: deductions || {},
+    primes,
+    indemnites
+  });
+  return payrollCalc.netPay;
+};
