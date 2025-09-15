@@ -5,7 +5,7 @@ import { computeNetPay, computeEffectiveDeductions, computeRoundedDeductions, fo
 import PrimeIndemniteSelector from "../compoments/PrimeIndemniteSelector";
 import Button from "../compoments/Button";
 
-const PaySlipGenerator = ({ employee, company, initialData, selectedTemplate = "template1", onSave, onCancel, actionLoading, updateEmployee, setSelectedEmployee }) => {
+const PaySlipGenerator = ({ employee, company, initialData, selectedTemplate = "eneo", onSave, onCancel, actionLoading, updateEmployee, setSelectedEmployee }) => {
   const [formData, setFormData] = React.useState(() => {
     const baseSalaryInit = initialData?.salaryDetails?.baseSalary || employee?.baseSalary || 0;
     const primesInit = initialData?.primes || [];
@@ -32,11 +32,15 @@ const PaySlipGenerator = ({ employee, company, initialData, selectedTemplate = "
         baseSalary: baseSalaryInit,
         dailyRate: initialData?.salaryDetails?.dailyRate || baseSalaryInit / 30,
         hourlyRate: initialData?.salaryDetails?.hourlyRate || baseSalaryInit / (30 * 8),
+        // Propager le modèle sélectionné pour usage ultérieur
+        selectedTemplate: (initialData?.salaryDetails?.selectedTemplate || selectedTemplate || 'eneo')
       },
       remuneration: {
         workedDays: initialData?.remuneration?.workedDays || 30,
         overtime: initialData?.remuneration?.overtime || 0,
         total: initialData?.remuneration?.total || baseSalaryInit,
+        // Propager également ici pour compatibilité
+        selectedTemplate: (initialData?.remuneration?.selectedTemplate || selectedTemplate || 'eneo')
       },
       deductions: deductionsInit,
       primes: primesInit,

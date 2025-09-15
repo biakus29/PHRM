@@ -15,12 +15,16 @@ import {
   computeStatutoryDeductions 
 } from "../utils/payrollCalculations";
 import ExportPaySlip from "../compoments/ExportPaySlip";
+import TemplateSelector from "../compoments/TemplateSelector";
 import Modal from "./Modal";
 
 const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, payPeriod, generatedAt, primes = [], indemnites = [] }) => {
   // État pour gérer la modale et les champs manquants
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [missingFields, setMissingFields] = useState([]);
+  // Sélection du modèle visible dans l'UI
+  const initialTemplate = (remuneration?.selectedTemplate || salaryDetails?.selectedTemplate || 'eneo');
+  const [selectedTemplate, setSelectedTemplate] = useState(String(initialTemplate).toLowerCase());
   const [formData, setFormData] = useState({
     matricule: "",
     pvis: "",
@@ -226,6 +230,15 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
       <p className="text-center">Période: {payPeriod || 'N/A'}</p>
               <p className="text-center">Généré le: {displayGeneratedAt(generatedAt || Date.now())}</p>
       
+      {/* Sélecteur de modèle de fiche de paie */}
+      <div className="mt-4">
+        <TemplateSelector
+          type="payslip"
+          selectedTemplate={selectedTemplate}
+          onTemplateChange={(key) => setSelectedTemplate(String(key).toLowerCase())}
+        />
+      </div>
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <h3 className="font-semibold">Employé</h3>
@@ -423,6 +436,7 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
         deductions={deductions}
         payPeriod={payPeriod}
         generatedAt={generatedAt}
+        template={selectedTemplate}
       />
       
       {/* Modale pour les champs manquants */}

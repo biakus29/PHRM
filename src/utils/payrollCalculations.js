@@ -280,9 +280,11 @@ export function computeStatutoryDeductions(salaryDetails = {}, remuneration = {}
   const pvid = computePVID(baseSalary);
   const irpp = computeIRPPFromSBT(sbt, pvid);
   const cac = irpp > 0 ? Math.round(irpp * 0.10) : 0;
-  const tdl = computeTDL(baseSalary); // Utilise le calcul forfaitaire correct
-  const cfc = Math.round(gross * 0.01); // 1% of gross
-  const fne = Math.round(gross * 0.01); // 1% employee portion
+  // Politique centralisée: TDL = 10% de l'IRPP (cohérent avec toute l'app)
+  const tdl = irpp > 0 ? Math.round(irpp * 0.10) : 0;
+  const cfc = Math.round(gross * 0.01); // 1% of gross (part salarié)
+  // L'employé ne paie pas le FNE dans la fiche de paie: part salarié = 0 ici
+  const fne = 0;
   const rav = computeRAV(gross);
 
   return { pvid, pvis: pvid, irpp, cac, tdl, cfc, fne, rav };

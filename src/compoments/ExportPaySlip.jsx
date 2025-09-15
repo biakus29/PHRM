@@ -1,10 +1,11 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { INDEMNITIES, BONUSES } from '../utils/payrollLabels';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'react-toastify';
 import { displayGeneratedAt, displayDate } from "../utils/displayUtils";
-import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, formatCFA, computeStatutoryDeductions } from "../utils/payrollCalculations";
+import { getPayslipRenderer } from "../utils/pdfTemplates/modeletemplate";
+import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, formatCFA, computeStatutoryDeductions, computeSBT, computeSBC } from "../utils/payrollCalculations";
 import { getPayslipCacheKeyFromEmployee, setLastPayslipCache } from "../utils/payslipCache";
 
 // Formatage monétaire importé depuis utils centralisés
@@ -25,7 +26,25 @@ function getValue(obj, path) {
   return path.split('.').reduce((acc, part) => acc && acc[part], obj);
 }
 
-const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, payPeriod, generatedAt, primes, indemnites, auto = false, onExported }) => {
+const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, payPeriod, generatedAt, primes, indemnites, template = 'eneo', auto = false, onExported }) => {
+  // Templates disponibles (alignés avec modeletemplate.js)
+  const TEMPLATE_OPTIONS = [
+    { value: 'eneo', label: 'ENEO (officiel)' },
+    { value: 'classic', label: 'Classique' },
+    { value: 'bulletin_paie', label: 'Bulletin de Paie' },
+    { value: 'compta_online', label: 'Compta Online' },
+    { value: 'enterprise', label: 'Enterprise' },
+  ];
+
+  // État local pour le modèle sélectionné dans ce composant
+  const initialTemplate = (template || salaryDetails?.selectedTemplate || remuneration?.selectedTemplate || 'eneo');
+  const [selectedTemplate, setSelectedTemplate] = useState(String(initialTemplate).toLowerCase());
+
+  // Synchroniser quand la prop template change depuis l'amont
+  useEffect(() => {
+    const next = (template || salaryDetails?.selectedTemplate || remuneration?.selectedTemplate || 'eneo');
+    setSelectedTemplate(String(next).toLowerCase());
+  }, [template, salaryDetails?.selectedTemplate, remuneration?.selectedTemplate]);
   
   const generatePaySlipPDF = () => {
     // Vérification des champs obligatoires
@@ -46,6 +65,9 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
         salaryDetails: salaryDetails || {},
         remuneration: remuneration || {},
         deductions: deductions || {},
+        // IMPORTANT: include variable arrays so PDF calc matches UI calc
+        primes: Array.isArray(primes) ? primes : [],
+        indemnites: Array.isArray(indemnites) ? indemnites : [],
         payPeriod: payPeriod || 'N/A',
         generatedAt: generatedAt || new Date(),
       };
@@ -73,11 +95,16 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
       const housingAllowance = Number(payslipData.salaryDetails.housingAllowance) || 0;
       const overtime = Number(payslipData.remuneration.overtime) || 0;
       const bonus = Number(payslipData.remuneration.bonus) || 0;
-      const workedDays = Number(payslipData.remuneration.workedDays) || 0;
+      const workedDaysInit = Number(payslipData.remuneration.workedDays) || 0;
       const workedHours = Number(payslipData.remuneration.workedHours) || 0;
       
       // Calculs centralisés via utils
-      const statutory = computeStatutoryDeductions(payslipData.salaryDetails || {}, payslipData.remuneration || {}, payslipData.primes || [], payslipData.indemnites || []);
+      const statutory = computeStatutoryDeductions(
+        payslipData.salaryDetails || {},
+        payslipData.remuneration || {},
+        payslipData.primes || [],
+        payslipData.indemnites || []
+      );
       const mergedDeductions = { ...statutory, ...(payslipData.deductions || {}) };
       const payrollCalc = computeNetPay({
         salaryDetails: payslipData.salaryDetails || {},
@@ -88,11 +115,12 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
       });
       const { grossTotal: totalGross, roundedDeductions: d, deductionsTotal: totalDeductions, netPay: netSalary } = payrollCalc;
       
-      // Calcul du SBT (Salaire Brut Taxable) pour affichage
+      // Calculs SBT/SBC via utilitaires centralisés
       const representationAllowance = Number(payslipData.salaryDetails.representationAllowance) || 0;
       const dirtAllowance = Number(payslipData.salaryDetails.dirtAllowance) || 0;
       const mealAllowance = Number(payslipData.salaryDetails.mealAllowance) || 0;
-      const sbt = baseSalary + housingAllowance + overtime + bonus;
+      const sbt = computeSBT(payslipData.salaryDetails || {}, payslipData.remuneration || {});
+      const sbc = computeSBC(payslipData.salaryDetails || {}, payslipData.remuneration || {});
       
       // Cache local des montants utiles pour CNPS (pré-remplissage)
       try {
@@ -137,363 +165,51 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
       const pageHeight = doc.internal.pageSize.height;
       const margin = 12;
       let currentY = margin;
-      
-      // === EN-TÊTE AVEC LOGO ET RÉPUBLIQUE DU CAMEROUN ===
-      let logoHeight = 0;
-      
-      // Ajout du logo à gauche
-      try {
-        const logoData = localStorage.getItem(`logo_${payslipData.employer.id}`);
-        if (logoData) {
-          const extension = logoData.includes('image/png') ? 'PNG' : 
-                           logoData.includes('image/jpeg') ? 'JPEG' : 
-                           logoData.includes('image/jpg') ? 'JPEG' : null;
-          if (extension) {
-            doc.addImage(logoData, extension, margin, currentY, 20, 20);
-            logoHeight = 20;
-          }
-        }
-      } catch (e) {
-        console.error('Erreur logo:', e);
+
+      // === MULTI-TEMPLATE SWITCH ===
+      // Determine template key: local UI selection > prop > salaryDetails.selectedTemplate > remuneration.selectedTemplate
+      const templateKey = (selectedTemplate || '').toLowerCase() || (template || '').toLowerCase() || (String(salaryDetails?.selectedTemplate || remuneration?.selectedTemplate || 'eneo').toLowerCase());
+      const renderer = getPayslipRenderer(templateKey);
+      const result = renderer(doc, {
+        pageWidth,
+        pageHeight,
+        margin,
+        currentY,
+        payslipData,
+        employerName,
+        employerAddress,
+        employerCNPS,
+        employerPhone,
+        emp,
+        empName,
+        empMatricule,
+        empPoste,
+        empCategory,
+        empCNPS,
+        baseSalary,
+        transportAllowance,
+        housingAllowance,
+        overtime,
+        bonus,
+        representationAllowance,
+        dirtAllowance,
+        mealAllowance,
+        primes: payslipData.primes || [],
+        indemnites: payslipData.indemnites || [],
+        d,
+        totalGross,
+        totalDeductions,
+        netSalary,
+        sbt,
+        sbc,
+        displayDate,
+        formatCFA,
+      });
+      if (result?.completed) {
+        if (onExported) onExported();
+        if (toast) toast.success('Bulletin de salaire généré avec succès !');
+        return;
       }
-      
-      // En-tête République du Cameroun au centre
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(0, 0, 0);
-      
-      const republicText = "RÉPUBLIQUE DU CAMEROUN";
-      const peaceText = "Paix - Travail - Progrès";
-      const republicWidth = doc.getTextWidth(republicText);
-      const peaceWidth = doc.getTextWidth(peaceText);
-      
-      doc.text(republicText, (pageWidth - republicWidth) / 2, currentY + 5);
-      doc.setFont('helvetica', 'italic');
-      doc.setFontSize(7);
-      doc.text(peaceText, (pageWidth - peaceWidth) / 2, currentY + 9);
-      
-      // Informations entreprise à droite (compactes)
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      const rightX = pageWidth - margin - 55;
-      doc.text(employerName, rightX, currentY + 3);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7);
-      doc.text(`CNPS: ${employerCNPS}`, rightX, currentY + 7);
-      
-      currentY = Math.max(currentY + logoHeight, currentY + 12);
-      
-      // Ligne de séparation
-      doc.setDrawColor(0, 0, 0);
-      doc.setLineWidth(0.3);
-      doc.line(margin, currentY, pageWidth - margin, currentY);
-      currentY += 4;
-      
-      // === TITRE BULLETIN DE SALAIRE ===
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(14);
-      doc.setTextColor(0, 0, 0);
-      
-      const titleText = "BULLETIN DE SALAIRE";
-      const titleWidth = doc.getTextWidth(titleText);
-      doc.text(titleText, (pageWidth - titleWidth) / 2, currentY);
-      currentY += 6;
-      
-      // Période de paie
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      const periodText = `Période : ${payslipData.payPeriod}`;
-      const periodWidth = doc.getTextWidth(periodText);
-      doc.text(periodText, (pageWidth - periodWidth) / 2, currentY);
-      currentY += 8;
-      
-      // === INFORMATIONS EMPLOYEUR ET EMPLOYÉ ===
-      autoTable(doc, {
-        startY: currentY,
-        head: [['EMPLOYEUR', 'SALARIÉ']],
-        body: [
-          [`Dénomination : ${employerName}`, `Nom et Prénoms : ${empName}`],
-          [`Adresse : ${employerAddress}`, `Matricule : ${empMatricule}`],
-          [`N° CNPS : ${employerCNPS}`, `Fonction : ${empPoste}`],
-          [`Téléphone : ${employerPhone}`, `Catégorie : ${empCategory}`],
-          ['', `N° CNPS : ${empCNPS}`]
-        ],
-        theme: 'grid',
-        styles: { 
-          font: 'helvetica', 
-          fontSize: 8, 
-          cellPadding: 2,
-          lineColor: [0, 0, 0],
-          lineWidth: 0.2
-        },
-        headStyles: { 
-          fillColor: [200, 200, 200],
-          textColor: [0, 0, 0],
-          fontSize: 9,
-          fontStyle: 'bold',
-          halign: 'center'
-        },
-        columnStyles: {
-          0: { cellWidth: (pageWidth - 2 * margin) / 2, halign: 'left' },
-          1: { cellWidth: (pageWidth - 2 * margin) / 2, halign: 'left' }
-        },
-        margin: { left: margin, right: margin }
-      });
-      
-      currentY = doc.lastAutoTable.finalY + 5;
-      
-      // === SECTION GAINS ===
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(0, 0, 0);
-      
-      // En-tête des gains
-      doc.setFillColor(220, 220, 220);
-      doc.rect(margin, currentY, pageWidth - (2 * margin), 6, 'F');
-      doc.text('GAINS ET AVANTAGES', margin + 2, currentY + 4);
-      currentY += 8;
-      
-      // Tableau des gains (salaire de base uniquement pour uniformiser)
-      const gainsData = [
-        ['Salaire de base', formatCFA(baseSalary), 'F CFA']
-      ];
-      
-      autoTable(doc, {
-        startY: currentY,
-        head: [['DÉSIGNATION', 'MONTANT', 'DEVISE']],
-        body: gainsData,
-        theme: 'grid',
-        styles: { 
-          font: 'helvetica', 
-          fontSize: 8, 
-          cellPadding: 1.5,
-          lineColor: [0, 0, 0],
-          lineWidth: 0.2
-        },
-        headStyles: { 
-          fillColor: [180, 180, 180],
-          textColor: [0, 0, 0],
-          fontSize: 8,
-          fontStyle: 'bold',
-          halign: 'center'
-        },
-        columnStyles: {
-          0: { cellWidth: 100, halign: 'left' },
-          1: { cellWidth: 40, halign: 'right' },
-          2: { cellWidth: 25, halign: 'center' }
-        },
-        margin: { left: margin, right: margin }
-      });
-      
-      currentY = doc.lastAutoTable.finalY + 1;
-
-      // === SECTION INDEMNITÉS ===
-      doc.setFillColor(220, 220, 220);
-      doc.rect(margin, currentY, pageWidth - (2 * margin), 6, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(0, 0, 0);
-      doc.text('INDEMNITÉS', margin + 2, currentY + 4);
-      currentY += 8;
-
-      const indemnitesData = [
-        ['Indemnité de transport', formatCFA(transportAllowance), 'F CFA'],
-        ['Indemnité de logement', formatCFA(housingAllowance), 'F CFA'],
-        ['Indemnité de représentation', formatCFA(representationAllowance), 'F CFA'],
-        ['Prime de salissures', formatCFA(dirtAllowance), 'F CFA'],
-        ['Prime de panier', formatCFA(mealAllowance), 'F CFA'],
-      ];
-
-      autoTable(doc, {
-        startY: currentY,
-        head: [['DÉSIGNATION', 'MONTANT', 'DEVISE']],
-        body: indemnitesData,
-        theme: 'grid',
-        styles: { font: 'helvetica', fontSize: 8, cellPadding: 1.5, lineColor: [0, 0, 0], lineWidth: 0.2 },
-        headStyles: { fillColor: [180, 180, 180], textColor: [0, 0, 0], fontSize: 8, fontStyle: 'bold', halign: 'center' },
-        columnStyles: { 0: { cellWidth: 100, halign: 'left' }, 1: { cellWidth: 40, halign: 'right' }, 2: { cellWidth: 25, halign: 'center' } },
-        margin: { left: margin, right: margin }
-      });
-
-      currentY = doc.lastAutoTable.finalY + 6;
-
-      // === SECTION PRIMES ===
-      doc.setFillColor(220, 220, 220);
-      doc.rect(margin, currentY, pageWidth - (2 * margin), 6, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(0, 0, 0);
-      doc.text('PRIMES', margin + 2, currentY + 4);
-      currentY += 8;
-
-      const primesData = [
-        ['Heures supplémentaires', formatCFA(overtime), 'F CFA'],
-        ['Prime/Bonus', formatCFA(bonus), 'F CFA']
-      ];
-
-      autoTable(doc, {
-        startY: currentY,
-        head: [['DÉSIGNATION', 'MONTANT', 'DEVISE']],
-        body: primesData,
-        theme: 'grid',
-        styles: { font: 'helvetica', fontSize: 8, cellPadding: 1.5, lineColor: [0, 0, 0], lineWidth: 0.2 },
-        headStyles: { fillColor: [180, 180, 180], textColor: [0, 0, 0], fontSize: 8, fontStyle: 'bold', halign: 'center' },
-        columnStyles: { 0: { cellWidth: 100, halign: 'left' }, 1: { cellWidth: 40, halign: 'right' }, 2: { cellWidth: 25, halign: 'center' } },
-        margin: { left: margin, right: margin }
-      });
-
-      currentY = doc.lastAutoTable.finalY + 6;
-
-      // Total brut
-      doc.setFillColor(200, 200, 200);
-      doc.rect(margin, currentY, pageWidth - (2 * margin), 5, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.text('TOTAL BRUT', margin + 2, currentY + 3.5);
-      doc.text(`${formatCFA(totalGross)} F CFA`, pageWidth - margin - 40, currentY + 3.5);
-      currentY += 7;
-      
-      // Affichage SBT (base IRPP)
-      doc.setFillColor(235, 235, 235);
-      doc.rect(margin, currentY, pageWidth - (2 * margin), 5, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(0, 0, 0);
-      doc.text('SBT (Salaire Brut Taxable)', margin + 2, currentY + 3.5);
-      doc.text(`${formatCFA(sbt)} F CFA`, pageWidth - margin - 40, currentY + 3.5);
-      currentY += 7;
-      
-      // === SECTION RETENUES ===
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      
-      // En-tête des retenues
-      doc.setFillColor(220, 220, 220);
-      doc.rect(margin, currentY, pageWidth - (2 * margin), 6, 'F');
-      doc.text('RETENUES ET COTISATIONS', margin + 2, currentY + 4);
-      currentY += 8;
-      
-      // Tableau des retenues (affiche les principales lignes, dont TDL via util)
-      const deductionsData = [
-        ['PVID (CNPS) – salarié', `${formatCFA(baseSalary)} × 4,2%`, formatCFA(d.pvid), 'F CFA'],
-        ['IRPP', `${formatCFA(sbt)}`, formatCFA(d.irpp), 'F CFA'],
-        ['CAC', '', formatCFA(d.cac), 'F CFA'],
-        ['CFC (1% du brut)', '', formatCFA(d.cfc), 'F CFA'],
-        ['RAV', '', formatCFA(d.rav), 'F CFA'],
-        ['TDL (10% de l’IRPP)', `${formatCFA(d.irpp)} × 10%`, formatCFA(d.tdl), 'F CFA'],
-        ['FNE', '', formatCFA(d.fne), 'F CFA'],
-      ];
-      
-      autoTable(doc, {
-        startY: currentY,
-        head: [['DÉSIGNATION', 'BASE DE CALCUL', 'MONTANT', 'DEVISE']],
-        body: deductionsData,
-        theme: 'grid',
-        styles: { 
-          font: 'helvetica', 
-          fontSize: 8, 
-          cellPadding: 1.5,
-          lineColor: [0, 0, 0],
-          lineWidth: 0.2
-        },
-        headStyles: { 
-          fillColor: [180, 180, 180],
-          textColor: [0, 0, 0],
-          fontSize: 8,
-          fontStyle: 'bold',
-          halign: 'center'
-        },
-        columnStyles: {
-          0: { cellWidth: 55, halign: 'left' },
-          1: { cellWidth: 35, halign: 'center' },
-          2: { cellWidth: 30, halign: 'right' },
-          3: { cellWidth: 20, halign: 'center' }
-        },
-        margin: { left: margin, right: margin }
-      });
-      
-      currentY = doc.lastAutoTable.finalY + 1;
-      
-      // Total retenues
-      doc.setFillColor(200, 200, 200);
-      doc.rect(margin, currentY, pageWidth - (2 * margin), 5, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.text('TOTAL RETENUES', margin + 2, currentY + 3.5);
-      doc.text(`${formatCFA(totalDeductions)} F CFA`, pageWidth - margin - 40, currentY + 3.5);
-      currentY += 7;
-      
-      // === NET À PAYER ===
-      doc.setFillColor(0, 0, 0);
-      doc.rect(margin, currentY, pageWidth - (2 * margin), 10, 'F');
-      
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(12);
-      doc.setTextColor(255, 255, 255);
-      const netText = `NET À PAYER : ${formatCFA(netSalary)} F CFA`;
-      const netTextWidth = doc.getTextWidth(netText);
-      doc.text(netText, (pageWidth - netTextWidth) / 2, currentY + 6.5);
-      currentY += 15;
-      
-      // === INFORMATIONS COMPLÉMENTAIRES ET SIGNATURES ===
-      doc.setTextColor(0, 0, 0);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      
-      // Informations sur une ligne compacte
-      const infoLine = `Jours travaillés: ${workedDays} | Heures: ${workedHours} | Généré le: ${displayDate(payslipData.generatedAt)}`;
-      const infoWidth = doc.getTextWidth(infoLine);
-      doc.text(infoLine, (pageWidth - infoWidth) / 2, currentY);
-      currentY += 10;
-      
-      // === SIGNATURES ===
-      const cityName = employerAddress.split(',')[0]?.trim() || 'Yaoundé';
-      const signatureDate = displayDate(new Date());
-      
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.text(`Fait à ${cityName}, le ${signatureDate}`, margin, currentY);
-      currentY += 8;
-      
-      // Espaces signatures
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.text("L'EMPLOYEUR", margin + 20, currentY);
-      doc.text("LE SALARIÉ", pageWidth - margin - 40, currentY);
-      
-      currentY += 10;
-      
-      // Lignes de signature
-      doc.setDrawColor(0, 0, 0);
-      doc.setLineWidth(0.3);
-      doc.line(margin, currentY, margin + 50, currentY);
-      doc.line(pageWidth - margin - 50, currentY, pageWidth - margin, currentY);
-      
-      // === PIED DE PAGE ===
-      const footerY = pageHeight - 10;
-      doc.setFont('helvetica', 'italic');
-      doc.setFontSize(6);
-      doc.setTextColor(100, 100, 100);
-      
-      const footerLeft = "Bulletin conforme à la réglementation camerounaise";
-      const footerRight = `Page 1/1`;
-      
-      doc.text(footerLeft, margin, footerY);
-      doc.text(footerRight, pageWidth - margin - doc.getTextWidth(footerRight), footerY);
-      
-      // Ligne de séparation pied de page
-      doc.setDrawColor(150, 150, 150);
-      doc.setLineWidth(0.1);
-      doc.line(margin, footerY - 2, pageWidth - margin, footerY - 2);
-      
-      // === SAUVEGARDE ===
-      const fileName = `Bulletin_Salaire_${empName.replace(/[^a-zA-Z0-9]/g, "_")}_${payslipData.payPeriod.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
-      doc.save(fileName);
-      
-      if (onExported) onExported();
-      if (toast) toast.success('Bulletin de salaire généré avec succès !');
-      
-      console.log('Bulletin généré:', fileName);
       
     } catch (error) {
       console.error('Erreur génération PDF:', error);
@@ -589,6 +305,20 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
 
   return (
     <div className="mt-6 p-6 border border-gray-300 rounded-lg bg-white shadow-md">
+      {/* Sélecteur de modèle (inline) */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Modèle de fiche de paie</label>
+        <select
+          className="w-full p-2 border rounded-md"
+          value={selectedTemplate}
+          onChange={(e) => setSelectedTemplate(e.target.value)}
+        >
+          {TEMPLATE_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <p className="text-xs text-gray-500 mt-1">Le modèle sélectionné ici sera utilisé pour ce PDF.</p>
+      </div>
       <div className="flex items-center gap-3 mb-4">
         <div className="p-2 bg-blue-100 rounded-full">
           <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

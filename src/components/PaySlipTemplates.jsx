@@ -2,94 +2,64 @@ import React from 'react';
 import { Card, Button } from '@mui/material';
 import { FileText, Download, Eye } from 'lucide-react';
 
-// Modèles de fiches de paie prédéfinis avec tous les éléments requis
+// Modèles de fiches de paie alignés avec les renderers PDF implémentés
 const PAYSLIP_TEMPLATES = [
   {
-    id: 'template1',
-    name: 'Modèle Standard Camerounais',
-    description: 'Fiche de paie conforme aux normes camerounaises avec logo',
-    preview: '/templates/payslip-standard.png',
+    id: 'eneo',
+    name: 'ENEO (officiel)',
+    description: 'Format détaillé conforme ENEO Cameroun',
+    preview: '/templates/payslip-eneo.png',
     features: [
-      'Logo entreprise en en-tête',
-      'Informations employeur complètes (CNPS, adresse)',
-      'Données employé détaillées (matricule, catégorie, échelon)',
-      'Calculs CNPS, IRPP, CAC, CFC',
-      'Heures supplémentaires (normales, dimanche, nuit)',
-      'Primes et indemnités',
-      'Signature et cachet obligatoires'
+      'Encadré principal ENEO',
+      'Tableau gains/retentions détaillé',
+      'Récapitulatif brut/SBT/SBC',
+      'Net à payer en évidence',
     ],
-    layout: 'classic',
-    hasLogo: true,
-    sections: ['header', 'employee', 'salary', 'deductions', 'summary', 'signature']
   },
   {
-    id: 'template2',
-    name: 'Modèle Simplifié Moderne',
-    description: 'Design épuré avec mise en page moderne et QR code',
-    preview: '/templates/payslip-simple.png',
+    id: 'classic',
+    name: 'Classique',
+    description: 'Modèle compact en sections',
+    preview: '/templates/payslip-classic.png',
     features: [
-      'Design moderne et épuré',
-      'Logo entreprise intégré',
-      'Code QR pour vérification',
-      'Informations essentielles uniquement',
-      'Mise en page claire et lisible',
-      'Couleurs professionnelles'
+      'Sections claires',
+      'Totaux visibles',
+      'Tableaux simples',
     ],
-    layout: 'modern',
-    hasLogo: true,
-    sections: ['header', 'employee', 'salary', 'summary', 'qr']
   },
   {
-    id: 'template3',
-    name: 'Modèle Détaillé Complet',
-    description: 'Fiche de paie avec tous les détails et calculs',
-    preview: '/templates/payslip-detailed.png',
+    id: 'bulletin_paie',
+    name: 'Bulletin de Paie',
+    description: 'Style français avec en-tête jaune',
+    preview: '/templates/payslip-bulletin.png',
     features: [
-      'Toutes les informations légales',
-      'Historique des primes et indemnités',
-      'Calculs détaillés CNPS et fiscaux',
-      'Notes et commentaires',
-      'Ancienneté et congés',
-      'Supervision et validation'
+      'En-tête jaune',
+      'Bloc entreprise + salarié',
+      'Tableau récapitulatif',
     ],
-    layout: 'detailed',
-    hasLogo: true,
-    sections: ['header', 'employee', 'salary', 'deductions', 'history', 'notes', 'signature']
   },
   {
-    id: 'template4',
-    name: 'Modèle Entreprise Premium',
-    description: 'Fiche de paie professionnelle avec branding complet',
-    preview: '/templates/payslip-business.png',
+    id: 'compta_online',
+    name: 'Compta Online',
+    description: 'Thème violet avec en-tête',
+    preview: '/templates/payslip-compta.png',
     features: [
-      'Logo et branding entreprise',
-      'Design professionnel premium',
-      'Informations complètes et structurées',
-      'Signature digitale intégrée',
-      'Filigrane de sécurité',
-      'Format haute qualité'
+      'Header violet',
+      'Bloc salarié à droite',
+      'Tableau principal',
     ],
-    layout: 'premium',
-    hasLogo: true,
-    sections: ['header', 'employee', 'salary', 'deductions', 'summary', 'security', 'signature']
   },
   {
-    id: 'template5',
-    name: 'Modèle CNPS Officiel',
-    description: 'Format conforme aux exigences CNPS camerounaises',
-    preview: '/templates/payslip-cnps.png',
+    id: 'enterprise',
+    name: 'Enterprise',
+    description: 'Thème bleu avec tableaux de résumé',
+    preview: '/templates/payslip-enterprise.png',
     features: [
-      'Format officiel CNPS',
-      'Tous les champs obligatoires',
-      'Calculs CNPS précis',
-      'Validation automatique',
-      'Conformité légale',
-      'Traçabilité complète'
+      'Header entreprise',
+      'Bloc salarié bleu',
+      'Résumé bas de page',
     ],
-    layout: 'official',
-    hasLogo: true,
-    sections: ['header', 'employee', 'salary', 'cnps', 'deductions', 'validation', 'signature']
-  }
+  },
 ];
 
 const PaySlipTemplates = ({ onSelectTemplate, selectedTemplate, onPreview, onDownload }) => {

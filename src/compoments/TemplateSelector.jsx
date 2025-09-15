@@ -9,20 +9,30 @@ const TemplateSelector = ({
   
   const templates = {
     payslip: {
-      default: {
-        name: "Classique",
-        description: "Design standard professionnel",
+      eneo: {
+        name: "ENEO (officiel)",
+        description: "Format détaillé conforme ENEO Cameroun",
         preview: "bg-white border border-gray-200 rounded p-2"
       },
-      modern: {
-        name: "Moderne",
-        description: "Design moderne avec dégradés",
-        preview: "bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded p-2"
-      },
-      minimal: {
-        name: "Minimaliste",
-        description: "Design épuré et simple",
+      classic: {
+        name: "Classique",
+        description: "Modèle compact en sections",
         preview: "bg-white border border-gray-300 rounded p-2"
+      },
+      bulletin_paie: {
+        name: "Bulletin de Paie",
+        description: "Style français avec en-tête jaune",
+        preview: "bg-yellow-50 border border-yellow-200 rounded p-2"
+      },
+      compta_online: {
+        name: "Compta Online",
+        description: "Thème violet avec en-tête",
+        preview: "bg-purple-50 border border-purple-200 rounded p-2"
+      },
+      enterprise: {
+        name: "Enterprise",
+        description: "Thème bleu avec tableaux de résumé",
+        preview: "bg-blue-50 border border-blue-200 rounded p-2"
       }
     },
     contract: {

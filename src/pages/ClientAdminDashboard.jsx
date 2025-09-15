@@ -204,7 +204,8 @@ const CompanyAdminDashboard = () => {
   
   // États pour les modèles de templates
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
-  const [selectedPaySlipTemplate, setSelectedPaySlipTemplate] = useState("template1");
+  // Align default with implemented PDF renderer keys: 'eneo', 'classic', 'bulletin_paie', 'compta_online', 'enterprise'
+  const [selectedPaySlipTemplate, setSelectedPaySlipTemplate] = useState("eneo");
   const [selectedContractTemplate, setSelectedContractTemplate] = useState("contract1");
 
   function formatDateOfBirthInput(value) {
@@ -2138,7 +2139,22 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                   </div>
                 </div>
                 {/* Boutons d'action en bas */}
-                <div className="flex justify-center gap-4 mt-8">
+                <div className="flex flex-col md:flex-row items-stretch md:items-center justify-center gap-3 md:gap-4 mt-8">
+                  {/* Sélecteur de modèle pour l'export */}
+                  <div className="w-full md:w-auto">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Modèle PDF</label>
+                    <select
+                      className="p-2 border rounded-md w-full md:min-w-[220px]"
+                      value={selectedPaySlipTemplate}
+                      onChange={(e) => setSelectedPaySlipTemplate(e.target.value)}
+                    >
+                      <option value="eneo">Officiel</option>
+                      <option value="classic">Classique</option>
+                      <option value="bulletin_paie">Bulletin de Paie</option>
+                      <option value="compta_online">Compta Online</option>
+                      <option value="enterprise">Enterprise</option>
+                    </select>
+                  </div>
                   <Button
                     onClick={() => {
                       console.log('[ExportPaySlip] Bouton Exporter PDF cliqué');
@@ -2180,6 +2196,8 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                           indemnites={selectedPaySlip.indemnites}
                           payPeriod={selectedPaySlip.payPeriod}
                           generatedAt={selectedPaySlip.generatedAt}
+                          // Pass the chosen template so export uses the right PDF model
+                          template={(selectedPaySlipTemplate || selectedPaySlip?.salaryDetails?.selectedTemplate || selectedPaySlip?.remuneration?.selectedTemplate || 'eneo')}
                           auto={true}
                           onExported={() => {
                             console.log('[ExportPaySlip] onExported callback déclenché');
