@@ -2,6 +2,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { buildCnpsCode } from './cnpsUtils';
+import { getSBC, CNPS_CAP, getSBT, computeGrossTotal, getCalculs } from './payrollCalculations';
 
 /**
  * Formate un nombre avec des espaces comme séparateurs de milliers
@@ -93,43 +94,24 @@ export function exportCnpsPDF({ selectedIds, formData, employerOptions, employer
   // En-tête
   let startY = addHeader(doc, 'DÉCLARATION MENSUELLE - COTISATIONS CNPS', cnpsEmployeur, periode, selectedIds.length);
   
-  // Configuration des colonnes
+  // Configuration des colonnes (alignées avec la vue "déclaration")
   const hasRP = !!employerOptions.includeRP;
   const tableHead = [
-    'Mat. CNPS', 'Code CNPS', 'Nom Complet', 'N° CNPS', 'Salaire Brut', 'Catégorie', 'Total Primes', 'Total Indemnités'
+    'Mat. CNPS', 'Code CNPS', 'Nom', 'N° CNPS', 'Base Cot.', 'PVID Sal.', 'PF', 'PVID Emp.', 'RP', 'Cot. Emp.', 'Total', 'Mois', 'Année'
   ];
-  
-  if (hasRP) tableHead.push('Taux RP');
-  tableHead.push('Base Cotis.', 'Cotis. Sal.', 'Mois', 'Année');
   
   // Données du tableau
   const tableBody = selectedIds.map((id) => {
     const d = formData[id];
-    const base = Math.min(Number(d.brut) || 0, 750000);
-    const rpRate = hasRP ? (employerOptions.overrideRP ? employerOptions.rateRP : (Number(d.tauxRP) || 0)) : 0;
-    const cotisSalarie = Math.round(base * 0.042);
-    const cotisEmployeur = Math.round(base * (0.049 + 0.07 + rpRate / 100));
-    const totalGlobal = cotisSalarie + cotisEmployeur;
-    
-    // Calcul Total Primes
-    let totalPrimes = 0;
-    if (Array.isArray(d.primesArray)) {
-      totalPrimes = d.primesArray.reduce((acc, p) => acc + (Number(p.montant || p.amount || p.value) || 0), 0);
-    } else {
-      totalPrimes = (Number(d.primesImposables) || 0) || ((Number(d.overtimeDisplay) || 0) + (Number(d.bonusDisplay) || 0));
-    }
-    
-    // Calcul Total Indemnités
-    let totalIndemnites = 0;
-    if (Array.isArray(d.indemnitesArray)) {
-      totalIndemnites = d.indemnitesArray.reduce((acc, i) => acc + (Number(i.montant || i.amount || i.value) || 0), 0);
-    } else {
-      totalIndemnites = (Number(d.indemniteTransport) || 0) + 
-                       (Number(d.housingAllowanceDisplay) || 0) + 
-                       (Number(d.representationAllowanceDisplay) || 0) + 
-                       (Number(d.dirtAllowanceDisplay) || 0) + 
-                       (Number(d.mealAllowanceDisplay) || 0);
-    }
+    // Utiliser les calculs centralisés comme dans le tableau 'déclaration'
+    const calculs = getCalculs(d || {}, employerOptions || {});
+    const base = Math.min(Number(calculs.baseCotisable) || 0, CNPS_CAP);
+    const cotisSalarie = Math.round(Number(calculs.cotisSalarie) || 0);
+    const prestationsFamilles = Math.round(Number(calculs.prestationsFamilles) || 0);
+    const pvidEmployeur = Math.round(Number(calculs.pvidEmployeur) || 0);
+    const risquesProfessionnels = Math.round(Number(calculs.risquesProfessionnels) || 0);
+    const cotisEmployeur = Math.round(Number(calculs.cotisEmployeur) || 0);
+    const totalGlobal = Math.round(Number(calculs.totalGlobal) || (cotisSalarie + cotisEmployeur));
     
     const row = [
       d.cnps || '-',
@@ -143,17 +125,16 @@ export function exportCnpsPDF({ selectedIds, formData, employerOptions, employer
       }),
       d.nom || '-',
       d.cnps || '-',
-      formatNumber(d.brut) + ' F',
-      d.poste || '-',
-      formatNumber(totalPrimes) + ' F',
-      formatNumber(totalIndemnites) + ' F'
-    ];
-    
-    if (hasRP) row.push((d.tauxRP || 0) + '%');
-    
-    row.push(
       formatNumber(base) + ' F',
       formatNumber(cotisSalarie) + ' F',
+      formatNumber(prestationsFamilles) + ' F',
+      formatNumber(pvidEmployeur) + ' F',
+      formatNumber(risquesProfessionnels) + ' F',
+      formatNumber(cotisEmployeur) + ' F',
+      formatNumber(totalGlobal) + ' F'
+    ];
+    
+    row.push(
       d.mois || '-',
       d.annee || '-'
     );
@@ -251,7 +232,7 @@ export function exportCnpsPDF({ selectedIds, formData, employerOptions, employer
   const finalY = doc.lastAutoTable.finalY + 6;
   doc.setFontSize(fonts.small.size);
   doc.setTextColor(...colors.gray);
-  doc.text('Base cotisable plafonnée à 750 000 F. Salarié: 4,2% PVID. Employeur: 4,9% PVID + 7% PF + RP variable.', 
+  doc.text('Base cotisable plafonnée à 750 000 F. Salarié: 4,2% PVID. Employeur: 4,2% PVID + 7% PF + RP variable.', 
            margins.left, finalY);
   
   // Sauvegarde
@@ -278,21 +259,28 @@ export function exportTaxesPDF({ selectedIds, taxesData, formData, cnpsEmployeur
   
   // Tableau principal
   const tableHead = [
-    ['Mat. CNPS', 'Nom Complet', 'SBT (F)', 'IRPP (F)', 'CAC (F)', 'CFC (F)', 'TDL (F)', 'FNE Sal. (F)']
+    ['Mat. CNPS', 'Nom Complet', 'SBT (F)', 'IRPP (F)', 'CAC (F)', 'CFC (F)', 'TDL (F)', 'FNE Emp. (F)']
   ];
   
-  const tableBody = taxesData.rows.map((r) => {
+  // Construire le corps en s'alignant sur selectedIds et en recalculant SBT via getSBT(formData[id])
+  const tableBody = selectedIds.map((id) => {
+    const d = formData[id] || {};
+    const r = (taxesData.rows || []).find(row => row.id === id) || {};
+    const sbt = getSBT(d);
     const irpp = Number(r.irpp) || 0;
-    const tdl = Math.round(irpp * 0.10);
+    const cac  = Number(r.cac)  || 0;
+    const cfc  = Number(r.cfc)  || 0;
+    const tdl  = Math.round(irpp * 0.10);
+    const fneEmp = Math.round(sbt * 0.01); // 1% employeur
     return [
-      r.cnps || r.matricule || '-',
-      r.nom || '-',
-      formatNumber(r.sbt),
+      d.cnps || r.cnps || r.matricule || '-',
+      d.nom || r.nom || '-',
+      formatNumber(sbt),
       formatNumber(irpp),
-      formatNumber(r.cac),
-      formatNumber(r.cfc),
+      formatNumber(cac),
+      formatNumber(cfc),
       formatNumber(tdl),
-      formatNumber(r.fneSal)
+      formatNumber(fneEmp)
     ];
   });
   
@@ -342,21 +330,33 @@ export function exportTaxesPDF({ selectedIds, taxesData, formData, cnpsEmployeur
   startY = doc.lastAutoTable.finalY + 8;
   
   const totalsHead = [["TYPE D'IMPÔT", 'TOTAL (FCFA)', 'TAUX']];
-  const totals = taxesData.totals || {};
-  const totalsTDL = Math.round(((Number(totals.irpp) || 0) * 0.10));
+  // Recalculer les totaux à partir des lignes construites
+  const totalsCalc = selectedIds.reduce((acc, id) => {
+    const d = formData[id] || {};
+    const row = (taxesData.rows || []).find(r => r.id === id) || {};
+    const sbt = getSBT(d);
+    const irpp = Number(row.irpp) || 0;
+    const cac  = Number(row.cac)  || 0;
+    const cfc  = Number(row.cfc)  || 0;
+    acc.sbt += sbt;
+    acc.irpp += irpp;
+    acc.cac += cac;
+    acc.cfc += cfc;
+    return acc;
+  }, { sbt: 0, irpp: 0, cac: 0, cfc: 0 });
+  const totalsTDL = Math.round(totalsCalc.irpp * 0.10);
+  const totalsFneEmp = Math.round(totalsCalc.sbt * 0.01);
   const totalsBody = [
-    ['Salaire Brut Taxable', formatNumber(totals.sbt) + ' F', 'Base'],
-    ['IRPP', formatNumber(totals.irpp) + ' F', 'Barème'],
-    ['CAC', formatNumber(totals.cac) + ' F', '10% IRPP'],
-    ['CFC SAL', formatNumber(totals.cfc) + ' F', '2,5% SBT'],
+    ['Salaire Brut Taxable', formatNumber(totalsCalc.sbt) + ' F', 'Base'],
+    ['IRPP', formatNumber(totalsCalc.irpp) + ' F', 'Barème'],
+    ['CAC', formatNumber(totalsCalc.cac) + ' F', '10% IRPP'],
+    ['CFC SAL', formatNumber(totalsCalc.cfc) + ' F', '1% SBT'],
     ['TDL', formatNumber(totalsTDL) + ' F', '10% IRPP'],
-    ['FNE Salarié', formatNumber(totals.fneSal) + ' F', '1% SBT'],
-    ['FNE Employeur', formatNumber(totals.fneEmp) + ' F', '1,5% SBT'],
+    ['FNE Employeur', formatNumber(totalsFneEmp) + ' F', '1% SBT'],
     ['', '', ''], // Ligne vide
     [
       'TOTAL À VERSER', 
-      formatNumber((Number(totals.irpp) || 0) + (Number(totals.cac) || 0) + (Number(totals.cfc) || 0) + 
-                   totalsTDL + (Number(totals.fneSal) || 0) + (Number(totals.fneEmp) || 0)) + ' F',
+      formatNumber(totalsCalc.irpp + totalsCalc.cac + totalsCalc.cfc + totalsTDL + totalsFneEmp) + ' F',
       'Somme'
     ]
   ];
@@ -400,6 +400,7 @@ export function exportTaxesPDF({ selectedIds, taxesData, formData, cnpsEmployeur
   
   const notes = [
     'Notes: SBT = Salaire Brut Taxable. Abattement annuel: 500 000 F.',
+    'FNE: à la charge exclusive de l’employeur à 1% du SBT.',
     'Seuil exonération: 62 000 F/mois. Déclaration avant le 15 du mois suivant.'
   ];
   

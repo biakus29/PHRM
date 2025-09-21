@@ -6,6 +6,8 @@ import { formatFR } from "../utils/numberUtils";
 import { getCalculs, computeTaxes, getSBT, getSBC, categorizeAmounts, getPayComponents } from "../utils/payrollCalculations";
 import { calculatePrimesIndemnitesTotal, getNormalizedPrimesIndemnites } from "../utils/primesIndemnitesNormalizer";
 
+const CNPS_CAP = 750000;
+
 const CotisationCNPSTable = ({ 
   selectedIds, 
   formData, 
@@ -195,7 +197,15 @@ const CotisationCNPSTable = ({
           <tbody>
             {selectedIds.map(id => {
               const d = formData[id] || {};
-              const calculs = getCalculs(d, employerOptions);
+              // Aligner la base sur le dernier bulletin si disponible
+              const emp = employees?.find(e => e.id === id);
+              const payslips = Array.isArray(emp?.payslips) ? emp.payslips : [];
+              const latestPayslip = payslips[payslips.length - 1] || {};
+              const baseFromPayslip = Number(latestPayslip.salaryDetails?.baseSalary || 0) || 0;
+              const dForCalc = baseFromPayslip
+                ? { ...d, salaryDetails: { ...(d.salaryDetails || {}), baseSalary: baseFromPayslip }, baseSalary: baseFromPayslip }
+                : d;
+              const calculs = getCalculs(dForCalc, employerOptions);
               return (
                 <tr key={id} className="hover:bg-gray-50">
                   <td className="p-2 border">{d.matricule || ''}</td>
@@ -224,13 +234,90 @@ const CotisationCNPSTable = ({
             <tr>
               <td className="p-2 border">Totaux</td>
               <td className="p-2 border">-</td>
-              <td className="p-2 border">{formatFR(tableTotals.base)}</td>
-              <td className="p-2 border">{formatFR(tableTotals.sal)}</td>
-              <td className="p-2 border">{formatFR(tableTotals.pf)}</td>
-              <td className="p-2 border">{formatFR(tableTotals.pvid)}</td>
-              <td className="p-2 border">{formatFR(tableTotals.rp)}</td>
-              <td className="p-2 border">{formatFR(tableTotals.emp)}</td>
-              <td className="p-2 border">{formatFR(tableTotals.global)}</td>
+              <td className="p-2 border">{formatFR(selectedIds.reduce((acc, id) => {
+                const d = formData[id] || {};
+                const emp = employees?.find(e => e.id === id);
+                const payslips = Array.isArray(emp?.payslips) ? emp.payslips : [];
+                const latestPayslip = payslips[payslips.length - 1] || {};
+                const baseFromPayslip = Number(latestPayslip.salaryDetails?.baseSalary || 0) || 0;
+                const dForCalc = baseFromPayslip
+                  ? { ...d, salaryDetails: { ...(d.salaryDetails || {}), baseSalary: baseFromPayslip }, baseSalary: baseFromPayslip }
+                  : d;
+                const c = getCalculs(dForCalc, employerOptions);
+                return acc + (Number(c.baseCotisable) || 0);
+              }, 0))}</td>
+              <td className="p-2 border">{formatFR(selectedIds.reduce((acc, id) => {
+                const d = formData[id] || {};
+                const emp = employees?.find(e => e.id === id);
+                const payslips = Array.isArray(emp?.payslips) ? emp.payslips : [];
+                const latestPayslip = payslips[payslips.length - 1] || {};
+                const baseFromPayslip = Number(latestPayslip.salaryDetails?.baseSalary || 0) || 0;
+                const dForCalc = baseFromPayslip
+                  ? { ...d, salaryDetails: { ...(d.salaryDetails || {}), baseSalary: baseFromPayslip }, baseSalary: baseFromPayslip }
+                  : d;
+                const c = getCalculs(dForCalc, employerOptions);
+                return acc + (Number(c.cotisSalarie) || 0);
+              }, 0))}</td>
+              <td className="p-2 border">{formatFR(selectedIds.reduce((acc, id) => {
+                const d = formData[id] || {};
+                const emp = employees?.find(e => e.id === id);
+                const payslips = Array.isArray(emp?.payslips) ? emp.payslips : [];
+                const latestPayslip = payslips[payslips.length - 1] || {};
+                const baseFromPayslip = Number(latestPayslip.salaryDetails?.baseSalary || 0) || 0;
+                const dForCalc = baseFromPayslip
+                  ? { ...d, salaryDetails: { ...(d.salaryDetails || {}), baseSalary: baseFromPayslip }, baseSalary: baseFromPayslip }
+                  : d;
+                const c = getCalculs(dForCalc, employerOptions);
+                return acc + (Number(c.prestationsFamilles) || 0);
+              }, 0))}</td>
+              <td className="p-2 border">{formatFR(selectedIds.reduce((acc, id) => {
+                const d = formData[id] || {};
+                const emp = employees?.find(e => e.id === id);
+                const payslips = Array.isArray(emp?.payslips) ? emp.payslips : [];
+                const latestPayslip = payslips[payslips.length - 1] || {};
+                const baseFromPayslip = Number(latestPayslip.salaryDetails?.baseSalary || 0) || 0;
+                const dForCalc = baseFromPayslip
+                  ? { ...d, salaryDetails: { ...(d.salaryDetails || {}), baseSalary: baseFromPayslip }, baseSalary: baseFromPayslip }
+                  : d;
+                const c = getCalculs(dForCalc, employerOptions);
+                return acc + (Number(c.pvidEmployeur) || 0);
+              }, 0))}</td>
+              <td className="p-2 border">{formatFR(selectedIds.reduce((acc, id) => {
+                const d = formData[id] || {};
+                const emp = employees?.find(e => e.id === id);
+                const payslips = Array.isArray(emp?.payslips) ? emp.payslips : [];
+                const latestPayslip = payslips[payslips.length - 1] || {};
+                const baseFromPayslip = Number(latestPayslip.salaryDetails?.baseSalary || 0) || 0;
+                const dForCalc = baseFromPayslip
+                  ? { ...d, salaryDetails: { ...(d.salaryDetails || {}), baseSalary: baseFromPayslip }, baseSalary: baseFromPayslip }
+                  : d;
+                const c = getCalculs(dForCalc, employerOptions);
+                return acc + (Number(c.risquesProfessionnels) || 0);
+              }, 0))}</td>
+              <td className="p-2 border">{formatFR(selectedIds.reduce((acc, id) => {
+                const d = formData[id] || {};
+                const emp = employees?.find(e => e.id === id);
+                const payslips = Array.isArray(emp?.payslips) ? emp.payslips : [];
+                const latestPayslip = payslips[payslips.length - 1] || {};
+                const baseFromPayslip = Number(latestPayslip.salaryDetails?.baseSalary || 0) || 0;
+                const dForCalc = baseFromPayslip
+                  ? { ...d, salaryDetails: { ...(d.salaryDetails || {}), baseSalary: baseFromPayslip }, baseSalary: baseFromPayslip }
+                  : d;
+                const c = getCalculs(dForCalc, employerOptions);
+                return acc + (Number(c.cotisEmployeur) || 0);
+              }, 0))}</td>
+              <td className="p-2 border">{formatFR(selectedIds.reduce((acc, id) => {
+                const d = formData[id] || {};
+                const emp = employees?.find(e => e.id === id);
+                const payslips = Array.isArray(emp?.payslips) ? emp.payslips : [];
+                const latestPayslip = payslips[payslips.length - 1] || {};
+                const baseFromPayslip = Number(latestPayslip.salaryDetails?.baseSalary || 0) || 0;
+                const dForCalc = baseFromPayslip
+                  ? { ...d, salaryDetails: { ...(d.salaryDetails || {}), baseSalary: baseFromPayslip }, baseSalary: baseFromPayslip }
+                  : d;
+                const c = getCalculs(dForCalc, employerOptions);
+                return acc + (Number(c.totalGlobal) || 0);
+              }, 0))}</td>
               <td className="p-2 border">-</td>
             </tr>
           </tfoot>
@@ -239,6 +326,7 @@ const CotisationCNPSTable = ({
     );
   }
 
+  // ... rest of the code remains the same ...
   // Render for 'dipe' view (magnetic DIPE format)
   if (viewMode === 'dipe') {
     return (
@@ -248,8 +336,6 @@ const CotisationCNPSTable = ({
             <tr>
               <th className="p-2 border">code cnps</th>
               <th className="p-2 border">CNPS</th>
-              <th className="p-2 border">SBT</th>
-              <th className="p-2 border">SBT</th>
               <th className="p-2 border">Sal cotis</th>
               <th className="p-2 border">S C P</th>
               <th className="p-2 border">N° ORD</th>
@@ -280,14 +366,19 @@ const CotisationCNPSTable = ({
               const codeCNPS = `${yearMonth}-${cnpsEmp}-${regime}-${cnpsSal}-${jours}`;
 
               const sbt = getSBT(d);
-              const sbc = getSBC(d);
-              const scp = Math.min(sbc, 750000); // Salaire cotisable plafonné
+              const sbcDebug = getSBC(d); // Valeur SBC calculée
+              console.log(`Employé ID: ${id}, SBC: ${sbcDebug}, SBC min: ${Math.min(sbcDebug, CNPS_CAP)}`);
+              const sbc = sbcDebug;
+              const scp = Math.min(sbc, CNPS_CAP);
 
-              // Récupération directe depuis les payslips pour vue DIPE
+              // Récupération directe depuis les payslips pour vue DIPE, en priorisant les calculs centralisés si payslip manquant
               const emp = employees.find(e => e.id === id);
               const payslips = Array.isArray(emp?.payslips) ? emp.payslips : [];
               const latestPayslip = payslips[payslips.length - 1] || {};
-              
+              const sbtValue = Number(latestPayslip.sbt) || getSBT(d);
+              const sbcValue = Number(latestPayslip.sbc) || getSBC(d);
+              const scpValue = Math.min(sbcValue, CNPS_CAP);
+
               // Utilise les données déjà calculées dans les payslips
               const primesTotal = Array.isArray(latestPayslip.primes) 
                 ? latestPayslip.primes.reduce((sum, p) => sum + (Number(p.montant) || 0), 0)
@@ -305,17 +396,15 @@ const CotisationCNPSTable = ({
               const vRav  = r(Number(latestPayslip.deductions?.rav || d.rav  || 0));
               const vTdl  = r(Number(latestPayslip.deductions?.tdl || d.tdl  || 0));
               const vPvid = r(Number(latestPayslip.deductions?.pvid || latestPayslip.deductions?.pvis || d.pvid || d.pvis || 0));
-              const fneSal = r((latestPayslip.sbt || sbt || 0) * ((taxOptions?.fneRate ?? 1.0) / 100));
+              const fneSal = r((latestPayslip.sbt || getSBT(d) || 0) * ((taxOptions?.fneRate ?? 1.0) / 100));
               const totalDeductions = vIrpp + vCac + vCfc + fneSal + vRav + vTdl + vPvid;
 
               return (
                 <tr key={id} className="hover:bg-gray-50">
                   <td className="p-2 border">{codeCNPS}</td>
                   <td className="p-2 border">{d.cnps || ''}</td>
-                  <td className="p-2 border">{fmt(sbt)}</td>
-                  <td className="p-2 border">{fmt(sbt)}</td>
-                  <td className="p-2 border">{fmt(sbc)}</td>
-                  <td className="p-2 border">{fmt(scp)}</td>
+                  <td className="p-2 border">{fmt(sbtValue)}</td>
+                  <td className="p-2 border">{fmt(scpValue)}</td>
                   <td className="p-2 border">{index + 1}</td>
                   <td className="p-2 border">{d.matricule || ''}</td>
                   <td className="p-2 border">{fmt(vIrpp)}</td>
@@ -351,6 +440,8 @@ const CotisationCNPSTable = ({
       <table className="min-w-full border-collapse border border-gray-300">
         <thead className="bg-gray-100">
           <tr>
+            <th className="p-2 border">Code CNPS</th>
+            <th className="p-2 border">N° ORD</th>
             <th className="p-2 border">Nom</th>
             <th className="p-2 border">CNPS</th>
             <th className="p-2 border">Salaire de base</th>
@@ -361,8 +452,7 @@ const CotisationCNPSTable = ({
             <th className="p-2 border">Primes + Indemnités</th>
             <th className="p-2 border">IRPP</th>
             <th className="p-2 border">CFC</th>
-            <th className="p-2 border">FNE (Sal.)</th>
-            <th className="p-2 border">FNE (Emp.)</th>
+            <th className="p-2 border">FNE (Emp. 1%)</th>
             <th className="p-2 border">CAC</th>
             <th className="p-2 border">RAV</th>
             <th className="p-2 border">TDL</th>
@@ -374,7 +464,7 @@ const CotisationCNPSTable = ({
           </tr>
         </thead>
         <tbody>
-          {selectedIds.map(id => {
+          {selectedIds.map((id, index) => {
             const d = formData[id] || {};
             const c = getCalculs(d, employerOptions);
             const taxRow = taxesData.rows.find(r => r.id === id) || { 
@@ -389,6 +479,16 @@ const CotisationCNPSTable = ({
             const sbt = getSBT(d);
             const sbc = getSBC(d);
             const scp = Math.min(sbc, 750000);
+            
+            // Code CNPS generation
+            const mois = String(d.mois || '').padStart(2, '0');
+            const annee = String(d.annee || '');
+            const regime = d.regime || 'GC';
+            const cnpsEmp = (cnpsEmployeur || '').toString();
+            const cnpsSal = (d.cnps || '').toString();
+            const jours = String(d.joursTravailles != null ? d.joursTravailles : 30).padStart(2, '0');
+            const yearMonth = `${annee}${mois}`;
+            const codeCNPS = `${yearMonth}-${cnpsEmp}-${regime}-${cnpsSal}-${jours}`;
 
             // Récupération directe depuis les payslips sans recalculs
             const emp = employees.find(e => e.id === id);
@@ -413,31 +513,28 @@ const CotisationCNPSTable = ({
             const vRav  = r(Number(latestPayslip.deductions?.rav  || d.rav  || taxRow.rav  || 0));
             const vTdl  = r(Number(latestPayslip.deductions?.tdl  || d.tdl  || taxRow.tdl  || 0));
             const vPvid = r(Number(latestPayslip.deductions?.pvid || latestPayslip.deductions?.pvis || d.pvid || d.pvis || taxRow.pvis || 0));
-            // FNE Salarié (1% par défaut sur SBT)
-            const fneSalDet = r((latestPayslip.sbt || sbt || 0) * ((taxOptions?.fneRate ?? 1.0) / 100));
-            // FNE Employeur (1.5% par défaut sur SBT) - n'entre pas dans le net salarié
-            const fneEmpDet = employerOptions?.includeFNEmp
-              ? r((latestPayslip.sbt || sbt || 0) * ((employerOptions?.rateFNEmp ?? 1.5) / 100))
-              : 0;
-            // Recalcul du net à payer pour garantir la cohérence avec les déductions affichées (inclut FNE salarié)
-            const totalDeductionsCalculated = vIrpp + vCac + vCfc + fneSalDet + vRav + vTdl + vPvid;
+            // FNE Employeur uniquement (1% sur SBT) - n'entre pas dans le net salarié
+            const fneEmpDet = r((latestPayslip.sbt || sbt || 0) * 0.01);
+            // Recalcul du net à payer sans FNE salarié (seul l'employeur paie le FNE)
+            const totalDeductionsCalculated = vIrpp + vCac + vCfc + vRav + vTdl + vPvid;
             const brutFromPayslip = Number(latestPayslip.remuneration?.total || d.brut || 0);
             const netToPay = r(brutFromPayslip - totalDeductionsCalculated);
             const baseSalary = Number(latestPayslip.salaryDetails?.baseSalary || d.baseSalary || 250000);
             
             return (
               <tr key={id} className="hover:bg-gray-50">
+                <td className="p-2 border">{codeCNPS}</td>
+                <td className="p-2 border">{index + 1}</td>
                 <td className="p-2 border">{d.nom || ''}</td>
                 <td className="p-2 border">{d.cnps || ''}</td>
                 <td className="p-2 border">{formatFR(baseSalary)} FCFA</td>
                 <td className="p-2 border">{formatFR(latestPayslip.remuneration?.total || d.brut)} FCFA</td>
                 <td className="p-2 border">{d.poste || ''}</td>
-                <td className="p-2 border">{formatFR(latestPayslip.sbt || d.sbt || taxRow.sbt)} FCFA</td>
-                <td className="p-2 border">{formatFR(latestPayslip.sbc || d.sbc || taxRow.sbc)} FCFA</td>
+                <td className="p-2 border">{formatFR(sbt)} FCFA</td>
+                <td className="p-2 border">{formatFR(sbc)} FCFA</td>
                 <td className="p-2 border">{formatFR(totalPrimesIndemnites)} FCFA</td>
                 <td className="p-2 border">{r(Number(latestPayslip.deductions?.irpp || d.irpp || taxRow.irpp || 0)).toLocaleString()} FCFA</td>
                 <td className="p-2 border">{r(Number(latestPayslip.deductions?.cfc || d.cfc || taxRow.cfc || 0)).toLocaleString()} FCFA</td>
-                <td className="p-2 border">{formatFR(fneSalDet)} FCFA</td>
                 <td className="p-2 border">{formatFR(fneEmpDet)} FCFA</td>
                 <td className="p-2 border">{r(Number(latestPayslip.deductions?.cac || d.cac || taxRow.cac || 0)).toLocaleString()} FCFA</td>
                 <td className="p-2 border">{r(Number(latestPayslip.deductions?.rav || d.rav || taxRow.rav || 0)).toLocaleString()} FCFA</td>
@@ -461,6 +558,8 @@ const CotisationCNPSTable = ({
         </tbody>
         <tfoot className="bg-gray-100 font-semibold">
           <tr>
+            <td className="p-2 border">-</td>
+            <td className="p-2 border">-</td>
             <td className="p-2 border">Totaux</td>
             <td className="p-2 border">-</td>
             <td className="p-2 border">{formatFR(selectedIds.reduce((acc, id) => {
@@ -516,16 +615,7 @@ const CotisationCNPSTable = ({
               const latestPayslip = payslips[payslips.length - 1] || {};
               const d = formData[id] || {};
               const sbtVal = Number(latestPayslip.sbt || d.sbt || getSBT(d) || 0);
-              const fneS = Math.round(sbtVal * ((taxOptions?.fneRate ?? 1.0) / 100));
-              return acc + fneS;
-            }, 0))}</td>
-            <td className="p-2 border">{formatFR(selectedIds.reduce((acc, id) => {
-              const emp = employees?.find(e => e.id === id);
-              const payslips = Array.isArray(emp?.payslips) ? emp.payslips : [];
-              const latestPayslip = payslips[payslips.length - 1] || {};
-              const d = formData[id] || {};
-              const sbtVal = Number(latestPayslip.sbt || d.sbt || getSBT(d) || 0);
-              const fneE = (employerOptions?.includeFNEmp ? Math.round(sbtVal * ((employerOptions?.rateFNEmp ?? 1.5) / 100)) : 0);
+              const fneE = Math.round(sbtVal * 0.01); // FNE Employeur 1%
               return acc + fneE;
             }, 0))}</td>
             <td className="p-2 border">{formatFR(selectedIds.reduce((acc, id) => {
@@ -564,7 +654,7 @@ const CotisationCNPSTable = ({
               const vRav = r(Number(latestPayslip.deductions?.rav || 0));
               const vTdl = r(Number(latestPayslip.deductions?.tdl || 0));
               const vPvid = r(Number(latestPayslip.deductions?.pvid || latestPayslip.deductions?.pvis || 0));
-              const totalDeductions = vIrpp + vCac + vCfc + vRav + vTdl + vPvid;
+              const totalDeductions = vIrpp + vCac + vCfc + vRav + vTdl + vPvid; // Sans FNE salarié
               const brut = Number(latestPayslip.remuneration?.total || 0);
               return acc + r(brut - totalDeductions);
             }, 0))}</td>

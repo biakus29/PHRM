@@ -225,8 +225,9 @@ export const useCotisationCNPS = (companyId, cnpsEmployeur) => {
             cfc: cache.deductions?.cfc || cache.cfc || 0,
             rav: cache.deductions?.rav || cache.rav || 0,
             pvid: cache.deductions?.pvid || cache.deductions?.pvis || cache.pvid || cache.pvis || 0,
-            sbt: cache.grossTotal || cache.remuneration?.total || cache.sbt || 0,
-            sbc: Math.min((cache.grossTotal || cache.remuneration?.total || cache.sbc || cache.sbt || 0), CNPS_CAP),
+            // Respect centralized bases; do not fallback to gross totals
+            sbt: Number(cache.sbt || 0),
+            sbc: Math.min(Number(cache.sbc || 0), CNPS_CAP),
             netToPay: cache.netPay || cache.netToPay || cache.net || 0,
           };
           updated += 1;
@@ -422,7 +423,8 @@ export const useCotisationCNPS = (companyId, cnpsEmployeur) => {
     if (!data.brut || data.brut <= 0) errors.push("Salaire brut requis");
     if (!data.cnps) errors.push("Numéro CNPS requis");
     if (data.brut > 0 && data.brut < 36270) errors.push("Salaire < SMIG (36 270 FCFA)");
-    const sbc = computeSBC({ baseSalary: data.brut }, {}, [], []);
+    // Validate against actual centralized SBC computed from row data
+    const sbc = getSBC(data);
     if (sbc > CNPS_CAP) errors.push("Base cotisable dépasse le plafond CNPS");
     return errors;
   };

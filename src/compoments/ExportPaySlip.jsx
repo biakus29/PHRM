@@ -119,8 +119,18 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
       const representationAllowance = Number(payslipData.salaryDetails.representationAllowance) || 0;
       const dirtAllowance = Number(payslipData.salaryDetails.dirtAllowance) || 0;
       const mealAllowance = Number(payslipData.salaryDetails.mealAllowance) || 0;
-      const sbt = computeSBT(payslipData.salaryDetails || {}, payslipData.remuneration || {});
-      const sbc = computeSBC(payslipData.salaryDetails || {}, payslipData.remuneration || {});
+      const sbt = computeSBT(
+        payslipData.salaryDetails || {},
+        payslipData.remuneration || {},
+        payslipData.primes || [],
+        payslipData.indemnites || []
+      );
+      const sbc = computeSBC(
+        payslipData.salaryDetails || {},
+        payslipData.remuneration || {},
+        payslipData.primes || [],
+        payslipData.indemnites || []
+      );
       
       // Cache local des montants utiles pour CNPS (pré-remplissage)
       try {
@@ -242,7 +252,19 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
       });
       const { roundedDeductions: d2, netPay: net2 } = calc;
       const baseSalary2 = Number(salaryDetails?.baseSalary) || 0;
-      const sbt2 = baseSalary2 + (Number(salaryDetails?.housingAllowance) || 0) + (Number(remuneration?.overtime) || 0) + (Number(remuneration?.bonus) || 0);
+      // Use centralized SBT/SBC computations to keep cache consistent with PDFs/UI
+      const sbt2 = computeSBT(
+        salaryDetails || {},
+        remuneration || {},
+        primes || [],
+        indemnites || []
+      );
+      const sbc2 = computeSBC(
+        salaryDetails || {},
+        remuneration || {},
+        primes || [],
+        indemnites || []
+      );
       const payload = {
         baseSalary: baseSalary2,
         transportAllowance: Number(salaryDetails?.transportAllowance) || 0,
@@ -256,6 +278,7 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
         netToPay: Number(net2) || 0,
         net: Number(net2) || 0,
         sbt: Number(sbt2) || 0,
+        sbc: Number(sbc2) || 0,
         irpp: Number(d2?.irpp) || 0,
         cac: Number(d2?.cac) || 0,
         cfc: Number(d2?.cfc) || 0,

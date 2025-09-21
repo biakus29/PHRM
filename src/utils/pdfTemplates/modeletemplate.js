@@ -627,14 +627,14 @@ export function renderBulletinPaieTemplate(doc, ctx) {
   const tableData = [];
   
   // Section gains avec séparateurs visuels
-  tableData.push(['═══ GAINS ═══', '', '', '', '', '']);
+  tableData.push([]);
   
   if (baseSalary > 0) tableData.push(['Salaire de base', '', '', formatCFA(baseSalary), '', 'Mensuel']);
   
   // Primes personnalisées par employeur avec regroupement
   const customPrimes = getEmployerCustomItems(payslipData, 'primes');
   if (customPrimes.length > 0) {
-    tableData.push(['─── Primes Spécifiques ───', '', '', '', '', '']);
+    
     customPrimes.forEach(prime => {
       const montant = Number(prime.montant) || 0;
       if (montant > 0) {
@@ -648,7 +648,7 @@ export function renderBulletinPaieTemplate(doc, ctx) {
   // Indemnités personnalisées par employeur avec regroupement
   const customIndemnites = getEmployerCustomItems(payslipData, 'indemnites');
   if (customIndemnites.length > 0) {
-    tableData.push(['─── Indemnités Spécifiques ───', '', '', '', '', '']);
+    tableData.push([]);
     customIndemnites.forEach(indemnite => {
       const montant = Number(indemnite.montant) || 0;
       if (montant > 0) {
@@ -660,14 +660,14 @@ export function renderBulletinPaieTemplate(doc, ctx) {
   }
   
   // Total gains
-  tableData.push(['', '', '', '───────────', '', '']);
+  tableData.push([]);
   tableData.push(['TOTAL GAINS', '', '', formatCFA(totalGross), '', 'F CFA']);
   tableData.push(['', '', '', '', '', '']);
 
   // Section retenues
   const hasDeductions = d?.pvid > 0 || d?.irpp > 0 || d?.cac > 0 || d?.cfc > 0 || d?.rav > 0 || d?.tdl > 0 || d?.fne > 0;
   if (hasDeductions) {
-    tableData.push(['═══ RETENUES ═══', '', '', '', '', '']);
+    tableData.push(['RETENUES']);
     
     if (d?.pvid > 0) tableData.push(['PVID (CNPS)', formatCFA(baseSalary), '4,2%', formatCFA(d.pvid), '', 'Salarié']);
     if (d?.irpp > 0) tableData.push(['IRPP', '', 'Variable', formatCFA(d.irpp), '', 'Progressif']);
@@ -677,7 +677,7 @@ export function renderBulletinPaieTemplate(doc, ctx) {
     if (d?.tdl > 0) tableData.push(['TDL', formatCFA(d.irpp), '10%', formatCFA(d.tdl), '', 'IRPP']);
     if (d?.fne > 0) tableData.push(['FNE', '', '', formatCFA(d.fne), '', 'Formation']);
     
-    tableData.push(['', '', '', '───────────', '', '']);
+    tableData.push([]);
     tableData.push(['TOTAL RETENUES', '', '', formatCFA(totalDeductions), '', 'F CFA']);
   }
 
@@ -967,7 +967,7 @@ export function renderEneoPayslip(doc, ctx) {
   const customPrimes = getEmployerCustomItems(payslipData, 'primes');
   if (customPrimes.length > 0) {
     // Séparateur pour primes spécifiques
-    tableData.push(['═══ PRIMES SPÉCIFIQUES EMPLOYEUR ═══', '', '', '', '', '', '', '']);
+    tableData.push([]);
     
     customPrimes.forEach(prime => {
       const montant = Number(prime.montant) || 0;
@@ -992,7 +992,7 @@ export function renderEneoPayslip(doc, ctx) {
   const customIndemnites = getEmployerCustomItems(payslipData, 'indemnites');
   if (customIndemnites.length > 0) {
     // Séparateur pour indemnités spécifiques
-    tableData.push(['═══ INDEMNITÉS SPÉCIFIQUES EMPLOYEUR ═══', '', '', '', '', '', '', '']);
+    tableData.push([]);
     
     customIndemnites.forEach(indemnite => {
       const montant = Number(indemnite.montant) || 0;

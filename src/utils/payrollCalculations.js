@@ -61,18 +61,21 @@ export function categorizeAmounts(data = {}) {
 
     // 1.a Uniformisation: reclasser par type, même si saisi comme prime
     if (isTransportLike(lbl) || isRepresentationLike(lbl) || isMealLike(lbl) || isDirtLike(lbl) || isMilkLike(lbl) || isBicycleLike(lbl)) {
-      // Frais professionnels: non imposables et non cotisables
-      indemnitesNonImposables += val;
-      return;
+      // Nouvelle règle: imposables (SBT) mais non cotisables (exclus SBC)
+      primesImposables += val; // compte dans SBT
+      return; // NE PAS ajouter à indemnitesCotisables
     }
     if (isHousingLike(lbl)) {
-      // Logement: taxable et cotisable -> dans SBT (pas double comptage dans SBC)
-      primesImposables += val;
+      // Logement: imposable et cotisable
+      primesImposables += val;      // pour SBT
+      indemnitesCotisables += val;  // pour SBC
       return;
     }
 
     if (isPrimeImposableLike(lbl)) {
+      // Primes imposables et cotisables (hors frais pros)
       primesImposables += val;
+      indemnitesCotisables += val;
     }
   });
 
@@ -80,11 +83,14 @@ export function categorizeAmounts(data = {}) {
     const lbl = (i.label || i.name || i.type || '').toString().toLowerCase();
     const val = Number(i.amount || i.value || i.montant || 0) || 0;
     if (isTransportLike(lbl) || isRepresentationLike(lbl) || isMealLike(lbl) || isDirtLike(lbl) || isMilkLike(lbl) || isBicycleLike(lbl)) {
-      indemnitesNonImposables += val; // frais pro
-      return;
+      // Nouvelle règle: imposables (SBT) mais non cotisables
+      primesImposables += val; // compte dans SBT
+      return; // NE PAS ajouter à indemnitesCotisables
     }
     if (isHousingLike(lbl)) {
-      primesImposables += val; // taxable et cotisable via SBT
+      // Logement: imposable et cotisable
+      primesImposables += val;      // pour SBT
+      indemnitesCotisables += val;  // pour SBC
       return;
     }
     // Par défaut: NI
@@ -94,18 +100,26 @@ export function categorizeAmounts(data = {}) {
   // 2) Prise en compte des champs fixes de l'UI si présents
   // Primes imposables (ex: heures sup + bonus agrégés)
   primesImposables += Number(data.primesImposables || 0) || 0;
-  primesImposables += Number(data.overtimeDisplay || 0) || 0;
-  primesImposables += Number(data.bonusDisplay || 0) || 0;
+  const _otDisp = Number(data.overtimeDisplay || 0) || 0;
+  const _bonusDisp = Number(data.bonusDisplay || 0) || 0;
+  // Heures sup et bonus: imposables et cotisables (hors liste frais pros)
+  primesImposables += _otDisp;
+  indemnitesCotisables += _otDisp;
+  primesImposables += _bonusDisp;
+  indemnitesCotisables += _bonusDisp;
 
-  // Transport (champ fixe) = frais pro (non imposable, non cotisable)
-  indemnitesNonImposables += Number(data.indemniteTransport || 0) || 0;
+  // Transport (champ fixe) = imposable mais non cotisable selon la règle fournie
+  primesImposables += Number(data.indemniteTransport || 0) || 0;
 
-  // Indemnités non imposables explicites (affichage)
-  // Logement devient imposable et cotisable -> bascule vers primes imposables
-  primesImposables += Number(data.housingAllowanceDisplay || 0) || 0;
-  indemnitesNonImposables += Number(data.representationAllowanceDisplay || 0) || 0;
-  indemnitesNonImposables += Number(data.dirtAllowanceDisplay || 0) || 0;
-  indemnitesNonImposables += Number(data.mealAllowanceDisplay || 0) || 0;
+  // Indemnités explicites (affichage)
+  // Logement: imposable et cotisable
+  const _housingDisp = Number(data.housingAllowanceDisplay || 0) || 0;
+  primesImposables += _housingDisp;      // pour SBT
+  indemnitesCotisables += _housingDisp;  // pour SBC
+  // Reclassification selon la nouvelle règle: imposables (SBT) mais non cotisables
+  primesImposables += Number(data.representationAllowanceDisplay || 0) || 0;
+  primesImposables += Number(data.dirtAllowanceDisplay || 0) || 0;
+  primesImposables += Number(data.mealAllowanceDisplay || 0) || 0;
 
   // Champs agrégés
   indemnitesNonImposables += Number(data.indemniteNonImposable || 0) || 0;
@@ -113,18 +127,19 @@ export function categorizeAmounts(data = {}) {
   return { primesImposables, indemnitesCotisables, indemnitesNonImposables };
 }
 
-// SBT (Salaire Brut Taxable): Salaire de base + primes imposables uniquement
+// SBT (Salaire Brut Taxable): Salaire de base + éléments imposables (primes imposables)
+// IMPORTANT: la base = salaire de base uniquement (pas le brut total)
 export const getSBT = (data = {}) => {
-  const brut = Number(data.brut || 0) || 0;
+  const base = Number((data.salaryDetails && data.salaryDetails.baseSalary) || data.baseSalary || 0) || 0;
   const { primesImposables } = categorizeAmounts(data);
-  return Math.max(0, Math.round(brut + primesImposables));
+  return Math.max(0, Math.round(base + primesImposables));
 };
 
-// SBC (Salaire Brut Cotisable): SBT + indemnités cotisables (hors transport), plafonné à 750 000 FCFA
+// SBC (Salaire Brut Cotisable): Base (salaire de base) + éléments cotisables uniquement, plafonné à CNPS_CAP
 export const getSBC = (data = {}) => {
   const { indemnitesCotisables } = categorizeAmounts(data);
-  const sbt = getSBT(data);
-  return Math.min(CNPS_CAP, Math.round(sbt + indemnitesCotisables));
+  const base = Number((data.salaryDetails && data.salaryDetails.baseSalary) || data.baseSalary || 0) || 0;
+  return Math.min(CNPS_CAP, Math.round(base + indemnitesCotisables));
 };
 
 // Main CNPS calculations
