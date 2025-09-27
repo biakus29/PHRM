@@ -35,7 +35,7 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
   const baseSalary = employee?.baseSalary || salaryDetails?.baseSalary || 0;
   if (baseSalary === 0 || isNaN(baseSalary)) {
     console.warn("[PaySlip] Salaire de base non défini, nul ou invalide. Utilisation de 0 comme valeur par défaut.");
-    toast.warn("Aucun salaire de base valide défini. La fiche de paie sera générée avec un salaire de base de 0 FCFA.");
+    toast.warn("Aucun salaire de base valide défini. La fiche de paie sera générée avec un salaire de base de 0 XAF.");
   }
 
   // Validation des props avec détection des champs manquants
@@ -59,7 +59,7 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
     
     // Validation IRPP (basique)
     if (irpp > baseSalary * 0.3) {
-      warnings.push(`IRPP: ${irpp.toLocaleString()} FCFA (semble élevé)`);
+      warnings.push(`IRPP: ${formatCFA(irpp)} (semble élevé)`);
     }
     
     return warnings;
@@ -183,7 +183,18 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
   const r = (v) => Math.round(num(v));
   // Construire des déductions statutaires si manquantes (IRPP, CAC, TDL, CFC, RAV, FNE)
   const statutory = computeStatutoryDeductions(salaryDetails || {}, remuneration || {}, primesAll, indemAll);
-  const mergedDeductions = { ...statutory, ...(deductions || {}) };
+  // Ne pas laisser des props anciennes écraser les valeurs centralisées (IRPP, CAC, CFC, RAV, TDL, PVID)
+  // On n'autorise que les champs non-statutaires à se fusionner (ex: avances, autres)
+  const safeExtra = (() => {
+    const src = deductions || {};
+    return {
+      advance: src.advance || 0,
+      other: src.other || 0,
+      loan: src.loan || 0,
+      loanRepayment: src.loanRepayment || 0,
+    };
+  })();
+  const mergedDeductions = { ...statutory, ...safeExtra };
 
   const payrollCalc = computeNetPay({
     salaryDetails: salaryDetails || {},
@@ -263,30 +274,30 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
         <tbody>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">Salaire de base</td>
-            <td className="py-2 px-4">{(salaryDetails?.baseSalary || 0).toLocaleString()} FCFA</td>
+            <td className="py-2 px-4 text-right">{formatCFA(salaryDetails?.baseSalary || 0)}</td>
           </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">Taux journalier</td>
-            <td className="py-2 px-4">{(salaryDetails?.dailyRate || 0).toLocaleString()} FCFA</td>
+            <td className="py-2 px-4 text-right">{formatCFA(salaryDetails?.dailyRate || 0)}</td>
           </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">Taux horaire</td>
-            <td className="py-2 px-4">{(salaryDetails?.hourlyRate || 0).toLocaleString()} FCFA</td>
+            <td className="py-2 px-4 text-right">{formatCFA(salaryDetails?.hourlyRate || 0)}</td>
           </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">Prime de transport</td>
-            <td className="py-2 px-4">{(
+            <td className="py-2 px-4 text-right">{formatCFA(
               // Priorité à la nouvelle clé primeTransport, fallback sur anciens champs
               remuneration?.primeTransport || salaryDetails?.primeTransport || salaryDetails?.transportAllowance || 0
-            ).toLocaleString()} FCFA</td>
+            )}</td>
           </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">Jours travaillés</td>
-            <td className="py-2 px-4">{remuneration?.workedDays || 0}</td>
+            <td className="py-2 px-4 text-right">{remuneration?.workedDays || 0}</td>
           </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">Heures supplémentaires</td>
-            <td className="py-2 px-4">{(remuneration?.overtime || 0).toLocaleString()} FCFA</td>
+            <td className="py-2 px-4 text-right">{formatCFA(remuneration?.overtime || 0)}</td>
           </tr>
 
           {/* Injecter primes/indemnités directement dans le tableau de rémunération */}
@@ -295,12 +306,12 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
               {primesAll.map((p, idx) => (
                 <tr key={`rem-prime-${idx}`} className="border-b border-blue-100">
                   <td className="py-2 px-4">{p?.label || p?.type || p?.name || `Prime ${idx + 1}`}</td>
-                  <td className="py-2 px-4">{(Number(p?.montant) || 0).toLocaleString()} FCFA</td>
+                  <td className="py-2 px-4 text-right">{formatCFA(Number(p?.montant) || 0)}</td>
                 </tr>
               ))}
               <tr className="border-b border-blue-100">
                 <td className="py-2 px-4 font-medium">Sous-total primes</td>
-                <td className="py-2 px-4 font-medium">{primesSum.toLocaleString()} FCFA</td>
+                <td className="py-2 px-4 font-medium text-right">{formatCFA(primesSum)}</td>
               </tr>
             </>
           )}
@@ -310,26 +321,26 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
               {indemAll.map((i, idx) => (
                 <tr key={`rem-indem-${idx}`} className="border-b border-blue-100">
                   <td className="py-2 px-4">{i?.label || i?.type || i?.name || `Indemnité ${idx + 1}`}</td>
-                  <td className="py-2 px-4">{(Number(i?.montant) || 0).toLocaleString()} FCFA</td>
+                  <td className="py-2 px-4 text-right">{formatCFA(Number(i?.montant) || 0)}</td>
                 </tr>
               ))}
               <tr className="border-b border-blue-100">
                 <td className="py-2 px-4 font-medium">Sous-total indemnités</td>
-                <td className="py-2 px-4 font-medium">{indemSum.toLocaleString()} FCFA</td>
+                <td className="py-2 px-4 font-medium text-right">{formatCFA(indemSum)}</td>
               </tr>
             </>
           )}
           <tr className="border-b border-blue-100 bg-blue-50">
             <td className="py-2 px-4 font-semibold">TOTAL RÉMUNÉRATION</td>
-            <td className="py-2 px-4 font-semibold">{remunerationTotal.toLocaleString()} FCFA</td>
+            <td className="py-2 px-4 font-semibold text-right">{formatCFA(remunerationTotal)}</td>
           </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">Salaire Brut Taxable (SBT)</td>
-            <td className="py-2 px-4">{sbt.toLocaleString()} FCFA</td>
+            <td className="py-2 px-4 text-right">{formatCFA(sbt)}</td>
           </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">Salaire Brut Cotisable (SBC)</td>
-            <td className="py-2 px-4">{sbc.toLocaleString()} FCFA</td>
+            <td className="py-2 px-4 text-right">{formatCFA(sbc)}</td>
           </tr>
         </tbody>
       </table>
@@ -343,12 +354,12 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
               {primesAll.map((p, idx) => (
                 <tr key={`prime-${idx}`} className="border-b border-blue-100">
                   <td className="py-2 px-4">{p?.label || p?.type || p?.name || `Prime ${idx + 1}`}</td>
-                  <td className="py-2 px-4">{(Number(p?.montant) || 0).toLocaleString()} FCFA</td>
+                  <td className="py-2 px-4 text-right">{formatCFA(Number(p?.montant) || 0)} FCFA</td>
                 </tr>
               ))}
               <tr className="border-b border-blue-100 bg-blue-50">
                 <td className="py-2 px-4 font-semibold">TOTAL PRIMES</td>
-                <td className="py-2 px-4 font-semibold">{primesSum.toLocaleString()} FCFA</td>
+                <td className="py-2 px-4 font-semibold text-right">{formatCFA(primesSum)}</td>
               </tr>
             </tbody>
           </table>
@@ -364,12 +375,12 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
               {indemAll.map((i, idx) => (
                 <tr key={`indem-${idx}`} className="border-b border-blue-100">
                   <td className="py-2 px-4">{i?.label || i?.type || i?.name || `Indemnité ${idx + 1}`}</td>
-                  <td className="py-2 px-4">{(Number(i?.montant) || 0).toLocaleString()} FCFA</td>
+                  <td className="py-2 px-4 text-right">{formatCFA(Number(i?.montant) || 0)} FCFA</td>
                 </tr>
               ))}
               <tr className="border-b border-blue-100 bg-blue-50">
                 <td className="py-2 px-4 font-semibold">TOTAL INDEMNITÉS</td>
-                <td className="py-2 px-4 font-semibold">{indemSum.toLocaleString()} FCFA</td>
+                <td className="py-2 px-4 font-semibold text-right">{formatCFA(indemSum)}</td>
               </tr>
             </tbody>
           </table>
@@ -381,38 +392,38 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
         <tbody>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">PVID</td>
-            <td className="py-2 px-4">{r(effectiveDeductions?.pvid).toLocaleString()} FCFA</td>
+            <td className="py-2 px-4">{formatCFA(r(effectiveDeductions?.pvid))}</td>
             </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">IRPP</td>
-            <td className="py-2 px-4">{r(effectiveDeductions?.irpp).toLocaleString()} FCFA</td>
+            <td className="py-2 px-4">{formatCFA(r(effectiveDeductions?.irpp))}</td>
           </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">CAC</td>
-            <td className="py-2 px-4">{r(effectiveDeductions?.cac).toLocaleString()} FCFA</td>
+            <td className="py-2 px-4">{formatCFA(r(effectiveDeductions?.cac))}</td>
           </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">CFC</td>
-            <td className="py-2 px-4">{r(effectiveDeductions?.cfc).toLocaleString()} FCFA</td>
+            <td className="py-2 px-4">{formatCFA(r(effectiveDeductions?.cfc))}</td>
           </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">RAV</td>
-            <td className="py-2 px-4">{r(effectiveDeductions?.rav).toLocaleString()} FCFA</td>
+            <td className="py-2 px-4">{formatCFA(r(effectiveDeductions?.rav))}</td>
           </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">TDL</td>
-            <td className="py-2 px-4">{r(effectiveDeductions?.tdl).toLocaleString()} FCFA</td>
+            <td className="py-2 px-4">{formatCFA(r(effectiveDeductions?.tdl))}</td>
           </tr>
           <tr className="border-b border-blue-100 bg-red-50">
             <td className="py-2 px-4 font-semibold">TOTAL DÉDUCTIONS</td>
-            <td className="py-2 px-4 font-semibold">{deductionsTotal.toLocaleString()} FCFA</td>
+            <td className="py-2 px-4 font-semibold">{formatCFA(deductionsTotal)}</td>
           </tr>
         </tbody>
       </table>
       
       {/* Calcul du net à payer : salaire de base + primes + indemnités - déductions */}
       <div className="bg-green-50 p-4 rounded-lg">
-        <h3 className="font-bold text-lg">NET À PAYER: {netToPay.toLocaleString()} FCFA</h3>
+        <h3 className="font-bold text-lg">NET À PAYER: {formatCFA(netToPay)}</h3>
       </div>
       
       {/* Avertissements sur les déductions */}

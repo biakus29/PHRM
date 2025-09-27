@@ -17,12 +17,8 @@ const PaySlipTemplate = ({
 }) => {
   
   const formatAmount = (amount) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XAF',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
+    const n = Number(amount) || 0;
+    return `${n.toLocaleString('fr-FR')} FCFA`;
   };
 
   const formatDate = (date) => {

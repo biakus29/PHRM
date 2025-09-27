@@ -3,24 +3,16 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 const ContractTemplate = ({ 
-  employee, 
   employer, 
   contract, 
   template = "default" // "default", "modern", "minimal", "legal"
 }) => {
   
   const formatAmount = (amount) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XAF',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
+    const n = Number(amount) || 0;
+    return `${n.toLocaleString('fr-FR')} XAF`;
   };
 
-  const formatDate = (date) => {
-    return format(new Date(date), 'dd/MM/yyyy', { locale: fr });
-  };
 
   const templates = {
     default: {

@@ -34,3 +34,12 @@ export function computeGrossTotal(amounts) {
   return fields.reduce((sum, k) => sum + (Number(amounts?.[k]) || 0), 0);
 }
 
+// ==================== FONCTIONS DE LABELS MANQUANTES ====================
+
+export const getPVIDLabel = () => 'PVID (CNPS)';
+export const getIRPPLabel = () => 'IRPP';
+export const getTDLLabel = () => 'TDL';
+export const getRAVLabel = () => 'RAV';
+export const getCFCLabel = () => 'CFC';
+export const getFNELabel = () => 'FNE';
+

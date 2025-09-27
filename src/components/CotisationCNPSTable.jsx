@@ -1052,7 +1052,6 @@ const CotisationCNPSTable = ({
         </div>
       </div>
 
-
       {/* Résumé Employeur - Charges patronales */}
       <div className="mt-8 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="bg-green-500 text-white p-4">

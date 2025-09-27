@@ -23,7 +23,7 @@ import { useNavigate } from "react-router-dom";
 import { exportToXLSX, exportToCSV } from "../utils/fileIO";
 import { buildCommonOptions } from "../utils/chartConfig";
 import { ToastContainer, toast } from "react-toastify";
-// import { calculateDeductions } from "../utils/payrollUtils"; // plus utilisé ici
+// import { calculateDeductions } from "../utils/payrollUtils"; // plus utilisÃ© ici
 import "react-toastify/dist/ReactToastify.css";
 import {
   Users,
@@ -139,7 +139,7 @@ const CompanyAdminDashboard = () => {
   const [newEmployee, setNewEmployee] = useState({
   name: "",
   email: "",
-  role: "Employé",
+  role: "EmployÃ©",
   poste: "",
   phone: "",
   department: "",
@@ -148,7 +148,7 @@ const CompanyAdminDashboard = () => {
   cnpsNumber: "",
   professionalCategory: "",
   category: "",
-  baseSalary: 0, // Changé de "" à 0 pour garantir un type nombre
+  baseSalary: 0, // ChangÃ© de "" Ã  0 pour garantir un type nombre
   contract: null,
   contractFile: null,
   hoursPerMonth: 160,
@@ -192,24 +192,24 @@ const CompanyAdminDashboard = () => {
   const [allResidences, setAllResidences] = useState([]);
   const [allLieuNaissance, setAllLieuNaissance] = useState([]);
 
-  // Dans le composant CompanyAdminDashboard, juste avant le JSX du formulaire d'employé :
+  // Dans le composant CompanyAdminDashboard, juste avant le JSX du formulaire d'employÃ© :
   const [dateOfBirthError, setDateOfBirthError] = useState("");
 
-  // ... autres hooks d'état ...
+  // ... autres hooks d'Ã©tat ...
   // ... reste du composant ...
 
   const [selectedBadgeModel, setSelectedBadgeModel] = useState("BadgeModel1");
   const [selectedQRType, setSelectedQRType] = useState("userInfo");
   const [showQRScanner, setShowQRScanner] = useState(false);
   
-  // États pour les modèles de templates
+  // Ã‰tats pour les modÃ¨les de templates
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   // Align default with implemented PDF renderer keys: 'eneo', 'classic', 'bulletin_paie', 'compta_online', 'enterprise'
   const [selectedPaySlipTemplate, setSelectedPaySlipTemplate] = useState("eneo");
   const [selectedContractTemplate, setSelectedContractTemplate] = useState("contract1");
 
   function formatDateOfBirthInput(value) {
-    // Si l'utilisateur tape 8 chiffres d'affilée, on formate automatiquement
+    // Si l'utilisateur tape 8 chiffres d'affilÃ©e, on formate automatiquement
     const onlyDigits = value.replace(/\D/g, "");
     if (onlyDigits.length === 8) {
       return onlyDigits.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
@@ -226,18 +226,18 @@ const CompanyAdminDashboard = () => {
     if (!value) return "";
     const regex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/(19|20)\d\d$/;
     if (!regex.test(value)) return "Format attendu : JJ/MM/AAAA";
-    // Vérifie que la date existe
+    // VÃ©rifie que la date existe
     const [jour, mois, annee] = value.split("/").map(Number);
     const d = new Date(annee, mois - 1, jour);
     if (d.getFullYear() !== annee || d.getMonth() !== mois - 1 || d.getDate() !== jour) return "Date invalide";
     return "";
   }
 
-  // Fonction pour convertir le format français (JJ/MM/AAAA) en format ISO
+  // Fonction pour convertir le format franÃ§ais (JJ/MM/AAAA) en format ISO
   function convertFrenchDateToISO(frenchDate) {
     if (!frenchDate || !frenchDate.trim()) return null;
     
-    // Vérifier le format français
+    // VÃ©rifier le format franÃ§ais
     const regex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/(19|20)\d\d$/;
     if (!regex.test(frenchDate)) return null;
     
@@ -245,7 +245,7 @@ const CompanyAdminDashboard = () => {
     const [jour, mois, annee] = frenchDate.split("/").map(Number);
     const date = new Date(annee, mois - 1, jour);
     
-    // Vérifier que la date est valide
+    // VÃ©rifier que la date est valide
     if (date.getFullYear() !== annee || date.getMonth() !== mois - 1 || date.getDate() !== jour) {
       return null;
     }
@@ -254,7 +254,7 @@ const CompanyAdminDashboard = () => {
   }
 
   useEffect(() => {
-    // Collecte toutes les adresses et lieux de naissance uniques (insensible à la casse)
+    // Collecte toutes les adresses et lieux de naissance uniques (insensible Ã  la casse)
     if (employees && employees.length > 0) {
       const residencesSet = new Map();
       const lieuNaissanceSet = new Map();
@@ -291,7 +291,7 @@ const CompanyAdminDashboard = () => {
     }
   }, [showPaySlipDetails]);
 
-  // Fonction pour afficher les détails d'une fiche de paie
+  // Fonction pour afficher les dÃ©tails d'une fiche de paie
   const showPaySlipDetailsModal = (payslip, employee) => {
     setSelectedPaySlip(payslip);
     setSelectedEmployee(employee);
@@ -309,11 +309,11 @@ const CompanyAdminDashboard = () => {
   mode: 'create'        // 'create' | 'edit'
 });
 
-// Fonction utilitaire pour s'assurer que tous les nouveaux champs sont présents
+// Fonction utilitaire pour s'assurer que tous les nouveaux champs sont prÃ©sents
 const ensureEmployeeFields = (employee) => {
   return {
     ...employee,
-    // S'assurer que les nouveaux champs sont présents même s'ils n'existent pas encore
+    // S'assurer que les nouveaux champs sont prÃ©sents mÃªme s'ils n'existent pas encore
     diplomas: employee.diplomas || '',
     echelon: employee.echelon || '',
     service: employee.service || '',
@@ -343,7 +343,7 @@ useEffect(() => {
   }
 }, [companyData?.id]);
 
-  // Fonction pour vérifier la taille du stockage local
+  // Fonction pour vÃ©rifier la taille du stockage local
   const getLocalStorageSize = useCallback(() => {
     let total = 0;
     for (const x in localStorage) {
@@ -364,9 +364,9 @@ const deletePaySlip = async (employeeId, payslipId) => {
     await svcUpdateEmployeePayslips(db, companyData.id, employeeId, removeUndefined(updatedPayslips));
     setEmployees((prev) => prev.map((emp) => emp.id === employeeId ? { ...emp, payslips: updatedPayslips } : emp));
     setFilteredEmployees((prev) => prev.map((emp) => emp.id === employeeId ? { ...emp, payslips: updatedPayslips } : emp));
-    // Mettre à jour selectedEmployee si c'est le même employé
+    // Mettre Ã  jour selectedEmployee si c'est le mÃªme employÃ©
     setSelectedEmployee(prev => prev && prev.id === employeeId ? { ...prev, payslips: updatedPayslips } : prev);
-      toast.success("Fiche de paie supprimée avec succès !");
+      toast.success("Fiche de paie supprimÃ©e avec succÃ¨s !");
     } catch (error) {
       console.error("[deletePaySlip] Erreur:", error.message);
       toast.error(`Erreur lors de la suppression de la fiche de paie: ${error.message}`);
@@ -374,12 +374,12 @@ const deletePaySlip = async (employeeId, payslipId) => {
       setActionLoading(false);
     }
   };
-  // Gestion du téléchargement du logo
+  // Gestion du tÃ©lÃ©chargement du logo
  const handleLogoUpload = (file, companyId, callback) => {
-   console.log(`[handleLogoUpload] Début upload logo, type: ${file.type}, taille: ${(file.size / 1024).toFixed(2)} Ko`);
+   console.log(`[handleLogoUpload] DÃ©but upload logo, type: ${file.type}, taille: ${(file.size / 1024).toFixed(2)} Ko`);
    if (!file.type.match(/image\/(png|jpeg)/)) {
-     console.warn("[handleLogoUpload] Format d'image non supporté:", file.type);
-     toast.error("Seuls les formats PNG et JPEG sont supportés.");
+     console.warn("[handleLogoUpload] Format d'image non supportÃ©:", file.type);
+     toast.error("Seuls les formats PNG et JPEG sont supportÃ©s.");
      return null;
    }
  
@@ -396,17 +396,17 @@ const deletePaySlip = async (employeeId, payslipId) => {
      
      if (getLocalStorageSize() + dataUrl.length / 1024 / 1024 > 4.5) {
        console.warn(`[handleLogoUpload] localStorage presque plein (${getLocalStorageSize().toFixed(2)} Mo)`);
-       toast.warn("Stockage local presque plein. Videz le cache ou réduisez la taille du logo.");
+       toast.warn("Stockage local presque plein. Videz le cache ou rÃ©duisez la taille du logo.");
        return;
      }
  
      try {
        localStorage.setItem(`logo_${companyId}`, dataUrl);
-       console.log(`[handleLogoUpload] Logo stocké dans localStorage pour companyId: ${companyId}`);
+       console.log(`[handleLogoUpload] Logo stockÃ© dans localStorage pour companyId: ${companyId}`);
        callback(dataUrl);
      } catch (e) {
-       console.error(`[handleLogoUpload] Échec stockage localStorage: ${e.message}`);
-       toast.error("Échec du stockage local : limite dépassée. Réduisez la taille du logo.");
+       console.error(`[handleLogoUpload] Ã‰chec stockage localStorage: ${e.message}`);
+       toast.error("Ã‰chec du stockage local : limite dÃ©passÃ©e. RÃ©duisez la taille du logo.");
      }
    };
    reader.onerror = () => {
@@ -417,15 +417,15 @@ const deletePaySlip = async (employeeId, payslipId) => {
    return null;
  };
 
-  // Charger les données depuis Firebase
+  // Charger les donnÃ©es depuis Firebase
   useEffect(() => {
     let unsubscribe;
     const fetchData = async () => {
       console.log('[DEBUG] useEffect fetchData: auth.currentUser =', auth.currentUser);
       const user = auth.currentUser;
       if (!user) {
-        setErrorMessage("Utilisateur non authentifié.");
-        toast.error("Utilisateur non authentifié, redirection vers login.");
+        setErrorMessage("Utilisateur non authentifiÃ©.");
+        toast.error("Utilisateur non authentifiÃ©, redirection vers login.");
         navigate("/client-admin-login");
         return;
       }
@@ -447,19 +447,19 @@ const deletePaySlip = async (employeeId, payslipId) => {
               setLoading(false);
             },
             (error) => {
-              console.error("Erreur chargement employés:", error);
-              toast.error("Erreur chargement employés");
+              console.error("Erreur chargement employÃ©s:", error);
+              toast.error("Erreur chargement employÃ©s");
               setLoading(false);
             }
           );
         } else {
-          setErrorMessage("Aucun client trouvé pour cet utilisateur.");
-          toast.error("Aucun client trouvé pour cet utilisateur.");
+          setErrorMessage("Aucun client trouvÃ© pour cet utilisateur.");
+          toast.error("Aucun client trouvÃ© pour cet utilisateur.");
           setLoading(false);
         }
       } catch (error) {
-        console.error("Erreur chargement données:", error);
-        toast.error("Erreur chargement données");
+        console.error("Erreur chargement donnÃ©es:", error);
+        toast.error("Erreur chargement donnÃ©es");
         setLoading(false);
       }
     };
@@ -471,53 +471,53 @@ const deletePaySlip = async (employeeId, payslipId) => {
     };
   }, [navigate]);
 
-// Mettre à jour un employé (via service)
+// Mettre Ã  jour un employÃ© (via service)
 const updateEmployee = useCallback(async (id, updatedData) => {
   try {
     setActionLoading(true);
 
-    // Vérifier companyData.id
+    // VÃ©rifier companyData.id
     if (!companyData?.id) {
       throw new Error("ID de l'entreprise manquant.");
     }
 
-    // Vérifier l'ID de l'employé
+    // VÃ©rifier l'ID de l'employÃ©
     if (!id) {
-      throw new Error("ID de l'employé manquant.");
+      throw new Error("ID de l'employÃ© manquant.");
     }
 
-    // Valider les données
+    // Valider les donnÃ©es
     if (!updatedData || Object.keys(updatedData).length === 0) {
-      throw new Error("Aucune donnée à mettre à jour.");
+      throw new Error("Aucune donnÃ©e Ã  mettre Ã  jour.");
     }
     if (updatedData.baseSalary && (isNaN(updatedData.baseSalary) || Number(updatedData.baseSalary) < 36270)) {
-      throw new Error("Le salaire de base doit être un nombre supérieur ou égal à 36270 FCFA.");
+      throw new Error("Le salaire de base doit Ãªtre un nombre supÃ©rieur ou Ã©gal Ã  36270 FCFA.");
     }
     if (updatedData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updatedData.email)) {
       throw new Error("Email invalide.");
     }
 
-    // Mettre à jour via service
+    // Mettre Ã  jour via service
     await svcUpdateEmployee(db, companyData.id, id, {
       ...updatedData,
       updatedAt: new Date().toISOString(),
     });
-    toast.success("Employé mis à jour avec succès !");
+    toast.success("EmployÃ© mis Ã  jour avec succÃ¨s !");
   } catch (error) {
-    console.error("[updateEmployee] Erreur détaillée:", error.code, error.message);
+    console.error("[updateEmployee] Erreur dÃ©taillÃ©e:", error.code, error.message);
     const errorMessages = {
-      "permission-denied": "Vous n'avez pas les permissions nécessaires. Vérifiez votre authentification ou contactez l'administrateur.",
-      "not-found": "L'employé ou l'entreprise spécifiée n'existe pas.",
-      "invalid-argument": "Les données fournies sont invalides. Vérifiez les champs saisis.",
-      "failed-precondition": "Une condition préalable n'est pas remplie. Vérifiez la configuration Firestore.",
+      "permission-denied": "Vous n'avez pas les permissions nÃ©cessaires. VÃ©rifiez votre authentification ou contactez l'administrateur.",
+      "not-found": "L'employÃ© ou l'entreprise spÃ©cifiÃ©e n'existe pas.",
+      "invalid-argument": "Les donnÃ©es fournies sont invalides. VÃ©rifiez les champs saisis.",
+      "failed-precondition": "Une condition prÃ©alable n'est pas remplie. VÃ©rifiez la configuration Firestore.",
     };
-    toast.error(errorMessages[error.code] || `Erreur lors de la mise à jour de l'employé : ${error.message}`);
+    toast.error(errorMessages[error.code] || `Erreur lors de la mise Ã  jour de l'employÃ© : ${error.message}`);
   } finally {
     setActionLoading(false);
   }
 }, [companyData]);
 
-// Ajouter un employé (via service)
+// Ajouter un employÃ© (via service)
 const addEmployee = async (e) => {
   e.preventDefault();
   setActionLoading(true);
@@ -533,15 +533,15 @@ const addEmployee = async (e) => {
     }
     if (!newEmployee.poste) throw new Error("Le poste est requis.");
     if (!newEmployee.hireDate) throw new Error("La date d'embauche est requise.");
-    if (!newEmployee.cnpsNumber) throw new Error("Le numéro CNPS est requis.");
-    if (!newEmployee.professionalCategory) throw new Error("La catégorie professionnelle est requise.");
+    if (!newEmployee.cnpsNumber) throw new Error("Le numÃ©ro CNPS est requis.");
+    if (!newEmployee.professionalCategory) throw new Error("La catÃ©gorie professionnelle est requise.");
     if (newEmployee.baseSalary === undefined || isNaN(newEmployee.baseSalary) || Number(newEmployee.baseSalary) < 0) {
-      throw new Error("Le salaire de base doit être un nombre positif.");
+      throw new Error("Le salaire de base doit Ãªtre un nombre positif.");
     }
     if (!newEmployee.matricule) {
-      throw new Error("Le matricule est requis. Veuillez saisir un matricule pour l'employé.");
+      throw new Error("Le matricule est requis. Veuillez saisir un matricule pour l'employÃ©.");
     }
-    // Prépare le contrat à partir des seuls champs utiles pour le PDF
+    // PrÃ©pare le contrat Ã  partir des seuls champs utiles pour le PDF
     const contractData = {
       name: newEmployee.name,
       poste: newEmployee.poste,
@@ -557,7 +557,7 @@ const addEmployee = async (e) => {
     let employeeId;
     if (newEmployee.id) {
       console.log('[DEBUG] addEmployee: update existing employee', newEmployee.id);
-      // Convertir la date de naissance du format français vers ISO
+      // Convertir la date de naissance du format franÃ§ais vers ISO
       const employeeData = {
         ...newEmployee,
         dateOfBirth: convertFrenchDateToISO(newEmployee.dateOfBirth),
@@ -570,7 +570,7 @@ const addEmployee = async (e) => {
       toast.success("Employé modifié avec succès !");
     } else {
       console.log('[DEBUG] addEmployee: add new employee', newEmployee);
-      // Convertir la date de naissance du format français vers ISO
+      // Convertir la date de naissance du format franÃ§ais vers ISO
       const employeeData = {
         ...newEmployee,
         dateOfBirth: convertFrenchDateToISO(newEmployee.dateOfBirth),
@@ -584,7 +584,7 @@ const addEmployee = async (e) => {
       employeeId = await svcAddEmployee(db, companyData.id, employeeData);
       toast.success("Employé ajouté avec succès !");
     }
-    // Génère automatiquement le PDF du contrat avec uniquement les champs utiles
+    // GÃ©nÃ¨re automatiquement le PDF du contrat avec uniquement les champs utiles
     setTimeout(() => {
       if (window.generateContractPDF) {
         window.generateContractPDF({
@@ -627,8 +627,8 @@ const addEmployee = async (e) => {
       clauses: "",
     });
   } catch (error) {
-    console.error("[addEmployee] Erreur détaillée:", error.code, error.message);
-    toast.error(`Erreur lors de l'ajout/modification de l'employé : ${error.message}`);
+    console.error("[addEmployee] Erreur dÃ©taillÃ©e:", error.code, error.message);
+    toast.error(`Erreur lors de l'ajout/modification de l'employÃ© : ${error.message}`);
   } finally {
     setActionLoading(false);
   }
@@ -643,8 +643,8 @@ const saveContract = async (contractData) => {
       trialPeriodDuration: contractData.trialPeriod || "",
       updatedAt: new Date().toISOString(),
     });
-    toast.success("Contrat enregistré avec succès !");
-    // Mettre à jour localement l'employé sélectionné
+    toast.success("Contrat enregistrÃ© avec succÃ¨s !");
+    // Mettre Ã  jour localement l'employÃ© sÃ©lectionnÃ©
     setSelectedEmployee((prev) => ({
       ...prev,
       contract: contractData,
@@ -659,23 +659,23 @@ const saveContract = async (contractData) => {
     setActionLoading(false);
   }
 };
-  // Supprimer un employé
+  // Supprimer un employÃ©
   const deleteEmployee = useCallback(async (id) => {
-    if (!window.confirm("Supprimer cet employé ?")) return;
+    if (!window.confirm("Supprimer cet employÃ© ?")) return;
     try {
       setActionLoading(true);
       await svcDeleteEmployee(db, companyData.id, id);
       await svcSetCompanyUserCount(db, companyData.id, employees.length - 1);
       toast.success("Employé supprimé !");
     } catch (error) {
-      console.error("Erreur suppression employé:", error);
-      toast.error("Erreur suppression employé");
+      console.error("Erreur suppression employÃ©:", error);
+      toast.error("Erreur suppression employÃ©");
     } finally {
       setActionLoading(false);
     }
   }, [companyData, employees]);
 
-  // Gérer les demandes de congé
+  // GÃ©rer les demandes de congÃ©
   const handleLeaveRequest = useCallback(async (employeeId, requestIndex, action) => {
     const employee = employees.find((emp) => emp.id === employeeId);
     if (!employee || !employee.leaves.requests[requestIndex]) {
@@ -690,14 +690,14 @@ const saveContract = async (contractData) => {
       updatedRequests[requestIndex] = { ...request, status: action };
       updatedHistory.push({ ...request, status: action });
       let updatedBalance = employee.leaves.balance;
-      if (action === "Approuvé") updatedBalance -= request.days;
+      if (action === "ApprouvÃ©") updatedBalance -= request.days;
       await updateEmployee(employeeId, {
         leaves: { balance: updatedBalance, requests: updatedRequests, history: updatedHistory },
       });
-      toast.success(`Demande de congé ${action.toLowerCase()} !`);
+      toast.success(`Demande de congÃ© ${action.toLowerCase()} !`);
     } catch (error) {
-      console.error("Erreur gestion congé:", error);
-      toast.error("Erreur gestion congé");
+      console.error("Erreur gestion congÃ©:", error);
+      toast.error("Erreur gestion congÃ©");
     } finally {
       setActionLoading(false);
     }
@@ -719,7 +719,7 @@ const saveContract = async (contractData) => {
       ];
       await updateEmployee(newAbsence.employeeId, { absences: updatedAbsences });
       setNewAbsence({ employeeId: "", date: "", reason: "", duration: 1 });
-      toast.success("Absence enregistrée !");
+      toast.success("Absence enregistrÃ©e !");
     } catch (error) {
       console.error("Erreur enregistrement absence:", error);
       toast.error("Erreur enregistrement absence");
@@ -746,7 +746,7 @@ const saveContract = async (contractData) => {
       });
       await Promise.all(promises);
       setNewNotification("");
-      toast.success("Notification envoyée à tous les employés !");
+      toast.success("Notification envoyÃ©e Ã  tous les employÃ©s !");
     } catch (error) {
       console.error("Erreur envoi notification:", error);
       toast.error("Erreur envoi notification");
@@ -755,59 +755,59 @@ const saveContract = async (contractData) => {
     }
   }, [employees, newNotification, updateEmployee]);
 
-  // Générer un rapport PDF
+  // Generer un rapport PDF
   const generatePDFReport = useCallback(() => {
     generatePDFReportUtil(companyData, employees, setActionLoading);
   }, [companyData, employees]);
 
-  // Générer un rapport Excel
+  // Generer un rapport Excel
   const generateExcelReport = useCallback(() => {
     try {
       setActionLoading(true);
       const rows = employees.map((emp) => ({
         Nom: emp.name,
         Email: emp.email,
-        Rôle: emp.role,
+        Role: emp.role,
         Poste: emp.poste,
-        Département: emp.department || "N/A",
+        Departement: emp.department || "N/A",
         "Date d'embauche": displayHireDate(emp.hireDate),
         Statut: emp.status,
-        "Solde Congés": emp.leaves.balance,
+        "Solde Conges": emp.leaves.balance,
       }));
-      exportToXLSX(rows, `${companyData.name}_rapport.xlsx`, "Employés");
-      toast.success("Rapport Excel généré !");
+      exportToXLSX(rows, `${companyData.name}_rapport.xlsx`, "Employes");
+      toast.success("Rapport Excel genere !");
     } catch (error) {
-      console.error("Erreur génération Excel:", error);
-      toast.error("Erreur génération Excel");
+      console.error("Erreur generation Excel:", error);
+      toast.error("Erreur generation Excel");
     } finally {
       setActionLoading(false);
     }
   }, [companyData, employees]);
 
-  // Générer un rapport CSV
+  // Generer un rapport CSV
   const generateCSVReport = useCallback(() => {
     try {
       setActionLoading(true);
       const rows = employees.map((emp) => ({
         Nom: emp.name,
         Email: emp.email,
-        Rôle: emp.role,
+        Role: emp.role,
         Poste: emp.poste,
-        Département: emp.department || "N/A",
+        Departement: emp.department || "N/A",
         "Date d'embauche": displayHireDate(emp.hireDate),
         Statut: emp.status,
-        "Solde Congés": emp.leaves.balance,
+        "Solde Conges": emp.leaves.balance,
       }));
       exportToCSV(rows, `${companyData.name}_rapport.csv`);
-      toast.success("Rapport CSV généré !");
+      toast.success("Rapport CSV genere !");
     } catch (error) {
-      console.error("Erreur génération CSV:", error);
-      toast.error("Erreur génération CSV");
+      console.error("Erreur generation CSV:", error);
+      toast.error("Erreur generation CSV");
     } finally {
       setActionLoading(false);
     }
   }, [companyData, employees]);
-  // mise à jour
+  // mise Ã  jour
 
 const migrateEmployeeSalaries = async () => {
   setActionLoading(true);
@@ -827,7 +827,7 @@ const migrateEmployeeSalaries = async () => {
     });
 
     await batch.commit();
-    toast.success("Migration des salaires terminée avec succès !");
+    toast.success("Migration des salaires terminÃ©e avec succÃ¨s !");
   } catch (error) {
     console.error("[migrateEmployeeSalaries] Erreur:", error.message);
     toast.error("Erreur lors de la migration des salaires.");
@@ -844,16 +844,16 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
     }
     const employee = employees.find((emp) => emp.id === selectedEmployee.id);
     if (!employee) {
-      throw new Error("Employé non trouvé.");
+      throw new Error("EmployÃ© non trouvÃ©.");
     }
     const newBaseSalary = Number(paySlipData?.salaryDetails?.baseSalary || 0);
     if (newBaseSalary < 36270) {
-      throw new Error("Le salaire de base doit être supérieur ou égal à 36270 FCFA.");
+      throw new Error("Le salaire de base doit Ãªtre supÃ©rieur ou Ã©gal Ã  36270 FCFA.");
     }
     if (newBaseSalary !== Number(employee.baseSalary)) {
       await svcUpdateEmployeeBaseSalary(db, companyData.id, selectedEmployee.id, newBaseSalary);
     }
-    // Recalcul avec fonctions centralisées pour garantir la cohérence
+    // Recalcul avec fonctions centralisÃ©es pour garantir la cohÃ©rence
     const payrollCalc = computeNetPay({
       salaryDetails: paySlipData?.salaryDetails || {},
       remuneration: paySlipData?.remuneration || {},
@@ -875,19 +875,19 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
       remuneration: {
         workedDays: Number(paySlipData?.remuneration?.workedDays || 30),
         overtime: Number(paySlipData?.remuneration?.overtime || 0),
-        total: payrollCalc.grossTotal, // Utilise le calcul centralisé
+        total: payrollCalc.grossTotal, // Utilise le calcul centralisÃ©
       },
       deductions: {
-        pvid: payrollCalc.deductions.pvid, // PVID corrigé (4.2% du salaire de base)
+        pvid: payrollCalc.deductions.pvid, // PVID corrigÃ© (4.2% du salaire de base)
         pvis: payrollCalc.deductions.pvid, // Backward compatibility
         irpp: payrollCalc.deductions.irpp,
         cac: payrollCalc.deductions.cac,
         cfc: payrollCalc.deductions.cfc,
         rav: payrollCalc.deductions.rav,
-        tdl: payrollCalc.deductions.tdl, // TDL corrigé (10% de l'IRPP)
+        tdl: payrollCalc.deductions.tdl, // TDL corrigÃ© (10% de l'IRPP)
         total: payrollCalc.deductionsTotal,
       },
-      // Ajouter le net à payer calculé
+      // Ajouter le net Ã  payer calculÃ©
       netPay: payrollCalc.netPay,
     };
     let updatedPayslips = [...(employee.payslips || [])];
@@ -895,15 +895,15 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
       // Modification : remplacer la fiche existante par id
       updatedPayslips = updatedPayslips.map(ps => ps.id === payslipId ? safePaySlipData : ps);
     } else {
-      // Création : ajouter une nouvelle fiche
+      // CrÃ©ation : ajouter une nouvelle fiche
       updatedPayslips.push(safePaySlipData);
     }
     await svcUpdateEmployeePayslips(db, companyData.id, selectedEmployee.id, removeUndefined(updatedPayslips));
     setEmployees((prev) => prev.map((emp) => emp.id === selectedEmployee.id ? { ...emp, payslips: updatedPayslips } : emp));
     setFilteredEmployees((prev) => prev.map((emp) => emp.id === selectedEmployee.id ? { ...emp, payslips: updatedPayslips } : emp));
-    // Mettre à jour selectedEmployee avec les nouvelles données
+    // Mettre Ã  jour selectedEmployee avec les nouvelles donnÃ©es
     setSelectedEmployee(prev => prev ? { ...prev, payslips: updatedPayslips } : prev);
-    toast.success(`Fiche de paie ${payslipId ? "modifiée" : "enregistrée"} avec succès !`);
+    toast.success(`Fiche de paie ${payslipId ? "modifiÃ©e" : "enregistrÃ©e"} avec succÃ¨s !`);
   } catch (error) {
     console.error("[savePaySlip] Erreur:", error.message);
     toast.error(`Erreur lors de l'enregistrement de la fiche de paie: ${error.message}`);
@@ -911,22 +911,22 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
     setActionLoading(false);
   }
 };
-  // Déconnexion
+  // DÃ©connexion
   const handleLogout = useCallback(async () => {
     try {
       setActionLoading(true);
       await auth.signOut();
       navigate("/client-admin-login");
-      toast.info("Déconnexion réussie.");
+      toast.info("DÃ©connexion rÃ©ussie.");
     } catch (error) {
-      console.error("Erreur déconnexion:", error);
-      toast.error("Erreur déconnexion");
+      console.error("Erreur dÃ©connexion:", error);
+      toast.error("Erreur dÃ©connexion");
     } finally {
       setActionLoading(false);
     }
   }, [navigate]);
 
-  // Filtrer les employés
+  // Filtrer les employÃ©s
   const filteredEmployees = useMemo(() => {
     let result = [...employees];
     if (searchQuery) {
@@ -946,13 +946,13 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
     });
   }, [employees, searchQuery, sortBy]);
 
-  // Filtrer les demandes de congé
+  // Filtrer les demandes de congÃ©
   const filteredLeaveRequests = useMemo(() => {
     if (leaveFilter === "Tous") return leaveRequests;
     return leaveRequests.filter((req) => req.status === leaveFilter);
   }, [leaveRequests, leaveFilter]);
 
-  // Données pour les graphiques (via utilitaires)
+  // DonnÃ©es pour les graphiques (via utilitaires)
   const doughnutData = buildLeaveTypeDoughnut();
   const barData = buildDepartmentBar();
   const lineData = buildMonthlyTrendsLine();
@@ -970,7 +970,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
         <div className="bg-red-100 text-red-800 p-4 rounded-lg flex items-start gap-3">
           <XCircle className="h-5 w-5 mt-0.5" />
-          <p>{errorMessage || "Aucune donnée disponible."}</p>
+          <p>{errorMessage || "Aucune donnÃ©e disponible."}</p>
         </div>
       </div>
     );
@@ -1009,19 +1009,19 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                 <Card className="bg-gradient-to-br from-blue-600 to-blue-400 text-white">
                   <div className="p-6">
                     <Users className="w-8 h-8 mb-2" />
-                    <p className="text-sm">Employés Actifs</p>
+                    <p className="text-sm">Employes Actifs</p>
                     <p className="text-2xl font-bold">{employees.filter(emp => emp.status === 'Actif').length}</p>
                     <p className="text-sm mt-2">
                       {employees.filter(emp => emp.status === 'Actif').length > 0 
                         ? `${employees.filter(emp => emp.status === 'Actif').length} actifs`
-                        : 'Aucun employé actif'}
+                        : 'Aucun employÃ© actif'}
                     </p>
                   </div>
                 </Card>
                 <Card className="bg-gradient-to-br from-green-600 to-green-400 text-white">
                   <div className="p-6">
                     <Calendar className="w-8 h-8 mb-2" />
-                    <p className="text-sm">Demandes de Congés</p>
+                    <p className="text-sm">Demandes de Conges</p>
                     <p className="text-2xl font-bold">{leaveRequests.filter(req => req.status === 'En attente').length}</p>
                     <p className="text-sm mt-2">
                       {leaveRequests.filter(req => req.status === 'En attente').length > 0
@@ -1095,11 +1095,11 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                   </div>
                 </Card>
               </div>
-              <Suspense fallback={<div className="p-4">Chargement des graphiques…</div>}>
+              <Suspense fallback={<div className="p-4">Chargement des graphiquesâ€¦</div>}>
                 <ChartsSection />
               </Suspense>
               
-              {/* Nouvelles métriques financières */}
+              {/* Nouvelles mÃ©triques financiÃ¨res */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <Card className="bg-gradient-to-br from-emerald-600 to-emerald-400 text-white">
                   <div className="p-4">
@@ -1130,7 +1130,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                         return Math.round(totalSalary / activeEmployees.length).toLocaleString();
                       })()} FCFA
                     </p>
-                    <p className="text-xs mt-1">Par employé actif</p>
+                    <p className="text-xs mt-1">Par employÃ© actif</p>
                   </div>
                 </Card>
                 <Card className="bg-gradient-to-br from-orange-600 to-orange-400 text-white">
@@ -1150,13 +1150,13 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                         }, 0);
                       })()}
                     </p>
-                    <p className="text-xs mt-1">Générées ce mois</p>
+                    <p className="text-xs mt-1">GÃ©nÃ©rÃ©es ce mois</p>
                   </div>
                 </Card>
                 <Card className="bg-gradient-to-br from-pink-600 to-pink-400 text-white">
                   <div className="p-4">
                     <Users className="w-6 h-6 mb-2" />
-                    <p className="text-xs">Taux d'Activité</p>
+                    <p className="text-xs">Taux d'ActivitÃ©</p>
                     <p className="text-xl font-bold">
                       {(() => {
                         const totalEmployees = employees.length;
@@ -1165,22 +1165,22 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                         return Math.round((activeEmployees / totalEmployees) * 100) + '%';
                       })()}
                     </p>
-                    <p className="text-xs mt-1">Employés actifs</p>
+                    <p className="text-xs mt-1">Employes actifs</p>
                   </div>
                 </Card>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card title="Demandes de Congés Récentes">
+                <Card title="Demandes de Conges Recentes">
                   <LeaveRequestsRecent employees={employees} requests={filteredLeaveRequests} />
                 </Card>
                 
-                <Card title="Fiches de Paie Récentes">
+                <Card title="Fiches de Paie RÃ©centes">
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-gray-200">
-                        <th className="text-left py-3 px-4">Employé</th>
-                        <th className="text-left py-3 px-4">Période</th>
-                        <th className="text-left py-3 px-4">Net à Payer</th>
+                        <th className="text-left py-3 px-4">EmployÃ©</th>
+                        <th className="text-left py-3 px-4">PÃ©riode</th>
+                        <th className="text-left py-3 px-4">Net Ã  Payer</th>
                         <th className="text-left py-3 px-4">Date</th>
                       </tr>
                     </thead>
@@ -1248,18 +1248,18 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                     setActiveTab("payslips");
                   }} className="p-4 bg-green-50 hover:bg-green-100 text-left">
                     <CreditCard className="w-8 h-8 text-green-600 mb-2" />
-                    <h3 className="font-semibold">Générer Fiche</h3>
-                    <p className="text-sm text-gray-600">Créer une fiche de paie</p>
+                    <h3 className="font-semibold">Generer Fiche</h3>
+                    <p className="text-sm text-gray-600">Creer une fiche de paie</p>
                   </Button>
                   <Button onClick={() => setActiveTab("leaves")} className="p-4 bg-yellow-50 hover:bg-yellow-100 text-left">
                     <Calendar className="w-8 h-8 text-yellow-600 mb-2" />
-                    <h3 className="font-semibold">Gérer Congés</h3>
+                    <h3 className="font-semibold">Gerer Conges</h3>
                     <p className="text-sm text-gray-600">Voir les demandes</p>
                   </Button>
                   <Button onClick={() => setActiveTab("payslips")} className="p-4 bg-purple-50 hover:bg-purple-100 text-left">
                     <BarChart3 className="w-8 h-8 text-purple-600 mb-2" />
                     <h3 className="font-semibold">Fiches de Paie</h3>
-                    <p className="text-sm text-gray-600">Gérer la paie</p>
+                    <p className="text-sm text-gray-600">GÃ©rer la paie</p>
                   </Button>
                 </div>
               </Card>
@@ -1268,9 +1268,9 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
 {activeTab === "employees" && (
   <div className="space-y-6">
     <div className="flex items-center justify-between">
-      <h1 className="text-3xl font-bold text-gray-900">Gestion des Employés</h1>
+      <h1 className="text-3xl font-bold text-gray-900">Gestion des Employes</h1>
       <Button onClick={() => setShowEmployeeModal(true)} icon={Plus} className="bg-blue-600 hover:bg-blue-700 text-white">
-        Ajouter Employé
+        Ajouter Employe
       </Button>
     </div>
     <Card>
@@ -1280,7 +1280,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
             <Search className="w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Rechercher un employé..."
+              placeholder="Rechercher un employÃ©..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="p-2 border border-blue-200 rounded-lg w-full"
@@ -1292,13 +1292,13 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
             className="p-2 border border-blue-200 rounded-lg"
           >
             <option value="name">Nom</option>
-            <option value="role">Rôle</option>
+            <option value="role">Role</option>
             <option value="poste">Poste</option>
             <option value="hireDate">Date d'embauche</option>
           </select>
         </div>
         {filteredEmployees.length === 0 ? (
-          <p className="text-center text-gray-500">Aucun employé trouvé.</p>
+          <p className="text-center text-gray-500">Aucun employÃ© trouvÃ©.</p>
         ) : (
           <EmployeesTable
             employees={filteredEmployees}
@@ -1307,7 +1307,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                 setSelectedEmployee(emp);
               } catch (error) {
                 console.error('[ERROR] Erreur lors du clic sur Voir:', error);
-                toast.error("Erreur lors de l'affichage des détails");
+                toast.error("Erreur lors de l'affichage des dÃ©tails");
               }
             }}
             onEdit={(emp) => {
@@ -1347,7 +1347,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
 )}
 
 <Modal isOpen={selectedEmployee && !showPaySlipForm && !showContractForm && !showPaySlip && !showContract && !showEmployeeModal} onClose={() => {
-  console.log('[DEBUG] Fermeture modal employé');
+  console.log('[DEBUG] Fermeture modal employÃ©');
   setSelectedEmployee(null);
   setShowPaySlipForm(false);
   setShowContractForm(false);
@@ -1358,7 +1358,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
 }}>
   {selectedEmployee && (
     <div className="space-y-4">
-      {console.log('[DEBUG] Affichage modal employé:', selectedEmployee)}
+      {console.log('[DEBUG] Affichage modal employÃ©:', selectedEmployee)}
       <h2 className="text-lg font-semibold">Détails de l'Employé - {selectedEmployee.name || 'N/A'}</h2>
       <img
         src={selectedEmployee.profilePicture || "https://ui-avatars.com/api/?name=Inconnu&background=60A5FA&color=fff"}
@@ -1366,27 +1366,27 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
         className="w-16 h-16 rounded-full mx-auto"
         onError={(e) => (e.target.src = "https://ui-avatars.com/api/?name=Inconnu&background=60A5FA&color=fff")}
       />
-              <p><strong>Nom:</strong> {selectedEmployee.name || "Non renseigné"}</p>
-        <p><strong>Email:</strong> {selectedEmployee.email || "Non renseigné"}</p>
-        <p><strong>Poste:</strong> {selectedEmployee.poste || "Non renseigné"}</p>
-      <p><strong>Département:</strong> {typeof displayDepartment === 'function' ? displayDepartment(selectedEmployee.department) : (selectedEmployee.department || "Non renseigné")}</p>
-      <p><strong>Date d'embauche:</strong> {typeof displayDate === 'function' ? displayDate(selectedEmployee.hireDate) : (selectedEmployee.hireDate || "Non renseigné")}</p>
-      <p><strong>Statut:</strong> {selectedEmployee.status || "Non renseigné"}</p>
-      <p><strong>Numéro CNPS:</strong> {typeof displayCNPSNumber === 'function' ? displayCNPSNumber(selectedEmployee.cnpsNumber) : (selectedEmployee.cnpsNumber || "Non renseigné")}</p>
-      <p><strong>Catégorie:</strong> {typeof displayProfessionalCategory === 'function' ? displayProfessionalCategory(selectedEmployee.professionalCategory) : (selectedEmployee.professionalCategory || "Non renseigné")}</p>
-      <p><strong>Salaire de base:</strong> {typeof displaySalary === 'function' ? displaySalary(selectedEmployee.baseSalary) : (selectedEmployee.baseSalary ? selectedEmployee.baseSalary.toLocaleString() : "Non renseigné")}</p>
-      <p><strong>Diplômes:</strong> {typeof displayDiplomas === 'function' ? displayDiplomas(selectedEmployee.diplomas) : (selectedEmployee.diplomas || "Non renseigné")}</p>
-      <p><strong>Échelon:</strong> {typeof displayEchelon === 'function' ? displayEchelon(selectedEmployee.echelon) : (selectedEmployee.echelon || "Non renseigné")}</p>
-      <p><strong>Service:</strong> {typeof displayService === 'function' ? displayService(selectedEmployee.service) : (selectedEmployee.service || "Non renseigné")}</p>
-      <p><strong>Superviseur:</strong> {typeof displaySupervisor === 'function' ? displaySupervisor(selectedEmployee.supervisor) : (selectedEmployee.supervisor || "Non renseigné")}</p>
-      <p><strong>Date de naissance:</strong> {typeof displayDateOfBirth === 'function' ? displayDateOfBirth(selectedEmployee.dateOfBirth) : (selectedEmployee.dateOfBirth || "Non renseigné")}</p>
-      <p><strong>Lieu de naissance:</strong> {typeof displayPlaceOfBirth === 'function' ? displayPlaceOfBirth(selectedEmployee.lieuNaissance) : (selectedEmployee.lieuNaissance || "Non renseigné")}</p>
+              <p><strong>Nom:</strong> {selectedEmployee.name || "Non renseignÃ©"}</p>
+        <p><strong>Email:</strong> {selectedEmployee.email || "Non renseignÃ©"}</p>
+        <p><strong>Poste:</strong> {selectedEmployee.poste || "Non renseignÃ©"}</p>
+      <p><strong>Departement:</strong> {typeof displayDepartment === 'function' ? displayDepartment(selectedEmployee.department) : (selectedEmployee.department || "Non renseigne")}</p>
+      <p><strong>Date d'embauche:</strong> {typeof displayDate === 'function' ? displayDate(selectedEmployee.hireDate) : (selectedEmployee.hireDate || "Non renseignÃ©")}</p>
+      <p><strong>Statut:</strong> {selectedEmployee.status || "Non renseignÃ©"}</p>
+      <p><strong>Numero CNPS:</strong> {typeof displayCNPSNumber === 'function' ? displayCNPSNumber(selectedEmployee.cnpsNumber) : (selectedEmployee.cnpsNumber || "Non renseigne")}</p>
+      <p><strong>CatÃ©gorie:</strong> {typeof displayProfessionalCategory === 'function' ? displayProfessionalCategory(selectedEmployee.professionalCategory) : (selectedEmployee.professionalCategory || "Non renseignÃ©")}</p>
+      <p><strong>Salaire de base:</strong> {typeof displaySalary === 'function' ? displaySalary(selectedEmployee.baseSalary) : (selectedEmployee.baseSalary ? selectedEmployee.baseSalary.toLocaleString() : "Non renseignÃ©")}</p>
+      <p><strong>DiplÃ´mes:</strong> {typeof displayDiplomas === 'function' ? displayDiplomas(selectedEmployee.diplomas) : (selectedEmployee.diplomas || "Non renseignÃ©")}</p>
+      <p><strong>Ã‰chelon:</strong> {typeof displayEchelon === 'function' ? displayEchelon(selectedEmployee.echelon) : (selectedEmployee.echelon || "Non renseignÃ©")}</p>
+      <p><strong>Service:</strong> {typeof displayService === 'function' ? displayService(selectedEmployee.service) : (selectedEmployee.service || "Non renseignÃ©")}</p>
+      <p><strong>Superviseur:</strong> {typeof displaySupervisor === 'function' ? displaySupervisor(selectedEmployee.supervisor) : (selectedEmployee.supervisor || "Non renseignÃ©")}</p>
+      <p><strong>Date de naissance:</strong> {typeof displayDateOfBirth === 'function' ? displayDateOfBirth(selectedEmployee.dateOfBirth) : (selectedEmployee.dateOfBirth || "Non renseignÃ©")}</p>
+      <p><strong>Lieu de naissance:</strong> {typeof displayPlaceOfBirth === 'function' ? displayPlaceOfBirth(selectedEmployee.lieuNaissance) : (selectedEmployee.lieuNaissance || "Non renseignÃ©")}</p>
       <p><strong>Période d'essai:</strong> {selectedEmployee.hasTrialPeriod ? selectedEmployee.trialPeriodDuration || "Non renseignée" : "Non"}</p>
-      <p><strong>Matricule:</strong> {typeof displayMatricule === 'function' ? displayMatricule(selectedEmployee.matricule) : (selectedEmployee.matricule || "Non renseigné")}</p>
+      <p><strong>Matricule:</strong> {typeof displayMatricule === 'function' ? displayMatricule(selectedEmployee.matricule) : (selectedEmployee.matricule || "Non renseignÃ©")}</p>
       <div className="flex gap-4">
         <Button
           onClick={() => {
-            // Mettre à jour selectedEmployee avec les données les plus récentes
+            // Mettre Ã  jour selectedEmployee avec les donnÃ©es les plus rÃ©centes
             const updatedEmployee = employees.find(emp => emp.id === selectedEmployee.id);
             if (updatedEmployee) {
               setSelectedEmployee(updatedEmployee);
@@ -1417,7 +1417,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
           icon={selectedEmployee.contract ? Eye : Edit2}
           className="bg-green-600 hover:bg-green-700 text-white"
         >
-          {selectedEmployee.contract ? "Voir Contrat" : "Créer Contrat"}
+          {selectedEmployee.contract ? "Voir Contrat" : "CrÃ©er Contrat"}
         </Button>
 
       </div>
@@ -1445,11 +1445,11 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
             <div>
               <p className="text-sm text-gray-600">Salaire de base</p>
               <p className="font-medium">
-                {selectedEmployee.contract?.salary ? selectedEmployee.contract.salary.toLocaleString() : selectedEmployee.baseSalary?.toLocaleString() || 'Non défini'} FCFA
+                {selectedEmployee.contract?.salary ? selectedEmployee.contract.salary.toLocaleString() : selectedEmployee.baseSalary?.toLocaleString() || 'Non dÃ©fini'} XAF
               </p>
             </div>
             <div>
-              <p className="text-sm text-gray-600">Date de début</p>
+              <p className="text-sm text-gray-600">Date de dÃ©but</p>
               <p className="font-medium">
                 {displayContractStartDate(selectedEmployee.contract?.startDate)}
               </p>
@@ -1460,10 +1460,10 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
             </div>
             <div>
               <p className="text-sm text-gray-600">Poste</p>
-              <p className="font-medium">{selectedEmployee.contract?.position || selectedEmployee.poste || 'Non défini'}</p>
+              <p className="font-medium">{selectedEmployee.contract?.position || selectedEmployee.poste || 'Non dÃ©fini'}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-600">Durée du contrat</p>
+              <p className="text-sm text-gray-600">DurÃ©e du contrat</p>
               <p className="font-medium">{selectedEmployee.contract?.duration || 'Indéterminée'}</p>
             </div>
             <div>
@@ -1487,19 +1487,19 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
         <div className="flex justify-center mt-8">
           <Button
             onClick={() => {
-              console.log('[ExportContrat] Bouton Exporter PDF cliqué');
+              console.log('[ExportContrat] Bouton Exporter PDF cliquÃ©');
               if (!selectedEmployee || !selectedEmployee.contract) {
-                alert('Aucun contrat ou employé sélectionné.');
+                alert('Aucun contrat ou employÃ© sÃ©lectionnÃ©.');
                 return;
               }
-              // Vérification des champs essentiels du contrat
+              // VÃ©rification des champs essentiels du contrat
               const missing = [];
-              if (!selectedEmployee.name) missing.push("Nom de l'employé");
+              if (!selectedEmployee.name) missing.push("Nom de l'employÃ©");
               if (!selectedEmployee.matricule) missing.push('Matricule');
               if (!selectedEmployee.contract.salary && !selectedEmployee.baseSalary) missing.push('Salaire de base');
-              if (!selectedEmployee.contract.startDate) missing.push('Date de début');
+              if (!selectedEmployee.contract.startDate) missing.push('Date de dÃ©but');
               if (missing.length > 0) {
-                alert('Impossible de générer le PDF du contrat. Champs manquants :\n' + missing.map(f => '- ' + f).join('\n'));
+                alert('Impossible de gÃ©nÃ©rer le PDF du contrat. Champs manquants :\n' + missing.map(f => '- ' + f).join('\n'));
                 return;
               }
               const employerData = {
@@ -1523,16 +1523,16 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                   contractData={selectedEmployee.contract}
                   auto={true}
                   onExported={() => {
-                    console.log('[ExportContrat] onExported callback déclenché');
+                    console.log('[ExportContrat] onExported callback dÃ©clenchÃ©');
                     setTimeout(() => {
                       root.unmount();
                       document.body.removeChild(tempDiv);
-                      console.log('[ExportContrat] Composant démonté et div supprimé');
+                      console.log('[ExportContrat] Composant dÃ©montÃ© et div supprimÃ©');
                     }, 500);
                   }}
                 />
               );
-              console.log('[ExportContrat] Composant monté dans le DOM temporaire');
+              console.log('[ExportContrat] Composant montÃ© dans le DOM temporaire');
             }}
             icon={Download}
             className="bg-green-600 hover:bg-green-700 text-white"
@@ -1543,7 +1543,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
       </div>
     ) : (
       <div className="text-center py-8">
-        <p className="text-gray-500 mb-4">Aucun contrat trouvé pour cet employé.</p>
+        <p className="text-gray-500 mb-4">Aucun contrat trouvÃ© pour cet employÃ©.</p>
         <Button
           onClick={() => {
             setShowContract(false);
@@ -1552,7 +1552,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
           icon={Plus}
           className="bg-blue-600 hover:bg-blue-700 text-white"
         >
-          Créer un contrat
+          CrÃ©er un contrat
         </Button>
       </div>
     )}
@@ -1563,7 +1563,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
           {activeTab === "leaves" && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold text-gray-900">Gestion des Congés</h1>
+                <h1 className="text-3xl font-bold text-gray-900">Gestion des Conges</h1>
                 <Button onClick={() => setShowLeaveModal(true)} icon={Plus} className="bg-blue-600 hover:bg-blue-700 text-white">
                   Nouvelle Demande
                 </Button>
@@ -1574,8 +1574,8 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                   requests={filteredLeaveRequests}
                   leaveFilter={leaveFilter}
                   setLeaveFilter={setLeaveFilter}
-                  onApprove={(employeeId, idx) => handleLeaveRequest(employeeId, idx, "Approuvé")}
-                  onReject={(employeeId, idx) => handleLeaveRequest(employeeId, idx, "Rejeté")}
+                  onApprove={(employeeId, idx) => handleLeaveRequest(employeeId, idx, "ApprouvÃ©")}
+                  onReject={(employeeId, idx) => handleLeaveRequest(employeeId, idx, "RejetÃ©")}
                 />
               </Card>
 <Modal isOpen={showLeaveModal} onClose={() => setShowLeaveModal(false)}>
@@ -1584,14 +1584,14 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
       e.preventDefault();
       const employee = employees.find((emp) => emp.id === newLeaveRequest.employeeId);
       if (!employee || newLeaveRequest.days > employee.leaves.balance) {
-        toast.error("Solde de congés insuffisant ou employé invalide.");
+        toast.error("Solde de congÃ©s insuffisant ou employÃ© invalide.");
         return;
       }
       const updatedRequests = [...employee.leaves.requests, { ...newLeaveRequest, status: "En attente" }];
       updateEmployee(newLeaveRequest.employeeId, { leaves: { ...employee.leaves, requests: updatedRequests } });
       setNewLeaveRequest({ employeeId: "", date: "", days: 1, reason: "" });
       setShowLeaveModal(false);
-      toast.success("Demande de congé enregistrée !");
+      toast.success("Demande de congÃ© enregistrÃ©e !");
     }}
     className="space-y-4"
   >
@@ -1604,14 +1604,14 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
         className="p-2 border border-blue-200 rounded-lg w-full"
         required
       >
-        <option value="">Sélectionner un employé</option>
+        <option value="">SÃ©lectionner un employÃ©</option>
         {employees.map((emp) => (
           <option key={emp.id} value={emp.id}>{emp.name}</option>
         ))}
       </select>
     </div>
     <div>
-      <label className="block text-sm font-medium text-gray-600">Date de début</label>
+      <label className="block text-sm font-medium text-gray-600">Date de dÃ©but</label>
       <input
         type="date"
         value={newLeaveRequest.date}
@@ -1621,10 +1621,10 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
       />
     </div>
     <div>
-      <label className="block text-sm font-medium text-gray-600">Durée (jours)</label>
+      <label className="block text-sm font-medium text-gray-600">DurÃ©e (jours)</label>
       <input
         type="number"
-        placeholder="Durée (jours)"
+        placeholder="DurÃ©e (jours)"
         value={newLeaveRequest.days}
         onChange={(e) => setNewLeaveRequest({ ...newLeaveRequest, days: e.target.value })}
         className="p-2 border border-blue-200 rounded-lg w-full"
@@ -1655,14 +1655,14 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                 <div className="p-6">
                  <form onSubmit={recordAbsence} className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
   <div>
-    <label className="block text-sm font-medium text-gray-600">Employé</label>
+    <label className="block text-sm font-medium text-gray-600">EmployÃ©</label>
     <select
       value={newAbsence.employeeId}
       onChange={(e) => setNewAbsence({ ...newAbsence, employeeId: e.target.value })}
       className="p-2 border border-blue-200 rounded-lg"
       required
     >
-      <option value="">Sélectionner un employé</option>
+      <option value="">SÃ©lectionner un employÃ©</option>
       {employees.map((emp) => (
         <option key={emp.id} value={emp.id}>{emp.name}</option>
       ))}
@@ -1690,10 +1690,10 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
     />
   </div>
   <div>
-    <label className="block text-sm font-medium text-gray-600">Durée (jours)</label>
+    <label className="block text-sm font-medium text-gray-600">DurÃ©e (jours)</label>
     <input
       type="number"
-      placeholder="Durée (jours)"
+      placeholder="DurÃ©e (jours)"
       value={newAbsence.duration}
       onChange={(e) => setNewAbsence({ ...newAbsence, duration: e.target.value })}
       className="p-2 border border-blue-200 rounded-lg"
@@ -1741,19 +1741,19 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
             onClick={() => {
               setSelectedEmployee(null);
               setShowPaySlipForm(true);
-              setPaySlipData(null); // Réinitialiser pour nouvelle fiche
+              setPaySlipData(null); // RÃ©initialiser pour nouvelle fiche
             }}
             icon={Plus}
             className="bg-blue-600 hover:bg-blue-700 text-white"
           >
-            Générer Fiche
+            Generer Fiche
           </Button>
           <Button
             onClick={() => setShowTemplateSelector(true)}
             icon={FileText}
             className="bg-green-600 hover:bg-green-700 text-white"
           >
-            Modèles
+            ModÃ¨les
           </Button>
         </div>
         {filteredEmployees.every(emp => !emp.payslips || emp.payslips.length === 0) ? (
@@ -1766,7 +1766,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                   <th className="text-left py-3 px-4">Nom</th>
                   <th className="text-left py-3 px-4">Matricule</th>
                   <th className="text-left py-3 px-4">Poste</th>
-                  <th className="text-left py-3 px-4">Période</th>
+                  <th className="text-left py-3 px-4">PÃ©riode</th>
                   <th className="text-left py-3 px-4">Montant Net</th>
                   <th className="text-left py-3 px-4">Actions</th>
                 </tr>
@@ -1788,7 +1788,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                             primes: payslip.primes || [],
                             indemnites: payslip.indemnites || []
                           });
-                          return formatCFA(payslipCalc.netPay) + " FCFA";
+                          return formatCFA(payslipCalc.netPay);
                         })()}
                       </td>
                         <td className="py-4 px-4 flex gap-2">
@@ -1839,11 +1839,6 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
       </div>
     </Card>
 
-    {/* Cotisation CNPS Section */}
-    <Card title="Déclaration CNPS" className="mt-8">
-      {companyData?.id && <CotisationCNPS companyId={companyData.id} />}
-    </Card>
-
     {/* Modale pour afficher les fiches de paie */}
     <Modal isOpen={showPaySlip} onClose={() => setShowPaySlip(false)}>
       <div className="p-6">
@@ -1856,7 +1851,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
             <div className="flex justify-between items-center mb-4">
               <p className="text-sm text-gray-600">
                 {(selectedEmployee?.payslips?.length || 0) + 
-                 (employees.find(emp => emp.id === selectedEmployee?.id)?.payslips?.length || 0)} fiche(s) de paie trouvée(s)
+                 (employees.find(emp => emp.id === selectedEmployee?.id)?.payslips?.length || 0)} fiche(s) de paie trouvÃ©e(s)
               </p>
               <Button
                 onClick={() => {
@@ -1877,7 +1872,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                         Fiche de paie - {payslip.payPeriod}
                       </h3>
                       <p className="text-sm text-gray-600">
-                        Générée le {displayGeneratedAt(payslip.generatedAt)}
+                        GÃ©nÃ©rÃ©e le {displayGeneratedAt(payslip.generatedAt)}
                       </p>
                       <p className="text-sm text-gray-600">
                           {(() => {
@@ -1889,7 +1884,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                             indemnites: payslip.indemnites || []
                           });
                           return formatCFA(payslipCalc.netPay);
-                        })()} FCFA
+                        })()}
                       </p>
                     </div>
                     <div className="flex gap-2">
@@ -1930,7 +1925,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
           </div>
         ) : (
           <div className="text-center py-8">
-            <p className="text-gray-500 mb-4">Aucune fiche de paie trouvée pour cet employé.</p>
+            <p className="text-gray-500 mb-4">Aucune fiche de paie trouvÃ©e pour cet employÃ©.</p>
             <Button
               onClick={() => {
                 setShowPaySlipForm(true);
@@ -1938,14 +1933,14 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
               icon={Plus}
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
-              Créer une fiche de paie
+              CrÃ©er une fiche de paie
             </Button>
           </div>
         )}
       </div>
     </Modal>
 
-    {/* Modale pour afficher les détails d'une fiche de paie */}
+    {/* Modale pour afficher les dÃ©tails d'une fiche de paie */}
     <Modal isOpen={showPaySlipDetails} onClose={() => {
       setShowPaySlipDetails(false);
       setSelectedPaySlip(null);
@@ -1960,7 +1955,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
             const mainEmployee = employees.find(emp => emp.id === selectedEmployee?.id);
             return (
               <div className="space-y-6">
-                {/* Informations de l'employé */}
+                {/* Informations de l'employÃ© */}
                 <div className="bg-blue-50 p-4 rounded-lg">
                   <h3 className="text-lg font-semibold text-blue-900 mb-3">Informations de l'Employé</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1977,7 +1972,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                       <p className="font-medium">{selectedEmployee.poste}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600">Département</p>
+                      <p className="text-sm text-gray-600">Departement</p>
                       <p className="font-medium">{mainEmployee?.department || 'N/A'}</p>
                     </div>
                   </div>
@@ -2007,7 +2002,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                     <div>
                       <p className="text-sm text-gray-600">Salaire de base</p>
                       <p className="font-medium text-lg">
-                        {selectedPaySlip.salaryDetails?.baseSalary?.toLocaleString()} FCFA
+                        {selectedPaySlip.salaryDetails?.baseSalary?.toLocaleString()} XAF
                       </p>
                     </div>
                     <div>
@@ -2016,13 +2011,13 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                     </div>
                     <div>
                       <p className="text-sm text-gray-600">Heures supplémentaires</p>
-                      <p className="font-medium">{selectedPaySlip.remuneration?.overtime?.toLocaleString()} FCFA</p>
+                      <p className="font-medium">{selectedPaySlip.remuneration?.overtime?.toLocaleString()} XAF</p>
                     </div>
-                    {/* Indemnité transport supprimée ici */}
+                    {/* IndemnitÃ© transport supprimÃ©e ici */}
                     <div>
                       <p className="text-sm text-gray-600">Total brut</p>
                       <p className="font-medium text-lg text-green-700">
-                        {selectedPaySlip.remuneration?.total?.toLocaleString()} FCFA
+                        {selectedPaySlip.remuneration?.total?.toLocaleString()} XAF
                       </p>
                     </div>
                   </div>
@@ -2041,7 +2036,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                           {selectedPaySlip.primes.map((prime, idx) => (
                             <tr key={idx}>
                               <td>{prime.label || prime.type}</td>
-                              <td>{Number(prime.montant).toLocaleString()} FCFA</td>
+                              <td>{Number(prime.montant).toLocaleString()} XAF</td>
                             </tr>
                           ))}
                         </tbody>
@@ -2065,7 +2060,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                           {selectedPaySlip.indemnites.map((ind, idx) => (
                             <tr key={idx}>
                               <td>{ind.label || ind.type}</td>
-                              <td>{Number(ind.montant).toLocaleString()} FCFA</td>
+                              <td>{Number(ind.montant).toLocaleString()} XAF</td>
                             </tr>
                           ))}
                         </tbody>
@@ -2086,32 +2081,32 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <p className="text-sm text-gray-600">PVID</p>
-                          <p className="font-medium">{formatCFA(d.pvis)} FCFA</p>
+                          <p className="font-medium">{formatCFA(d.pvis)}</p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-600">IRPP</p>
-                          <p className="font-medium">{formatCFA(d.irpp)} FCFA</p>
+                          <p className="font-medium">{formatCFA(d.irpp)}</p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-600">CAC</p>
-                          <p className="font-medium">{formatCFA(d.cac)} FCFA</p>
+                          <p className="font-medium">{formatCFA(d.cac)}</p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-600">CFC</p>
-                          <p className="font-medium">{formatCFA(d.cfc)} FCFA</p>
+                          <p className="font-medium">{formatCFA(d.cfc)}</p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-600">RAV</p>
-                          <p className="font-medium">{formatCFA(d.rav)} FCFA</p>
+                          <p className="font-medium">{formatCFA(d.rav)}</p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-600">TDL</p>
-                          <p className="font-medium">{formatCFA(d.tdl)} FCFA</p>
+                          <p className="font-medium">{formatCFA(d.tdl)}</p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-600">Total déductions</p>
                           <p className="font-medium text-lg text-red-700">
-                            {formatCFA(d.total)} FCFA
+                            {formatCFA(d.total)}
                           </p>
                         </div>
                       </div>
@@ -2120,7 +2115,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                   }
                 </div>
 
-                {/* Net à payer */}
+                {/* Net Ã  payer */}
                 <div className="bg-purple-50 p-6 rounded-lg border-2 border-purple-200">
                   <div className="text-center">
                     <h3 className="text-xl font-bold text-purple-900 mb-2">NET À PAYER</h3>
@@ -2133,16 +2128,16 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                           primes: selectedPaySlip.primes || [],
                           indemnites: selectedPaySlip.indemnites || []
                         });
-                        return formatCFA(netCalc.netPay) + ' FCFA';
+                        return formatCFA(netCalc.netPay);
                       })()}
                     </p>
                   </div>
                 </div>
                 {/* Boutons d'action en bas */}
                 <div className="flex flex-col md:flex-row items-stretch md:items-center justify-center gap-3 md:gap-4 mt-8">
-                  {/* Sélecteur de modèle pour l'export */}
+                  {/* SÃ©lecteur de modÃ¨le pour l'export */}
                   <div className="w-full md:w-auto">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Modèle PDF</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">ModÃ¨le PDF</label>
                     <select
                       className="p-2 border rounded-md w-full md:min-w-[220px]"
                       value={selectedPaySlipTemplate}
@@ -2157,19 +2152,19 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                   </div>
                   <Button
                     onClick={() => {
-                      console.log('[ExportPaySlip] Bouton Exporter PDF cliqué');
+                      console.log('[ExportPaySlip] Bouton Exporter PDF cliquÃ©');
                       if (!selectedPaySlip || !selectedEmployee) {
-                        alert('Aucune fiche de paie ou employé sélectionné.');
+                        alert('Aucune fiche de paie ou employÃ© sÃ©lectionnÃ©.');
                         return;
                       }
-                      // Vérification des champs essentiels côté bouton (sécurité supplémentaire)
+                      // VÃ©rification des champs essentiels cÃ´tÃ© bouton (sÃ©curitÃ© supplÃ©mentaire)
                       const missing = [];
-                      if (!selectedEmployee.name) missing.push("Nom de l'employé");
+                      if (!selectedEmployee.name) missing.push("Nom de l'employÃ©");
                       if (!selectedEmployee.matricule) missing.push('Matricule');
                       if (!selectedPaySlip.salaryDetails?.baseSalary) missing.push('Salaire de base');
                       if (!selectedPaySlip.payPeriod) missing.push('Période de paie');
                       if (missing.length > 0) {
-                        alert('Impossible de générer le PDF. Champs manquants :\n' + missing.map(f => '- ' + f).join('\n'));
+                        alert('Impossible de gÃ©nÃ©rer le PDF. Champs manquants :\n' + missing.map(f => '- ' + f).join('\n'));
                         return;
                       }
                       const employerData = {
@@ -2200,16 +2195,16 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                           template={(selectedPaySlipTemplate || selectedPaySlip?.salaryDetails?.selectedTemplate || selectedPaySlip?.remuneration?.selectedTemplate || 'eneo')}
                           auto={true}
                           onExported={() => {
-                            console.log('[ExportPaySlip] onExported callback déclenché');
+                            console.log('[ExportPaySlip] onExported callback dÃ©clenchÃ©');
                             setTimeout(() => {
                               root.unmount();
                               document.body.removeChild(tempDiv);
-                              console.log('[ExportPaySlip] Composant démonté et div supprimé');
+                              console.log('[ExportPaySlip] Composant dÃ©montÃ© et div supprimÃ©');
                             }, 500);
                           }}
                         />
                       );
-                      console.log('[ExportPaySlip] Composant monté dans le DOM temporaire');
+                      console.log('[ExportPaySlip] Composant montÃ© dans le DOM temporaire');
                     }}
                     icon={Download}
                     className="bg-green-600 hover:bg-green-700 text-white"
@@ -2235,22 +2230,22 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
       </div>
     </Modal>
 
-    {/* Modale pour générer ou modifier une fiche de paie */}
+    {/* Modale pour gÃ©nÃ©rer ou modifier une fiche de paie */}
     <Modal isOpen={showPaySlipForm} onClose={() => {
       setShowPaySlipForm(false);
       setPaySlipData(null);
     }}>
       <div className="space-y-4">
         <h2 className="text-lg font-semibold">
-          {paySlipData ? "Modifier une Fiche de Paie" : "Générer une Fiche de Paie"}
+          {paySlipData ? "Modifier une Fiche de Paie" : "Generer une Fiche de Paie"}
           {selectedEmployee && ` - ${selectedEmployee.name}`}
         </h2>
         {selectedEmployee ? (
           <PaySlipGenerator
             employee={selectedEmployee}
             company={companyData}
-            initialData={paySlipData} // Passer les données pour modification
-            selectedTemplate={selectedPaySlipTemplate} // Passer le modèle sélectionné
+            initialData={paySlipData} // Passer les donnÃ©es pour modification
+            selectedTemplate={selectedPaySlipTemplate} // Passer le modÃ¨le sÃ©lectionnÃ©
             onSave={(payslipData) => {
               savePaySlip(payslipData, paySlipData?.id); // Passer l'id pour modification
               setShowPaySlipForm(false);
@@ -2266,18 +2261,18 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
           />
         ) : (
           <div className="space-y-4">
-            <p className="text-gray-500 mb-4">Sélectionnez un employé pour générer ou modifier une fiche de paie :</p>
+            <p className="text-gray-500 mb-4">SÃ©lectionnez un employÃ© pour gÃ©nÃ©rer ou modifier une fiche de paie :</p>
         <select
           value={selectedEmployee?.id || ""}
           onChange={(e) => {
             const employee = employees.find((emp) => emp.id === e.target.value);
             setSelectedEmployee(employee || null);
-            setPaySlipData(null); // Réinitialiser si changement d'employé
+            setPaySlipData(null); // RÃ©initialiser si changement d'employÃ©
           }}
           className="p-2 border border-blue-200 rounded-lg w-full"
           required
         >
-          <option value="">Sélectionner un employé</option>
+          <option value="">SÃ©lectionner un employÃ©</option>
           {filteredEmployees.map((emp) => (
             <option key={emp.id} value={emp.id}>
               {emp.name} ({emp.poste || "N/A"})
@@ -2294,10 +2289,10 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
 )}
           {activeTab === "settings" && (
             <div className="space-y-6">
-              <h1 className="text-3xl font-bold text-gray-900">Paramètres</h1>
+              <h1 className="text-3xl font-bold text-gray-900">ParamÃ¨tres</h1>
               <Card>
                 <div className="p-6">
-                  <h2 className="text-lg font-semibold mb-4">Paramètres de l'Entreprise</h2>
+                  <h2 className="text-lg font-semibold mb-4">ParamÃ¨tres de l'Entreprise</h2>
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-600">Logo</label>
@@ -2308,8 +2303,8 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
     const file = e.target.files[0];
     if (file) {
       handleLogoUpload(file, companyData.id, (dataUrl) => {
-        setLogoData(dataUrl); // <-- assure la mise à jour immédiate
-        toast.success("Logo mis à jour !");
+        setLogoData(dataUrl); // <-- assure la mise Ã  jour immÃ©diate
+        toast.success("Logo mis Ã  jour !");
       });
     }
   }}
@@ -2338,27 +2333,27 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-600">Téléphone</label>
+                      <label className="block text-sm font-medium text-gray-600">TÃ©lÃ©phone</label>
                       <input
                         type="text"
                         value={companyData.phone || ''}
                         onChange={(e) => setCompanyData({ ...companyData, phone: e.target.value })}
                         className="p-2 border border-blue-200 rounded-lg w-full"
-                        placeholder="Numéro de téléphone"
+                        placeholder="NumÃ©ro de tÃ©lÃ©phone"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-600">Représentant</label>
+                      <label className="block text-sm font-medium text-gray-600">ReprÃ©sentant</label>
                       <input
                         type="text"
                         value={companyData.representant || ''}
                         onChange={(e) => setCompanyData({ ...companyData, representant: e.target.value })}
                         className="p-2 border border-blue-200 rounded-lg w-full"
-                        placeholder="Nom du représentant légal"
+                        placeholder="Nom du reprÃ©sentant lÃ©gal"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-600">Numéro contribuable</label>
+                      <label className="block text-sm font-medium text-gray-600">NumÃ©ro contribuable</label>
                       <input
                         type="text"
                         value={companyData.taxpayerNumber || ''}
@@ -2370,13 +2365,13 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                         <div className="text-red-600 text-xs mt-1">Format invalide. Doit commencer par P ou M, contenir 12 chiffres, et se terminer par une lettre.</div>
                       )}
 
-                      <label className="block text-sm font-medium text-gray-600 mt-4">Numéro d'immatriculation CNPS</label>
+                      <label className="block text-sm font-medium text-gray-600 mt-4">NumÃ©ro d'immatriculation CNPS</label>
                       <input
                         type="text"
                         value={companyData.cnpsNumber || ''}
                         onChange={(e) => setCompanyData({ ...companyData, cnpsNumber: e.target.value })}
                         className="p-2 border border-blue-200 rounded-lg w-full"
-                        placeholder="Numéro CNPS de l'entreprise"
+                        placeholder="NumÃ©ro CNPS de l'entreprise"
                       />
                     </div>
                     <Button
@@ -2391,10 +2386,10 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                             taxpayerNumber: companyData.taxpayerNumber || '',
                             cnpsNumber: companyData.cnpsNumber
                           });
-                          toast.success("Paramètres enregistrés !");
+                          toast.success("ParamÃ¨tres enregistrÃ©s !");
                         } catch (error) {
-                          console.error("Erreur mise à jour paramètres:", error);
-                          toast.error("Erreur mise à jour paramètres");
+                          console.error("Erreur mise Ã  jour paramÃ¨tres:", error);
+                          toast.error("Erreur mise Ã  jour paramÃ¨tres");
                         } finally {
                           setActionLoading(false);
                         }
@@ -2406,7 +2401,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                   </div>
                 </div>
               </Card>
-              <Card title="Exporter Données">
+              <Card title="Exporter DonnÃ©es">
                 <ExportsBar
                   onPdf={generatePDFReport}
                   onXlsx={generateExcelReport}
@@ -2414,18 +2409,18 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                   disabled={actionLoading}
                 />
               </Card>
-              <Card title="Badges Employés" className="mt-8">
+              <Card title="Badges Employes" className="mt-8">
                 <div className="mb-4 flex flex-col md:flex-row md:items-center gap-4">
-                  <label className="font-semibold">Modèle de badge :</label>
+                  <label className="font-semibold">Modele de badge :</label>
                   <select
                     value={selectedBadgeModel}
                     onChange={e => setSelectedBadgeModel(e.target.value)}
                     className="border rounded px-2 py-1"
                   >
                     <option value="BadgeModel1">Moderne</option>
-                    <option value="BadgeModel2">Bandeau coloré</option>
+                    <option value="BadgeModel2">Bandeau colorÃ©</option>
                     <option value="BadgeModel3">Minimaliste</option>
-                    <option value="BadgeModel4">Vertical coloré</option>
+                    <option value="BadgeModel4">Vertical colorÃ©</option>
                     <option value="BadgeModel5">Photo fond</option>
                   </select>
                 </div>
@@ -2447,7 +2442,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                             className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
                             onClick={() => setSelectedEmployee(emp)}
                           >
-                            Générer badge
+                            GÃ©nÃ©rer badge
                           </button>
                         </td>
                       </tr>
@@ -2458,8 +2453,8 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
             </div>
           )}
           {activeTab === "badges" && (
-            <Card title="Badges Employés" className="mt-8">
-              <Suspense fallback={<div className="p-4">Chargement des badges…</div>}>
+            <Card title="Badges EmployÃ©s" className="mt-8">
+              <Suspense fallback={<div className="p-4">Chargement des badgesâ€¦</div>}>
                 <QRSection
                   employees={employees}
                   companyData={companyData}
@@ -2481,11 +2476,11 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
           )}
           {activeTab === "reports" && (
             <div className="space-y-6">
-              <h1 className="text-3xl font-bold text-gray-900">Rapports & Déclarations</h1>
-              <Card title="Déclaration CNPS">
+              <h1 className="text-3xl font-bold text-gray-900">Declarations</h1>
+              <Card title="Declaration CNPS">
                 {companyData?.id && <CotisationCNPS companyId={companyData.id} cnpsEmployeur={companyData.cnpsNumber || ""} />}
               </Card>
-              {/* Ici, vous pouvez ajouter d'autres rapports ou exports globaux à l'avenir */}
+              {/* Ici, vous pouvez ajouter d'autres rapports ou exports globaux Ã  l'avenir */}
             </div>
           )}
         </main>
@@ -2495,15 +2490,15 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
       {showQRScanner && (
         <QRCodeScanner
           onScan={(data) => {
-            console.log('QR Code scanné:', data);
-            toast.success(`QR Code de ${data.employeeName} scanné avec succès !`);
+            console.log('QR Code scannÃ©:', data);
+            toast.success(`QR Code de ${data.employeeName} scannÃ© avec succÃ¨s !`);
             setShowQRScanner(false);
           }}
           onClose={() => setShowQRScanner(false)}
         />
       )}
 
-      {/* Sélecteur de modèles */}
+      {/* SÃ©lecteur de modÃ¨les */}
       <TemplateSelector
         isOpen={showTemplateSelector}
         onClose={() => setShowTemplateSelector(false)}

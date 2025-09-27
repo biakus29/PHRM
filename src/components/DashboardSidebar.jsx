@@ -1,5 +1,5 @@
-import React from "react";
-import Button from "../compoments/Button";
+import React, { useMemo } from "react";
+import Button from "../components/Button";
 import {
   Users,
   Calendar,
@@ -13,9 +13,68 @@ import {
   Download,
 } from "lucide-react";
 
+const NavItem = React.memo(({ id, label, icon: Icon, badge, isActive, setActiveTab, sidebarState }) => {
+  return (
+    <li key={id} className="relative group">
+      <span
+        aria-hidden
+        className={`absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 rounded-r ${
+          isActive ? "bg-blue-600" : "bg-transparent group-hover:bg-blue-200"
+        }`}
+      />
+      <button
+        onClick={() => setActiveTab(id)}
+        aria-current={isActive ? "page" : undefined}
+        className={`w-full flex items-center gap-3 p-3 pl-4 rounded-lg transition-all duration-200 outline-none focus:ring-2 focus:ring-blue-300 ${
+          isActive
+            ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-sm"
+            : "text-gray-700 hover:bg-blue-50"
+        }`}
+      >
+        <Icon className="w-5 h-5 shrink-0" />
+        {sidebarState === "fullyOpen" && (
+          <span className="flex-1 text-sm font-medium truncate">{label}</span>
+        )}
+        {sidebarState === "fullyOpen" && badge != null && (
+          <span
+            className={`ml-auto inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-xs ${
+              isActive ? "bg-white/20 text-white" : "bg-blue-600 text-white"
+            }`}
+          >
+            {badge}
+          </span>
+        )}
+      </button>
+      {sidebarState === "minimized" && (
+        <span
+          role="tooltip"
+          className="absolute left-16 top-1/2 -translate-y-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow hidden group-hover:block whitespace-nowrap"
+        >
+          {label}
+        </span>
+      )}
+    </li>
+  );
+});
+
+const mainItems = [
+  { id: "overview", label: "Tableau de bord", icon: BarChart3 },
+  { id: "employees", label: "Employés", icon: Users },
+  { id: "leaves", label: "Congés", icon: Calendar },
+  { id: "absences", label: "Absences", icon: Clock },
+  { id: "payslips", label: "Paie", icon: CreditCard },
+  { id: "reports", label: "Déclarations", icon: Download },
+];
+
+const toolsItems = [
+  { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "badges", label: "Badges", icon: Users },
+  { id: "settings", label: "Paramètres", icon: Settings },
+];
+
 const DashboardSidebar = ({
-  sidebarOpen,
-  setSidebarOpen,
+  sidebarState = "fullyOpen",
+  setSidebarState,
   companyData,
   activeTab,
   setActiveTab,
@@ -23,74 +82,156 @@ const DashboardSidebar = ({
   handleLogout,
   notifications = [],
 }) => {
+  const notificationCount = useMemo(() => notifications?.length || 0, [notifications]);
+
+  const toggleSidebar = () => {
+    setSidebarState((prev) => {
+      if (prev === "fullyOpen") return "minimized";
+      if (prev === "minimized") return "hidden";
+      return "fullyOpen";
+    });
+  };
+
   return (
-    <aside
-      className={`fixed inset-y-0 left-0 z-50 bg-white border-r border-blue-100 transition-all duration-300 ${
-        sidebarOpen ? "w-64" : "w-16"
-      } md:static md:h-screen md:flex md:flex-col`}
-    >
-      <div className="p-4 border-b border-blue-100">
-        <div className="flex items-center justify-between">
-          {sidebarOpen && (
-            <div className="flex items-center gap-3">
-              {logoData ? (
-                <img src={logoData} alt="Logo" className="h-10 rounded-lg" />
+    <>
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 bg-white/95 backdrop-blur border-r border-blue-100 transition-all duration-300 ${
+          sidebarState === "fullyOpen" ? "w-64" : sidebarState === "minimized" ? "w-16" : "w-0 hidden"
+        } md:static md:h-screen md:flex md:flex-col`}
+      >
+        <div className="p-4 border-b border-blue-100">
+          <div className="flex items-center justify-between">
+            {sidebarState === "fullyOpen" ? (
+              <div className="flex items-center gap-3 min-w-0">
+                {logoData ? (
+                  <img
+                    src={logoData}
+                    alt="Logo"
+                    className="h-10 w-10 object-cover rounded-lg ring-1 ring-blue-100"
+                    onError={(e) => (e.target.src = "/fallback-logo.png")}
+                  />
+                ) : (
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-400 rounded-lg flex items-center justify-center">
+                    <Settings className="w-6 h-6 text-white" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <h1 className="text-base font-bold text-gray-900 truncate">RH Dashboard</h1>
+                  <p className="text-xs text-gray-500 truncate" title={companyData?.name || "Entreprise"}>
+                    {companyData?.name || "Entreprise"}
+                  </p>
+                </div>
+              </div>
+            ) : sidebarState === "minimized" ? (
+              <div className="w-full flex items-center justify-center">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-400 rounded-lg flex items-center justify-center">
+                  <Settings className="w-5 h-5 text-white" />
+                </div>
+              </div>
+            ) : null}
+            <Button
+              onClick={toggleSidebar}
+              variant="outline"
+              size="sm"
+              className="md:hidden"
+              aria-label={
+                sidebarState === "fullyOpen"
+                  ? "Réduire la barre latérale"
+                  : sidebarState === "minimized"
+                  ? "Masquer la barre latérale"
+                  : "Ouvrir la barre latérale"
+              }
+            >
+              {sidebarState === "fullyOpen" ? (
+                <X className="w-5 h-5" />
               ) : (
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-400 rounded-lg flex items-center justify-center">
-                  <Settings className="w-6 h-6 text-white" />
+                <Menu className="w-5 h-5" />
+              )}
+            </Button>
+          </div>
+        </div>
+
+        <nav className="flex-1 p-3 overflow-y-auto">
+          <div className="space-y-6">
+            <div>
+              {sidebarState === "fullyOpen" && (
+                <div className="px-2 pb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                  Principal
                 </div>
               )}
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">RH Dashboard</h1>
-                <p className="text-sm text-gray-500">{companyData?.name}</p>
+              <ul className="space-y-1">
+                {mainItems.map((it) => (
+                  <NavItem
+                    key={it.id}
+                    id={it.id}
+                    label={it.label}
+                    icon={it.icon}
+                    isActive={activeTab === it.id}
+                    setActiveTab={setActiveTab}
+                    sidebarState={sidebarState}
+                  />
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              {sidebarState === "fullyOpen" && (
+                <div className="px-2 pb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                  Outils
+                </div>
+              )}
+              <ul className="space-y-1">
+                {toolsItems.map((it) => (
+                  <NavItem
+                    key={it.id}
+                    id={it.id}
+                    label={it.label}
+                    icon={it.icon}
+                    badge={it.id === "notifications" ? notificationCount : it.badge}
+                    isActive={activeTab === it.id}
+                    setActiveTab={setActiveTab}
+                    sidebarState={sidebarState}
+                  />
+                ))}
+              </ul>
+            </div>
+          </div>
+        </nav>
+
+        <div className="p-3 border-t border-blue-100">
+          {sidebarState === "fullyOpen" && (
+            <div className="mb-2 text-xs text-gray-500">
+              <div className="truncate">
+                <span className="font-medium text-gray-700">Société:</span>{" "}
+                {companyData?.name || "N/A"}
               </div>
+              {companyData?.cnpsNumber && (
+                <div className="truncate">
+                  <span className="font-medium text-gray-700">CNPS:</span>{" "}
+                  {companyData.cnpsNumber}
+                </div>
+              )}
             </div>
           )}
-          <Button onClick={() => setSidebarOpen(!sidebarOpen)} variant="outline" size="sm" className="md:hidden">
-            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          <Button onClick={handleLogout} variant="danger" className="w-full justify-center">
+            {sidebarState === "fullyOpen" ? "Déconnexion" : <X className="w-4 h-4" />}
           </Button>
         </div>
-      </div>
-      <nav className="flex-1 p-4">
-        <ul className="space-y-2">
-          {[
-            { id: "overview", label: "Tableau de bord", icon: BarChart3 },
-            { id: "employees", label: "Employés", icon: Users },
-            { id: "leaves", label: "Congés", icon: Calendar },
-            { id: "absences", label: "Absences", icon: Clock },
-            { id: "payslips", label: "Paie", icon: CreditCard },
-            { id: "notifications", label: "Notifications", icon: Bell },
-            { id: "badges", label: "Badges", icon: Users },
-            { id: "reports", label: "Rapports", icon: Download },
-            { id: "settings", label: "Paramètres", icon: Settings },
-          ].map((item) => (
-            <li key={item.id} className="relative group">
-              <button
-                onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all duration-200 ${
-                  activeTab === item.id
-                    ? "bg-gradient-to-r from-blue-600 to-blue-400 text-white"
-                    : "text-gray-600 hover:bg-blue-50"
-                }`}
-              >
-                <item.icon className="w-5 h-5" />
-                {sidebarOpen && <span className="font-medium">{item.label}</span>}
-              </button>
-              {!sidebarOpen && (
-                <span className="absolute left-16 top-1/2 -translate-y-1/2 bg-gray-800 text-white text-sm px-2 py-1 rounded hidden group-hover:block">
-                  {item.label}
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      </nav>
-      <div className="p-4 border-t border-blue-100">
-        <Button onClick={handleLogout} variant="danger" className="w-full justify-start">
-          {sidebarOpen && "Déconnexion"}
+      </aside>
+
+      {/* Bouton flottant pour rouvrir la barre latérale */}
+      {sidebarState === "hidden" && (
+        <Button
+          onClick={() => setSidebarState("fullyOpen")}
+          variant="outline"
+          size="sm"
+          className="fixed top-4 left-4 z-50 md:hidden rounded-full p-2"
+          aria-label="Ouvrir la barre latérale"
+        >
+          <Menu className="w-6 h-6" />
         </Button>
-      </div>
-    </aside>
+      )}
+    </>
   );
 };
 

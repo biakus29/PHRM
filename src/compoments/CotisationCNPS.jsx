@@ -3,14 +3,14 @@ import { toast } from "react-toastify";
 import * as XLSX from "xlsx";
 import { formatFR } from "../utils/numberUtils";
 import { exportCnpsPDF, exportTaxesPDF } from "../utils/pdfCnps";
-import { computeTaxes } from "../utils/payrollCalculations";
-import { useCotisationCNPS } from "../hooks/useCotisationCNPS";
 import { 
+  computeTaxes,
   calculateEmployerSummary, 
   calculateTableTotals, 
   calculateTotalNet,
   generateExcelData 
-} from "../utils/cnpsCalculations";
+} from "../utils/payrollCalculations";
+import { useCotisationCNPS } from "../hooks/useCotisationCNPS";
 import CotisationEmployeeSelector from "../components/CotisationEmployeeSelector";
 import CotisationCNPSControls from "../components/CotisationCNPSControls";
 import CotisationCNPSTable from "../components/CotisationCNPSTable";
@@ -43,10 +43,10 @@ const CotisationCNPS = ({ companyId, cnpsEmployeur }) => {
   // Vue: 'detailed' (défaut), 'declaration' (formalisme CNPS), 'dipe' (export DIPE)
   const [viewMode, setViewMode] = React.useState('detailed');
 
-  // Quand on passe en vue DIPE, recharger depuis les bulletins pour garantir
+  // Quand on passe en vue DIPE ou DÉCLARATION, recharger depuis les bulletins pour garantir
   // la présence des tableaux dynamiques (primes/indemnités) et des déductions
   React.useEffect(() => {
-    if (viewMode === 'dipe' && selectedIds.length > 0) {
+    if ((viewMode === 'dipe' || viewMode === 'declaration') && selectedIds.length > 0) {
       reloadAllFromPayslips(true);
     }
   }, [viewMode, selectedIds]);
@@ -56,15 +56,15 @@ const CotisationCNPS = ({ companyId, cnpsEmployeur }) => {
     reloadAllFromPayslips(false);
   };
 
-  // Calculs dérivés
+  // Calculs centralisés - tous depuis payrollCalculations.js
   const employerSummary = React.useMemo(
-    () => calculateEmployerSummary(selectedIds, formData, employerOptions),
-    [selectedIds, formData, employerOptions]
+    () => calculateEmployerSummary(selectedIds, formData, employees, employerOptions),
+    [selectedIds, formData, employees, employerOptions]
   );
 
   const tableTotals = React.useMemo(
-    () => calculateTableTotals(selectedIds, formData, employerOptions),
-    [selectedIds, formData, employerOptions]
+    () => calculateTableTotals(selectedIds, formData, employees, employerOptions),
+    [selectedIds, formData, employees, employerOptions]
   );
 
   const taxesData = React.useMemo(
@@ -200,38 +200,6 @@ const CotisationCNPS = ({ companyId, cnpsEmployeur }) => {
         </div>
       )}
 
-      {/* Résumé employeur */}
-      {selectedIds.length > 0 && (
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-xl font-semibold mb-4">Résumé Employeur</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-blue-50 rounded">
-              <div className="text-2xl font-bold text-blue-600">
-                {formatFR(employerSummary.totalBrut)}
-              </div>
-              <div className="text-sm text-gray-600">Total Brut</div>
-            </div>
-            <div className="text-center p-4 bg-green-50 rounded">
-              <div className="text-2xl font-bold text-green-600">
-                {formatFR(employerSummary.totalEmployeurDu)}
-              </div>
-              <div className="text-sm text-gray-600">Charges Employeur</div>
-            </div>
-            <div className="text-center p-4 bg-purple-50 rounded">
-              <div className="text-2xl font-bold text-purple-600">
-                {formatFR(tableTotals.sal)}
-              </div>
-              <div className="text-sm text-gray-600">Charges Salarié</div>
-            </div>
-            <div className="text-center p-4 bg-orange-50 rounded">
-              <div className="text-2xl font-bold text-orange-600">
-                {formatFR(totalNet)}
-              </div>
-              <div className="text-sm text-gray-600">Total Net</div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -45,193 +45,23 @@ const CotisationCNPSControls = ({
       {/* Options Employeur */}
       <div className="bg-white p-4 rounded-lg shadow">
         <h3 className="text-lg font-semibold mb-4">Options Employeur</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={employerOptions.includePF}
-                onChange={(e) => setEmployerOptions(prev => ({ ...prev, includePF: e.target.checked }))}
-                className="mr-2"
-              />
-              Prestations Familiales
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Catégorie Risques Professionnels
             </label>
-            {employerOptions.includePF && (
-              <input
-                type="number"
-                value={employerOptions.ratePF}
-                onChange={(e) => setEmployerOptions(prev => ({ ...prev, ratePF: parseFloat(e.target.value) || 7.0 }))}
-                className="mt-1 w-20 px-2 py-1 border rounded"
-                step="0.1"
-                min="0"
-              />
-            )}
-          </div>
-          
-          <div>
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={employerOptions.includePVID}
-                onChange={(e) => setEmployerOptions(prev => ({ ...prev, includePVID: e.target.checked }))}
-                className="mr-2"
-              />
-              PVID Employeur
-            </label>
-            {employerOptions.includePVID && (
-              <input
-                type="number"
-                value={employerOptions.ratePVID}
-                onChange={(e) => setEmployerOptions(prev => ({ ...prev, ratePVID: parseFloat(e.target.value) || 4.9 }))}
-                className="mt-1 w-20 px-2 py-1 border rounded"
-                step="0.1"
-                min="0"
-              />
-            )}
-          </div>
-          
-          <div>
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={employerOptions.includeRP}
-                onChange={(e) => setEmployerOptions(prev => ({ ...prev, includeRP: e.target.checked }))}
-                className="mr-2"
-              />
-              Risques Professionnels
-            </label>
-            {employerOptions.includeRP && (
-              <div className="mt-1">
-                {/* Sélecteur de groupe RP avec taux prédéfinis */}
-                <div className="mb-2">
-                  <label className="block text-sm font-medium mb-1">Groupe RP</label>
-                  <select
-                    value={employerOptions.rpGroup || 'A'}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      const groupRates = { A: 1.75, B: 2.5, C: 5 };
-                      setEmployerOptions(prev => ({
-                        ...prev,
-                        rpGroup: val,
-                        // si pas de taux uniforme forcé, appliquer le taux du groupe au rateRP
-                        rateRP: prev.overrideRP ? prev.rateRP : groupRates[val]
-                      }));
-                    }}
-                    className="w-28 px-2 py-1 border rounded"
-                  >
-                    <option value="A">A (1,75%)</option>
-                    <option value="B">B (2,5%)</option>
-                    <option value="C">C (5%)</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Taux du groupe appliqué: {employerOptions.overrideRP ? `${employerOptions.rateRP ?? ''}% (forcé)` : `${({A:1.75,B:2.5,C:5}[employerOptions.rpGroup || 'A'])}%`}
-                  </p>
-                </div>
-
-                <label className="flex items-center text-sm">
-                  <input
-                    type="checkbox"
-                    checked={employerOptions.overrideRP}
-                    onChange={(e) => setEmployerOptions(prev => ({ ...prev, overrideRP: e.target.checked }))}
-                    className="mr-1"
-                  />
-                  Taux uniforme
-                </label>
-                {employerOptions.overrideRP && (
-                  <input
-                    type="number"
-                    value={employerOptions.rateRP}
-                    onChange={(e) => setEmployerOptions(prev => ({ ...prev, rateRP: parseFloat(e.target.value) || 2.0 }))}
-                    className="mt-1 w-20 px-2 py-1 border rounded"
-                    step="0.1"
-                    min="0"
-                  />
-                )}
-
-                {/* Annexe: liste des activités par groupe (réducteur) */}
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-sm text-gray-700">Annexe: Classement des activités par groupe</summary>
-                  <div className="mt-2 max-h-48 overflow-y-auto text-sm text-gray-600 space-y-2">
-                    <div>
-                      <p className="font-semibold">Groupe A (1,75%)</p>
-                      <ul className="list-disc pl-5">
-                        <li>Agriculture, agro-industries, horticulture, sylviculture</li>
-                        <li>Elevage (sans abattoir), pisciculture</li>
-                        <li>Architectes, promoteurs immobiliers</li>
-                        <li>Commerce (bureaux, vente, manutention), VRP</li>
-                        <li>Banques, assurances, professions libérales</li>
-                        <li>Agences (immobilières, voyages, publicité), presse</li>
-                        <li>Santé privée, maisons de retraite</li>
-                        <li>Associations, syndicats, chambres consulaires, partis</li>
-                        <li>Missions diplomatiques et consulaires</li>
-                        <li>Cinémas, théâtres, sports/loisirs, clubs</li>
-                        <li>Personnel domestique</li>
-                        <li>Hôtels, restaurants, cafés, bars, dancings</li>
-                        <li>Blanchisserie, nettoyage, teinture de vêtements</li>
-                        <li>Pompes funèbres, stations-service (sans mécanique)</li>
-                        <li>Studios photo, salons de coiffure, beauté, massage</li>
-                        <li>Enseignement privé, organisations religieuses</li>
-                        <li>Entretien/nettoyage d’immeubles</li>
-                        <li>Etat, collectivités locales, transports ferroviaires</li>
-                        <li>Exploitants et police des ports</li>
-                      </ul>
-                    </div>
-                    <div>
-                      <p className="font-semibold">Groupe B (2,5%)</p>
-                      <ul className="list-disc pl-5">
-                        <li>Abattoirs</li>
-                        <li>Industries de transformation (hors grosse métallurgie)</li>
-                        <li>Boulangeries, pâtisseries, biscuiteries</li>
-                        <li>Polygraphie</li>
-                        <li>Automobile, garages, carrosserie, peinture</li>
-                        <li>Raffinage du pétrole</li>
-                        <li>Topographie, géophysique, géomètres</li>
-                        <li>Bâtiment et TP (généraux, peinture, plomberie, électricité, routes/voies ferrées/canalisations hors ouvrages d’art)</li>
-                        <li>Prospection minière</li>
-                        <li>Production/transport/distribution d’électricité et d’eau</li>
-                        <li>Fabrication objets bois, ivoire, or</li>
-                        <li>Transports urbains, aériens, maritimes, fluviaux</li>
-                        <li>Transit, consignation, manutention portuaire</li>
-                        <li>Voirie, gardiennage, surveillance</li>
-                      </ul>
-                    </div>
-                    <div>
-                      <p className="font-semibold">Groupe C (5%)</p>
-                      <ul className="list-disc pl-5">
-                        <li>Foresterie, scieries</li>
-                        <li>Pêche</li>
-                        <li>Transports routiers</li>
-                        <li>Recherche d’hydrocarbures, grosse métallurgie</li>
-                        <li>TP génie civil (carrières, souterrains, ouvrages d’art, lignes extérieures, démolition, tunnels)</li>
-                        <li>Hydraulique agricole/pastorale, travaux de fond</li>
-                      </ul>
-                    </div>
-                  </div>
-                </details>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={employerOptions.includeFNEmp}
-                onChange={(e) => setEmployerOptions(prev => ({ ...prev, includeFNEmp: e.target.checked }))}
-                className="mr-2"
-              />
-              FNE Employeur
-            </label>
-            {employerOptions.includeFNEmp && (
-              <input
-                type="number"
-                value={employerOptions.rateFNEmp ?? 1.5}
-                onChange={(e) => setEmployerOptions(prev => ({ ...prev, rateFNEmp: parseFloat(e.target.value) || 1.5 }))}
-                className="mt-1 w-20 px-2 py-1 border rounded"
-                step="0.1"
-                min="0"
-              />
-            )}
+            <select
+              value={employerOptions.rpCategory || 'A'}
+              onChange={(e) => setEmployerOptions(prev => ({ ...prev, rpCategory: e.target.value }))}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="A">Catégorie A - 1,75% (Bureaux, Commerce)</option>
+              <option value="B">Catégorie B - 2,5% (Industrie légère)</option>
+              <option value="C">Catégorie C - 5% (Industrie lourde, BTP)</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Taux appliqué sur le salaire de base pour les risques professionnels
+            </p>
           </div>
         </div>
       </div>

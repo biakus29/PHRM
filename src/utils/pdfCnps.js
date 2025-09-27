@@ -2,7 +2,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { buildCnpsCode } from './cnpsUtils';
-import { getSBC, CNPS_CAP, getSBT, computeGrossTotal, getCalculs } from './payrollCalculations';
+import { computeSBC, CNPS_CAP, computeSBT, computeGrossTotal, getCalculs } from './payrollCalculations';
 
 /**
  * Formate un nombre avec des espaces comme séparateurs de milliers
