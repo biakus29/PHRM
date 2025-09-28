@@ -147,9 +147,9 @@ const TemplatePreview = ({ isOpen, onClose, template, type }) => {
             </div>
           </div>
 
-          {/* Total brut */}
+          {/* SBT */}
           <div className="border-t pt-2 flex justify-between text-sm">
-            <span className="font-semibold">Total brut</span>
+            <span className="font-semibold">SBT (Taxable)</span>
             <span className="font-semibold">342,000 FCFA</span>
           </div>
         </div>

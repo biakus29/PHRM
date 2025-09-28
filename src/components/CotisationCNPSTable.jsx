@@ -79,20 +79,24 @@ const CotisationCNPSTable = ({
         sbcVal = baseSalaryValue;
       }
       
-      const cnpsRaw = calculerCNPS(sbcVal);
-      const adjEmp = applyEmployerOptionsToCNPS({ baseSalary: baseSalaryValue, sbc: sbcVal, sbt: sbtVal, cnps: cnpsRaw, autres: {} }, employerOptions);
+      // Calculs CNPS corrects avec les bonnes bases
       const pvidSalarieAdj = computePVID(baseSalaryValue);
+      const employerCharges = computeEmployerChargesFromBases(sbcVal, sbtVal, { 
+        baseSalary: baseSalaryValue,
+        rpCategory: employerOptions?.rpCategory || 'A'
+      });
       
       const cnpsCalculs = {
         baseCotisable: sbcVal,
         cotisSalarie: pvidSalarieAdj,
-        prestationsFamilles: adjEmp.prestationsFamiliales,
-        prestationsFamiliales: adjEmp.prestationsFamiliales,
-        pvidEmployeur: adjEmp.pvidEmployeur,
-        risquesProfessionnels: adjEmp.risquesPro,
-        cotisEmployeur: adjEmp.totalEmployeur,
-        fneEmployeur: adjEmp.fneEmployeur,
-        totalGlobal: pvidSalarieAdj + adjEmp.totalEmployeur
+        prestationsFamilles: employerCharges.prestationsFamiliales,
+        prestationsFamiliales: employerCharges.prestationsFamiliales,
+        pvidEmployeur: employerCharges.pvidEmployeur,
+        risquesProfessionnels: employerCharges.risquesPro,
+        cotisEmployeur: employerCharges.totalCNPS_Employeur,
+        fneEmployeur: employerCharges.fneEmployeur,
+        cfcEmployeur: employerCharges.cfcEmployeur,
+        totalGlobal: pvidSalarieAdj + employerCharges.totalCNPS_Employeur
       };
       
       calculations[id] = {
@@ -797,8 +801,8 @@ const CotisationCNPSTable = ({
           const codeCNPS = `${annee}${mois}-${cnpsEmp}-${regime}-${cnpsSal}-${jours}`;
           
           // Primes et indemnités
-          const primesTotal = primes.reduce((sum, p) => sum + (Number(p.montant) || 0), 0);
-          const indemnitesTotal = indemnites.reduce((sum, i) => sum + (Number(i.montant) || 0), 0);
+          const primesTotal = primes.reduce((sum, p) => sum + (Number(p.montant ?? p.amount ?? 0)), 0);
+          const indemnitesTotal = indemnites.reduce((sum, i) => sum + (Number(i.montant ?? i.amount ?? 0)), 0);
           const totalPrimesIndemnites = primesTotal + indemnitesTotal;
 
           // Déductions
@@ -840,10 +844,6 @@ const CotisationCNPSTable = ({
                     <div className="bg-blue-50 p-3 rounded">
                       <div className="text-xs text-gray-600">Salaire de Base</div>
                       <div className="font-bold text-sm">{formatFR(salaryDetails.baseSalary)} FCFA</div>
-                    </div>
-                    <div className="bg-green-50 p-3 rounded">
-                      <div className="text-xs text-gray-600">Brut Total</div>
-                      <div className="font-bold text-sm">{formatFR(remuneration.total)} FCFA</div>
                     </div>
                     <div className="bg-yellow-50 p-3 rounded">
                       <div className="text-xs text-gray-600">SBT (Taxable)</div>
@@ -931,8 +931,6 @@ const CotisationCNPSTable = ({
               <thead className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
                 <tr>
                   <th className="p-3 text-left font-semibold sticky left-0 bg-blue-500">Employé</th>
-                  <th className="p-3 text-right font-semibold">Salaire Base</th>
-                  <th className="p-3 text-right font-semibold">Brut</th>
                   <th className="p-3 text-right font-semibold">SBT</th>
                   <th className="p-3 text-right font-semibold">SBC</th>
                   <th className="p-3 text-right font-semibold">P&I</th>
@@ -974,7 +972,7 @@ const CotisationCNPSTable = ({
                         </div>
                       </td>
                       <td className="p-3 border-b border-gray-100 text-right">{formatFR(salaryDetails.baseSalary)}</td>
-                      <td className="p-3 border-b border-gray-100 text-right">{formatFR(remuneration.total)}</td>
+                      <td className="p-3 border-b border-gray-100 text-right">{formatFR(netPayResult.grossTotal)}</td>
                       <td className="p-3 border-b border-gray-100 text-right font-medium text-blue-600">{formatFR(sbt)}</td>
                       <td className="p-3 border-b border-gray-100 text-right font-medium text-purple-600">{formatFR(sbc)}</td>
                       <td className="p-3 border-b border-gray-100 text-right">{totalPrimesIndemnites > 0 ? formatFR(totalPrimesIndemnites) : '-'}</td>
@@ -1000,14 +998,6 @@ const CotisationCNPSTable = ({
                   <td className="p-3 border-t-2 border-gray-300 sticky left-0 bg-gray-100">
                     TOTAUX ({selectedIds.length} employés)
                   </td>
-                  <td className="p-3 border-t-2 border-gray-300 text-right">{formatFR(selectedIds.reduce((acc, id) => {
-                    const calc = employeeCalculations[id];
-                    return acc + (calc?.salaryDetails.baseSalary || 0);
-                  }, 0))}</td>
-                  <td className="p-3 border-t-2 border-gray-300 text-right">{formatFR(selectedIds.reduce((acc, id) => {
-                    const calc = employeeCalculations[id];
-                    return acc + (calc?.remuneration.total || 0);
-                  }, 0))}</td>
                   <td className="p-3 border-t-2 border-gray-300 text-right text-blue-700">{formatFR(selectedIds.reduce((acc, id) => {
                     const calc = employeeCalculations[id];
                     return acc + (calc?.sbt || 0);
@@ -1019,8 +1009,8 @@ const CotisationCNPSTable = ({
                   <td className="p-3 border-t-2 border-gray-300 text-right">{formatFR(selectedIds.reduce((acc, id) => {
                     const calc = employeeCalculations[id];
                     if (!calc) return acc;
-                    const primesTotal = calc.primes.reduce((sum, p) => sum + (Number(p.montant) || 0), 0);
-                    const indemnitesTotal = calc.indemnites.reduce((sum, i) => sum + (Number(i.montant) || 0), 0);
+                    const primesTotal = calc.primes.reduce((sum, p) => sum + (Number(p.montant ?? p.amount ?? 0)), 0);
+                    const indemnitesTotal = calc.indemnites.reduce((sum, i) => sum + (Number(i.montant ?? i.amount ?? 0)), 0);
                     return acc + (primesTotal + indemnitesTotal);
                   }, 0))}</td>
                   <td className="p-3 border-t-2 border-gray-300 text-right text-red-700">{formatFR(selectedIds.reduce((acc, id) => {

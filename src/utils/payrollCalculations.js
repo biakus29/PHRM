@@ -42,6 +42,31 @@ export const TAUX_FNE_EMPLOYEUR = 1.0;
 // ==================== HELPERS ====================
 const num = (v) => (v ? Number(v) : 0);
 
+// Simple catégorisation par libellé: retourne true si l'élément est cotisable
+// Par défaut: TOUT EST COTISABLE sauf les exceptions listées (non cotisables)
+const categorizeAsCotisable = (rawLabel = '') => {
+  const label = String(rawLabel || '').toLowerCase();
+  const nonCotisables = [
+    'transport',           // prime de transport
+    'panier',              // prime de panier
+    'saliss',              // prime de salissure
+    'deplacement',         // indemnité de déplacement
+    'lait',                // indemnité de lait
+    'bicyclette',          // indemnité de bicyclette
+    'cyclomoteur',         // indemnité de cyclomoteur
+    'representation',      // indemnité de représentation
+    'kilometr',
+    'scolar',
+    'naissance',
+  ];
+  
+  // Si contient un mot-clé non cotisable, retourner false
+  if (nonCotisables.some(k => label.includes(k))) return false;
+  
+  // Par défaut: COTISABLE (tout le reste)
+  return true;
+};
+
 // ==================== CALCULS CNPS ====================
 export const computePVID = (baseSalary) =>
   Math.round(Math.min(baseSalary, CNPS_PLAFOND) * (TAUX_PVID_SALARIE / 100));
@@ -357,23 +382,15 @@ export function calculerBases(employeeData) {
   const totalPrimesCotisables = Object.values(employeeData.primesCotisables || {})
     .reduce((sum, prime) => sum + num(prime), 0);
   
-  // 2. TOTAL PRIMES NON COTISABLES (avec vérification des limites)
+  // 2. TOTAL PRIMES NON COTISABLES (SBT inclut le montant total sans plafonds)
   let totalPrimesNonCotisables = 0;
   let primesNonCotisablesAjustees = {};
   
-  // Vérification des limites réglementaires
+  // Pour la base fiscale (SBT), inclure la totalité des indemnités/primes non cotisables
   Object.entries(employeeData.primesNonCotisables || {}).forEach(([key, value]) => {
-    let montantExonere = num(value);
-    
-    // Application des limites d'exonération
-    if (key === 'primeTransport' && montantExonere > LIMITE_TRANSPORT) {
-      montantExonere = LIMITE_TRANSPORT;
-    } else if (key === 'primePanier' && montantExonere > LIMITE_PANIER) {
-      montantExonere = LIMITE_PANIER;
-    }
-    
-    primesNonCotisablesAjustees[key] = montantExonere;
-    totalPrimesNonCotisables += montantExonere;
+    const montantTotal = num(value);
+    primesNonCotisablesAjustees[key] = montantTotal;
+    totalPrimesNonCotisables += montantTotal;
   });
 
   // 3. CALCULS DES BASES
@@ -398,14 +415,13 @@ export function calculerBases(employeeData) {
 
 // ==================== CALCULS CNPS (sur SBC) ====================
 export function calculerCNPS(sbc, baseSalaryForPVID = null) {
-  // PVID Salarié: sur salaire de base plafonné (exigence métier)
+  // PVID Salarié ET Employeur: MÊME BASE (salaire de base plafonné)
   const pvidBase = baseSalaryForPVID != null ? Number(baseSalaryForPVID) : Number(sbc);
   const basePlafonneePVID = Math.min(pvidBase, CNPS_PLAFOND);
   const pvidSalarie = Math.round(basePlafonneePVID * (TAUX_PVID_SALARIE / 100));
   
-  // PVID Employeur: sur SBC plafonné
-  const basePlafonneeEmp = Math.min(sbc, CNPS_PLAFOND);
-  const pvidEmployeur = Math.round(basePlafonneeEmp * (TAUX_PVID_EMPLOYEUR / 100));
+  // PVID Employeur: MÊME BASE que salarié (salaire de base plafonné)
+  const pvidEmployeur = Math.round(basePlafonneePVID * (TAUX_PVID_EMPLOYEUR / 100));
   
   // Prestations Familiales (employeur) et Risques Pro: sur SBC total, sans plafond
   const prestationsFamiliales = Math.round(sbc * (TAUX_PF_EMPLOYEUR / 100));
@@ -681,6 +697,18 @@ export const computeSBT = (salaryDetails = {}, remuneration = {}, primes = [], i
     }
   });
   
+  // Intégrer les indemnités: cotisables -> primesCotisables, sinon non-cotisables (impacte SBT)
+  ;(Array.isArray(indemnites) ? indemnites : []).forEach(ind => {
+    const label = ind.label || ind.type || '';
+    const montant = num(ind.montant || ind.amount);
+    const key = `indemnite_${Date.now()}_${Math.random()}`;
+    if (categorizeAsCotisable(label)) {
+      employeeData.primesCotisables[key] = montant;
+    } else {
+      employeeData.primesNonCotisables[key] = montant;
+    }
+  });
+  
   const bases = calculerBases(employeeData);
   return bases.sbt;
 };
@@ -702,6 +730,18 @@ export const computeSBC = (salaryDetails = {}, remuneration = {}, primes = [], i
       employeeData.primesNonCotisables.primeTransport = montant;
     } else {
       employeeData.primesCotisables[`prime_${Date.now()}_${Math.random()}`] = montant;
+    }
+  });
+  
+  // Intégrer les indemnités: cotisables -> primesCotisables (affectent SBC), sinon non-cotisables
+  ;(Array.isArray(indemnites) ? indemnites : []).forEach(ind => {
+    const label = ind.label || ind.type || '';
+    const montant = num(ind.montant || ind.amount);
+    const key = `indemnite_${Date.now()}_${Math.random()}`;
+    if (categorizeAsCotisable(label)) {
+      employeeData.primesCotisables[key] = montant;
+    } else {
+      employeeData.primesNonCotisables[key] = montant;
     }
   });
   

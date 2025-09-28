@@ -96,8 +96,8 @@ const DashboardSidebar = ({
     <>
       <aside
         className={`fixed inset-y-0 left-0 z-50 bg-white/95 backdrop-blur border-r border-blue-100 transition-all duration-300 ${
-          sidebarState === "fullyOpen" ? "w-64" : sidebarState === "minimized" ? "w-16" : "w-0 hidden"
-        } md:static md:h-screen md:flex md:flex-col`}
+          sidebarState === "fullyOpen" ? "w-64" : sidebarState === "minimized" ? "w-16" : "w-0 -translate-x-full"
+        } lg:static lg:translate-x-0 lg:h-screen lg:flex lg:flex-col`}
       >
         <div className="p-4 border-b border-blue-100">
           <div className="flex items-center justify-between">
@@ -133,7 +133,7 @@ const DashboardSidebar = ({
               onClick={toggleSidebar}
               variant="outline"
               size="sm"
-              className="md:hidden"
+              className="lg:hidden"
               aria-label={
                 sidebarState === "fullyOpen"
                   ? "Réduire la barre latérale"
@@ -143,9 +143,9 @@ const DashboardSidebar = ({
               }
             >
               {sidebarState === "fullyOpen" ? (
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
               ) : (
-                <Menu className="w-5 h-5" />
+                <Menu className="w-4 h-4 sm:w-5 sm:h-5" />
               )}
             </Button>
           </div>
@@ -225,11 +225,20 @@ const DashboardSidebar = ({
           onClick={() => setSidebarState("fullyOpen")}
           variant="outline"
           size="sm"
-          className="fixed top-4 left-4 z-50 md:hidden rounded-full p-2"
+          className="fixed top-4 left-4 z-50 lg:hidden rounded-full p-2 shadow-lg"
           aria-label="Ouvrir la barre latérale"
         >
-          <Menu className="w-6 h-6" />
+          <Menu className="w-5 h-5 sm:w-6 sm:h-6" />
         </Button>
+      )}
+
+      {/* Overlay pour fermer la sidebar sur mobile */}
+      {(sidebarState === "fullyOpen" || sidebarState === "minimized") && (
+        <div
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 lg:hidden"
+          onClick={() => setSidebarState("hidden")}
+          aria-hidden="true"
+        />
       )}
     </>
   );

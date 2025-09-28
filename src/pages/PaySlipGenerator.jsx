@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import { FiFileText, FiX, FiFile, FiUpload } from "react-icons/fi";
-import { computeNetPay, computeEffectiveDeductions, computeRoundedDeductions, formatCFA, computeSBT, computeSBC } from "../utils/payrollCalculations";
+import { computeNetPay, computeEffectiveDeductions, computeRoundedDeductions, formatCFA, computeSBT, computeSBC, computeStatutoryDeductions } from "../utils/payrollCalculations";
 import { jsPDF } from "jspdf";
 
 // Fonction utilitaire pour échapper le texte
@@ -219,51 +219,25 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
     return total;
   };
 
-  const calculateDeductions = (salaryBrut) => {
-    console.log(`[PaySlipGenerator] Calcul des retenues pour salaire brut: ${salaryBrut}`);
-    const payrollCalc = computeNetPay({
-      salaryDetails: { baseSalary: salaryBrut },
-      remuneration: { total: salaryBrut },
-      deductions: { pvis: 0, irpp: 0, cac: 0, cfc: 0, rav: 0, tdl: 0, fne: 0 },
-      primes: [],
-      indemnites: []
-    });
-    const d = payrollCalc.roundedDeductions;
-
-    // Calcul du salaire net catégoriel mensuel (SNC)
-    const annualTaxableSalary = taxableSalary * 12;
-    const professionalExpenses = annualTaxableSalary * 0.30;
-    const annualPvid = pvid * 12;
-    const annualAbattement = 500000;
-    const annualNetCategoriel = annualTaxableSalary - professionalExpenses - annualPvid - annualAbattement;
-    const monthlyNetCategoriel = annualNetCategoriel > 0 ? annualNetCategoriel / 12 : 0;
-
-    // Calcul de l'IRPP selon les tranches
-    let irpp = 0;
-    if (monthlyNetCategoriel > 0) {
-      if (monthlyNetCategoriel <= 166667) {
-        irpp = monthlyNetCategoriel * 0.10;
-      } else if (monthlyNetCategoriel <= 250000) {
-        irpp = 16667 + (monthlyNetCategoriel - 166667) * 0.15;
-      } else if (monthlyNetCategoriel <= 416667) {
-        irpp = 29167 + (monthlyNetCategoriel - 250000) * 0.25;
-      } else {
-        irpp = 70833.75 + (monthlyNetCategoriel - 416667) * 0.35;
-      }
-    }
-
-    const cac = irpp * 0.10;    // Calculs centralisés via utils
-    const deductions = {
-      pvis: d.pvis,
-      irpp: d.irpp,
-      cac: d.cac,
-      cfc: d.cfc,
-      rav: d.rav,
-      tdl: d.tdl,
-      fne: d.fne,
-      total: payrollCalc.deductionsTotal,
-    };
-    console.log(`[PaySlipGenerator] Résultat calcul retenues: ${JSON.stringify(deductions)}`);
+  const calculateDeductions = (baseSalary, primes = [], indemnites = []) => {
+    console.log(`[PaySlipGenerator] Calcul des retenues (centralisé) base: ${baseSalary}`);
+    const statutory = computeStatutoryDeductions(
+      { baseSalary },
+      {},
+      primes,
+      indemnites
+    );
+    const total = Math.round(
+      (Number(statutory.pvid) || 0) +
+      (Number(statutory.irpp) || 0) +
+      (Number(statutory.cac) || 0) +
+      (Number(statutory.cfc) || 0) +
+      (Number(statutory.rav) || 0) +
+      (Number(statutory.tdl) || 0) +
+      (Number(statutory.fne) || 0)
+    );
+    const deductions = { ...statutory, total };
+    console.log(`[PaySlipGenerator] Résultat calcul retenues (centralisé): ${JSON.stringify(deductions)}`);
     return deductions;
   };
 
@@ -296,9 +270,21 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
       overtimeHoursSunday,
       overtimeHoursNight
     );
-    const deductions = calculateDeductions(salaryBrut);
-    const totalRemuneration = salaryBrut + overtimePay;
-    const netSalary = totalRemuneration - deductions.total;
+    // Centraliser: primes/indemnités depuis le formulaire
+    const primesList = formData.primes || [];
+    const indemnitesList = formData.indemnites || [];
+    const salaryDetails = { baseSalary: salaryBrut };
+    const payrollCalc = computeNetPay({
+      salaryDetails,
+      remuneration: { workedDays: daysWorked, overtime: overtimeHoursRegular + overtimeHoursSunday + overtimeHoursNight },
+      deductions: {},
+      primes: primesList,
+      indemnites: indemnitesList
+    });
+    const deductions = payrollCalc.deductions;
+    const totalRemuneration = payrollCalc.grossTotal; // inclut base + primes + indemnités
+    const netSalary = payrollCalc.netPay;
+    const taxableSalary = computeSBT(salaryDetails, {}, primesList, indemnitesList);
 
     const paySlipData = {
       employer: {
@@ -670,7 +656,7 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
                 <div className="font-bold mt-2 flex justify-between border-t pt-2">
                   <span>Total Primes :</span>
                   <span>
-                    {formData.primes.reduce((acc, p) => acc + Number(p.montant || 0), 0).toLocaleString()} FCFA
+                    {formData.primes.reduce((acc, p) => acc + Number(p.montant ?? p.amount ?? 0), 0).toLocaleString()} FCFA
                   </span>
                 </div>
               </>
@@ -692,7 +678,7 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
                 <div className="font-bold mt-2 flex justify-between border-t pt-2">
                   <span>Total Indemnités :</span>
                   <span>
-                    {formData.indemnites.reduce((acc, i) => acc + Number(i.montant || 0), 0).toLocaleString()} FCFA
+                    {formData.indemnites.reduce((acc, i) => acc + Number(i.montant ?? i.amount ?? 0), 0).toLocaleString()} FCFA
                   </span>
                 </div>
               </>

@@ -5,7 +5,7 @@ export const LABELS = {
   baseSalary: 'Salaire de base',
   allowances: 'Indemnités',
   bonuses: 'Primes',
-  grossTotal: 'Total brut',
+  grossTotal: 'SBT (Taxable)',
   currency: 'FCFA',
 };
 

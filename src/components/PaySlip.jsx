@@ -236,10 +236,10 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
   // getNetToPay centralisé importé depuis utils/deductionsUtils
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-bold text-center">Fiche de Paie</h2>
-      <p className="text-center">Période: {payPeriod || 'N/A'}</p>
-              <p className="text-center">Généré le: {displayGeneratedAt(generatedAt || Date.now())}</p>
+    <div className="space-y-3 sm:space-y-4 p-3 sm:p-4 lg:p-6">
+      <h2 className="text-xl sm:text-2xl font-bold text-center">Fiche de Paie</h2>
+      <p className="text-center text-sm sm:text-base">Période: {payPeriod || 'N/A'}</p>
+      <p className="text-center text-xs sm:text-sm text-gray-600">Généré le: {displayGeneratedAt(generatedAt || Date.now())}</p>
       
       {/* Sélecteur de modèle de fiche de paie */}
       <div className="mt-4">
@@ -250,32 +250,49 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
         />
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <h3 className="font-semibold">Employé</h3>
-          <p>Nom: {employee?.name || "N/A"}</p>
-          <p>Matricule: {employee?.matricule || "N/A"}</p>
-          <p>Poste: {employee?.poste || "N/A"}</p>
-          <p>Catégorie: {employee?.professionalCategory || "N/A"}</p>
-          <p>Numéro CNPS: {employee?.cnpsNumber || "N/A"}</p>
-          <p>Email: {employee?.email || "N/A"}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+          <h3 className="font-semibold text-sm sm:text-base mb-2 sm:mb-3">Employé</h3>
+          <div className="space-y-1 text-xs sm:text-sm">
+            <p><span className="font-medium">Nom:</span> {employee?.name || "N/A"}</p>
+            <p><span className="font-medium">Matricule:</span> {employee?.matricule || "N/A"}</p>
+            <p><span className="font-medium">Poste:</span> {employee?.poste || "N/A"}</p>
+            <p><span className="font-medium">Catégorie:</span> {employee?.professionalCategory || "N/A"}</p>
+            <p><span className="font-medium">Numéro CNPS:</span> {employee?.cnpsNumber || "N/A"}</p>
+            <p className="truncate"><span className="font-medium">Email:</span> {employee?.email || "N/A"}</p>
+          </div>
         </div>
-        <div>
-          <h3 className="font-semibold">Employeur</h3>
-          <p>Entreprise: {employer?.companyName}</p>
-          <p>Adresse: {employer?.address}</p>
-          <p>Numéro contribuable: {employer?.taxpayerNumber || "N/A"}</p>
-          <p>Numéro CNPS: {employer?.cnpsNumber}</p>
+        <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+          <h3 className="font-semibold text-sm sm:text-base mb-2 sm:mb-3">Employeur</h3>
+          <div className="space-y-1 text-xs sm:text-sm">
+            <p><span className="font-medium">Entreprise:</span> {employer?.companyName}</p>
+            <p><span className="font-medium">Adresse:</span> {employer?.address}</p>
+            <p><span className="font-medium">Numéro contribuable:</span> {employer?.taxpayerNumber || "N/A"}</p>
+            <p><span className="font-medium">Numéro CNPS:</span> {employer?.cnpsNumber}</p>
+          </div>
         </div>
       </div>
       
-      <h3 className="font-semibold mt-4">Rémunération</h3>
-      <table className="w-full border-collapse">
-        <tbody>
-          <tr className="border-b border-blue-100">
-            <td className="py-2 px-4">Salaire de base</td>
-            <td className="py-2 px-4 text-right">{formatCFA(salaryDetails?.baseSalary || 0)}</td>
-          </tr>
+      <h3 className="font-semibold mt-4 text-sm sm:text-base">Rémunération</h3>
+      
+      {/* Version mobile : cartes */}
+      <div className="block sm:hidden space-y-2">
+        <div className="bg-white border border-gray-200 rounded-lg p-3">
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-medium">Salaire de base</span>
+            <span className="text-sm font-bold">{formatCFA(salaryDetails?.baseSalary || 0)}</span>
+          </div>
+        </div>
+      </div>
+      
+      {/* Version desktop : tableau */}
+      <div className="hidden sm:block overflow-x-auto">
+        <table className="w-full border-collapse bg-white rounded-lg overflow-hidden shadow-sm">
+          <tbody>
+            <tr className="border-b border-blue-100 hover:bg-gray-50">
+              <td className="py-2 sm:py-3 px-3 sm:px-4 text-sm">Salaire de base</td>
+              <td className="py-2 sm:py-3 px-3 sm:px-4 text-right text-sm font-medium">{formatCFA(salaryDetails?.baseSalary || 0)}</td>
+            </tr>
           <tr className="border-b border-blue-100">
             <td className="py-2 px-4">Taux journalier</td>
             <td className="py-2 px-4 text-right">{formatCFA(salaryDetails?.dailyRate || 0)}</td>
@@ -344,6 +361,7 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
           </tr>
         </tbody>
       </table>
+      </div>
       
       {/* Primes détaillées */}
       {Array.isArray(primesAll) && primesAll.length > 0 && (
