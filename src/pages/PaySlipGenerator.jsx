@@ -653,55 +653,6 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
       doc.text(`Total rémunération: ${paySlipData.remuneration.total.toLocaleString("fr-FR")} FCFA`, leftMargin, y);
       y += lineHeight * 2;
 
-      // --- Aperçu JSX : à placer juste après la section salaire brut/net ---
-      {!isContractMode && (
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Bloc Primes */}
-          <div>
-            <div className="font-semibold text-gray-700 mb-2">Primes</div>
-            {formData.primes && formData.primes.length > 0 ? (
-              <>
-                {formData.primes.map((prime, idx) => (
-                  <div key={idx} className="flex justify-between py-1">
-                    <span>{prime.label ?? prime.type ?? ""}</span>
-                    <span>{Number(prime.montant || 0).toLocaleString()} FCFA</span>
-                  </div>
-                ))}
-                <div className="font-bold mt-2 flex justify-between border-t pt-2">
-                  <span>Total Primes :</span>
-                  <span>
-                    {formData.primes.reduce((acc, p) => acc + Number(p.montant || 0), 0).toLocaleString()} FCFA
-                  </span>
-                </div>
-              </>
-            ) : (
-              <div className="text-gray-400 text-sm">Aucune prime</div>
-            )}
-          </div>
-          {/* Bloc Indemnités */}
-          <div>
-            <div className="font-semibold text-gray-700 mb-2">Indemnités</div>
-            {formData.indemnites && formData.indemnites.length > 0 ? (
-              <>
-                {formData.indemnites.map((indem, idx) => (
-                  <div key={idx} className="flex justify-between py-1">
-                    <span>{indem.label ?? indem.type ?? ""}</span>
-                    <span>{Number(indem.montant || 0).toLocaleString()} FCFA</span>
-                  </div>
-                ))}
-                <div className="font-bold mt-2 flex justify-between border-t pt-2">
-                  <span>Total Indemnités :</span>
-                  <span>
-                    {formData.indemnites.reduce((acc, i) => acc + Number(i.montant || 0), 0).toLocaleString()} FCFA
-                  </span>
-                </div>
-              </>
-            ) : (
-              <div className="text-gray-400 text-sm">Aucune indemnité</div>
-            )}
-          </div>
-        </div>
-      )}
       // --- Export PDF : après la section rémunération, avant les déductions ---
       // ... après y += lineHeight * 2; (après total rémunération)
       const primes = paySlipData.primes || [];
