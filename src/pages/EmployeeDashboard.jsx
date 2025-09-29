@@ -17,7 +17,8 @@ import ExportPaySlip from '../compoments/ExportPaySlip';
 import ExportContrat from '../compoments/ExportContrat';
 import { createRoot } from 'react-dom/client';
 import { displayDate, displayDateWithOptions, displayGeneratedAt, displayContractStartDate } from "../utils/displayUtils";
-import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, formatCFA } from "../utils/payrollCalculations";
+import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, formatCFA, computeCompletePayroll } from "../utils/payrollCalculations";
+import MobileFooterNav from "../components/MobileFooterNav";
 
 // Configurer pdfjs
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
@@ -446,7 +447,7 @@ const EmployeeDashboard = () => {
 
   return (
     <div className="min-h-screen flex bg-gray-50">
-      {/* Sidebar */}
+      {/* Sidebar - Cachée sur mobile */}
       <aside className="w-64 bg-white border-r border-gray-200 flex-shrink-0 hidden md:block">
         <div className="p-6 border-b border-gray-100">
           <h2 className="text-xl font-bold text-blue-600">Mon Espace</h2>
@@ -483,8 +484,9 @@ const EmployeeDashboard = () => {
         </nav>
       </aside>
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        <header className="bg-white shadow-sm border-b border-gray-100 p-4 flex items-center justify-between">
+      <div className="flex-1 flex flex-col min-h-screen w-full">
+        {/* Header - Hidden on mobile */}
+        <header className="hidden md:flex bg-white shadow-sm border-b border-gray-100 p-4 items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900 capitalize">{sidebarItems.find(i => i.id === activeTab)?.label}</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500">
@@ -495,7 +497,7 @@ const EmployeeDashboard = () => {
             </div>
           </div>
         </header>
-        <main className="flex-1 p-6 overflow-auto animate-fade-in">
+        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-y-auto pb-20 md:pb-6 animate-fade-in">
       <ToastContainer
         position="top-right"
         autoClose={3000}
@@ -509,6 +511,17 @@ const EmployeeDashboard = () => {
         theme="light"
       />
       <ReactTooltip id="tooltip" place="top" effect="solid" />
+      
+      {/* Mobile Page Title */}
+      <div className="md:hidden mb-4 pt-2">
+        <h1 className="text-xl font-bold text-gray-900">
+          {activeTab === "dashboard" && "Tableau de bord"}
+          {activeTab === "leaves" && "Mes Congés"}
+          {activeTab === "payslips" && "Mes Fiches de Paie"}
+          {activeTab === "profile" && "Mon Profil"}
+          {activeTab === "notifications" && "Notifications"}
+        </h1>
+      </div>
 
         {activeTab === "dashboard" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-slide-in">
@@ -838,7 +851,7 @@ const EmployeeDashboard = () => {
                     </div>
               {/* Modale détails fiche de paie */}
         {selectedPaySlip && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+          <div className="fixed inset-0 bg-gray-900/80 flex justify-center items-center z-50">
             <div className="bg-white p-6 rounded-lg shadow-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
               <h3 className="text-lg font-medium text-gray-700 mb-4">
                       Détails de la fiche de paie - {selectedPaySlip.payPeriod || selectedPaySlip.formattedDate || selectedPaySlip.date || 'N/A'}
@@ -1183,6 +1196,12 @@ const EmployeeDashboard = () => {
         )}
       </main>
       </div>
+      
+      {/* Mobile Footer Navigation */}
+      <MobileFooterNav 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab}
+      />
     </div>
   );
 };
@@ -1234,5 +1253,8 @@ const Button = ({
     </button>
   );
 };
+
+// Ajouter le footer mobile avant la fermeture du composant principal
+// Note: Le footer doit être ajouté dans le return principal du EmployeeDashboard
 
 export default EmployeeDashboard;

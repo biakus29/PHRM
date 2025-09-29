@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import { FiFileText, FiX, FiFile, FiUpload } from "react-icons/fi";
-import { computeNetPay, computeEffectiveDeductions, computeRoundedDeductions, formatCFA, computeSBT, computeSBC, computeStatutoryDeductions } from "../utils/payrollCalculations";
+import { computeNetPay, computeEffectiveDeductions, computeRoundedDeductions, formatCFA, computeSBT, computeSBC, computeStatutoryDeductions, computeCompletePayroll } from "../utils/payrollCalculations";
 import { jsPDF } from "jspdf";
 
 // Fonction utilitaire pour échapper le texte

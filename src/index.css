@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -20,9 +19,40 @@
 body {
   background-color: var(--background);
   color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .card {
   background-color: var(--card-bg);
   border-color: var(--border);
+}
+
+/* Tableaux responsives - Tout visible avec scroll */
+.responsive-table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+}
+
+.responsive-table-wrapper table {
+  width: 100%;
+}
+
+/* Empêcher le zoom sur les inputs sur mobile */
+@media screen and (max-width: 768px) {
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="password"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Améliorer le scroll sur mobile */
+* {
+  -webkit-tap-highlight-color: transparent;
 }

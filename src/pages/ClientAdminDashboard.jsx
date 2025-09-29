@@ -91,9 +91,10 @@ import EmployeeFormModal from "../components/EmployeeFormModal";
 import Modal from "../components/Modal";
 import DashboardSidebar from "../components/DashboardSidebar";
 import DashboardHeader from "../components/DashboardHeader";
+import MobileFooterNav from "../components/MobileFooterNav";
 import generateBadgePDF from "../utils/badgePdf";
 import { VILLES_CAMEROUN, QUARTIERS_PAR_VILLE } from "../utils/constants";
-import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, computeGrossTotal, computeSBT, computeSBC, validateDeductions, formatCFA, computePVID, computeStatutoryDeductions } from "../utils/payrollCalculations";
+import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, computeGrossTotal, computeSBT, computeSBC, validateDeductions, formatCFA, computePVID, computeStatutoryDeductions, computeCompletePayroll } from "../utils/payrollCalculations";
 import ContractGenerator from "../components/ContractGenerator";
 import Contract from "../components/Contract";
 import PaySlip from "../components/PaySlip";
@@ -981,27 +982,46 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
     <div className="min-h-screen flex bg-gradient-to-br from-slate-50 to-blue-50">
       <ToastContainer position="top-right" autoClose={3000} />
       {actionLoading && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50">
+        <div className="fixed top-4 right-4 z-50 bg-white p-3 rounded-lg shadow-lg">
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
         </div>
       )}
-      {/* Sidebar */}
-      <DashboardSidebar
-        sidebarState={sidebarState}
-        setSidebarState={setSidebarState}
-        companyData={companyData}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        logoData={logoData}
-        handleLogout={handleLogout}
-        notifications={notifications}
-      />
+      {/* Sidebar - Hidden on mobile */}
+      <div className="hidden md:block">
+        <DashboardSidebar
+          sidebarState={sidebarState}
+          setSidebarState={setSidebarState}
+          companyData={companyData}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          logoData={logoData}
+          handleLogout={handleLogout}
+          notifications={notifications}
+        />
+      </div>
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <DashboardHeader activeTab={activeTab} notifications={notifications} />
-        {/* Main */}
-        <main className="flex-1 p-3 sm:p-4 lg:p-6 overflow-auto animate-fade-in">
+      <div className="flex-1 flex flex-col min-h-screen w-full">
+        {/* Header - Hidden on mobile (replaced by MobileFooterNav) */}
+        <div className="hidden md:block">
+          <DashboardHeader activeTab={activeTab} notifications={notifications} />
+        </div>
+        {/* Main - Responsive padding and spacing */}
+        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-y-auto animate-fade-in pb-20 md:pb-6">
+          {/* Mobile Page Title */}
+          <div className="md:hidden mb-4 pt-2">
+            <h1 className="text-xl font-bold text-gray-900">
+              {activeTab === "overview" && "Tableau de bord"}
+              {activeTab === "employees" && "Employés"}
+              {activeTab === "leaves" && "Congés"}
+              {activeTab === "absences" && "Absences"}
+              {activeTab === "payslips" && "Paie"}
+              {activeTab === "reports" && "Déclarations"}
+              {activeTab === "notifications" && "Notifications"}
+              {activeTab === "badges" && "Badges"}
+              {activeTab === "settings" && "Paramètres"}
+            </h1>
+          </div>
+          
           {activeTab === "overview" && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
@@ -1780,24 +1800,8 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                       <td className="py-4 px-4">{payslip.payPeriod || "N/A"}</td>
                         <td className="py-4 px-4">
                         {(() => {
-                          // Calcul du SBT avec nouvelles règles
-                          const sbt = computeSBT(
-                            payslip.salaryDetails || {},
-                            payslip.remuneration || {},
-                            payslip.primes || [],
-                            payslip.indemnites || []
-                          );
-                          // Calcul des déductions avec nouvelles règles
-                          const deductions = computeStatutoryDeductions(
-                            payslip.salaryDetails || {},
-                            payslip.remuneration || {},
-                            payslip.primes || [],
-                            payslip.indemnites || []
-                          );
-                          const totalDeductions = (deductions.pvid || 0) + (deductions.irpp || 0) + (deductions.cac || 0) + (deductions.cfc || 0) + (deductions.rav || 0) + (deductions.tdl || 0) + (deductions.fne || 0);
-                          // Net = SBT - Total déductions
-                          const netPay = sbt - totalDeductions;
-                          return formatCFA(netPay);
+                          const calc = computeCompletePayroll(payslip);
+                          return formatCFA(calc.netPay);
                         })()}
                       </td>
                         <td className="py-4 px-4 flex gap-2">
@@ -2027,13 +2031,8 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                       <p className="text-sm text-gray-600">SBT (Taxable)</p>
                       <p className="font-medium text-lg text-green-700">
                         {(() => {
-                          const sbt = computeSBT(
-                            selectedPaySlip.salaryDetails || {},
-                            selectedPaySlip.remuneration || {},
-                            selectedPaySlip.primes || [],
-                            selectedPaySlip.indemnites || []
-                          );
-                          return sbt.toLocaleString();
+                          const calc = computeCompletePayroll(selectedPaySlip);
+                          return calc.sbt.toLocaleString();
                         })()} XAF
                       </p>
                     </div>
@@ -2092,43 +2091,37 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                 <div className="bg-red-50 p-4 rounded-lg">
                   <h3 className="text-lg font-semibold text-red-900 mb-3">Déductions</h3>
                   {(() => {
-                    const d = computeStatutoryDeductions(
-                      selectedPaySlip.salaryDetails || {},
-                      selectedPaySlip.remuneration || {},
-                      selectedPaySlip.primes || [],
-                      selectedPaySlip.indemnites || []
-                    );
-                    const totalDeductions = (d.pvid || 0) + (d.irpp || 0) + (d.cac || 0) + (d.cfc || 0) + (d.rav || 0) + (d.tdl || 0) + (d.fne || 0);
+                    const calc = computeCompletePayroll(selectedPaySlip);
                     return (
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <p className="text-sm text-gray-600">PVID</p>
-                          <p className="font-medium">{formatCFA(d.pvid)}</p>
+                          <p className="font-medium">{formatCFA(calc.deductions.pvid)}</p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-600">IRPP</p>
-                          <p className="font-medium">{formatCFA(d.irpp)}</p>
+                          <p className="font-medium">{formatCFA(calc.deductions.irpp)}</p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-600">CAC</p>
-                          <p className="font-medium">{formatCFA(d.cac)}</p>
+                          <p className="font-medium">{formatCFA(calc.deductions.cac)}</p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-600">CFC</p>
-                          <p className="font-medium">{formatCFA(d.cfc)}</p>
+                          <p className="font-medium">{formatCFA(calc.deductions.cfc)}</p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-600">RAV</p>
-                          <p className="font-medium">{formatCFA(d.rav)}</p>
+                          <p className="font-medium">{formatCFA(calc.deductions.rav)}</p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-600">TDL</p>
-                          <p className="font-medium">{formatCFA(d.tdl)}</p>
+                          <p className="font-medium">{formatCFA(calc.deductions.tdl)}</p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-600">Total déductions</p>
                           <p className="font-medium text-lg text-red-700">
-                            {formatCFA(totalDeductions)}
+                            {formatCFA(calc.deductions.total)}
                           </p>
                         </div>
                       </div>
@@ -2143,24 +2136,8 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                     <h3 className="text-xl font-bold text-purple-900 mb-2">NET À PAYER</h3>
                     <p className="text-3xl font-bold text-purple-700">
                       {(() => {
-                        // Calcul du SBT avec nouvelles règles
-                        const sbt = computeSBT(
-                          selectedPaySlip.salaryDetails || {},
-                          selectedPaySlip.remuneration || {},
-                          selectedPaySlip.primes || [],
-                          selectedPaySlip.indemnites || []
-                        );
-                        // Calcul des déductions avec nouvelles règles
-                        const deductions = computeStatutoryDeductions(
-                          selectedPaySlip.salaryDetails || {},
-                          selectedPaySlip.remuneration || {},
-                          selectedPaySlip.primes || [],
-                          selectedPaySlip.indemnites || []
-                        );
-                        const totalDeductions = (deductions.pvid || 0) + (deductions.irpp || 0) + (deductions.cac || 0) + (deductions.cfc || 0) + (deductions.rav || 0) + (deductions.tdl || 0) + (deductions.fne || 0);
-                        // Net = SBT - Total déductions
-                        const netPay = sbt - totalDeductions;
-                        return formatCFA(netPay);
+                        const calc = computeCompletePayroll(selectedPaySlip);
+                        return formatCFA(calc.netPay);
                       })()}
                     </p>
                   </div>
@@ -2538,6 +2515,13 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
         onSelectContractTemplate={setSelectedContractTemplate}
         selectedPaySlipTemplate={selectedPaySlipTemplate}
         selectedContractTemplate={selectedContractTemplate}
+      />
+      
+      {/* Mobile Footer Navigation */}
+      <MobileFooterNav 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab}
+        notificationCount={notifications?.length || 0}
       />
     </div>
   );

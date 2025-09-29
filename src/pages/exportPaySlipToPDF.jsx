@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "react-toastify";
-import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, formatCFA } from "../utils/payrollCalculations";
+import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, formatCFA, computeCompletePayroll } from "../utils/payrollCalculations";
 
 // Fonction utilitaire pour gérer les erreurs
 const handleError = (error, message) => {
@@ -204,18 +204,15 @@ const exportPaySlipToPDF = (paySlipData, employee, companyData, setActionLoading
       y = topMargin;
     }
 
-    // Retenues (déductions) avec fallback TDL = 10% IRPP via util centralisé
+    // Retenues (déductions) avec calculs centralisés
     doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
-    // Calculs centralisés via utils
-    const payrollCalc = computeNetPay({
-      salaryDetails: paySlipData.salaryDetails || {},
-      remuneration: paySlipData.remuneration || {},
-      deductions: paySlipData.deductions || {},
-      primes: paySlipData.primes || [],
-      indemnites: paySlipData.indemnites || []
-    });
-    const { grossTotal: remunerationTotal, roundedDeductions: d, deductionsTotal: totalRetenues, netPay: netAPayer } = payrollCalc;
+    // Calculs centralisés via computeCompletePayroll
+    const calc = computeCompletePayroll(paySlipData);
+    const remunerationTotal = calc.grossTotal;
+    const d = calc.deductions;
+    const totalRetenues = calc.deductions.total;
+    const netAPayer = calc.netPay;
     autoTable(doc, {
       startY: y,
       head: [["Description", "Montant (FCFA)"]],

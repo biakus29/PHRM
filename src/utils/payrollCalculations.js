@@ -68,22 +68,22 @@ const categorizeAsCotisable = (rawLabel = '') => {
 };
 
 // ==================== CALCULS CNPS ====================
-export const computePVID = (baseSalary) =>
-  Math.round(Math.min(baseSalary, CNPS_PLAFOND) * (TAUX_PVID_SALARIE / 100));
+export const computePVID = (sbc) =>
+  Math.round(Math.min(sbc, CNPS_PLAFOND) * (TAUX_PVID_SALARIE / 100));
 
-export const computePVIDEmployer = (baseSalary) =>
-  Math.round(Math.min(baseSalary, CNPS_PLAFOND) * (TAUX_PVID_EMPLOYEUR / 100));
+export const computePVIDEmployer = (sbc) =>
+  Math.round(Math.min(sbc, CNPS_PLAFOND) * (TAUX_PVID_EMPLOYEUR / 100));
 
-export const computePFEmployer = (baseSalary) =>
-  Math.round(baseSalary * (TAUX_PF_EMPLOYEUR / 100));
+export const computePFEmployer = (sbc) =>
+  Math.round(sbc * (TAUX_PF_EMPLOYEUR / 100));
 
-export const computeRPEmployer = (baseSalary, rateRP = 1.75) =>
-  Math.round(baseSalary * (rateRP / 100));
+export const computeRPEmployer = (sbc, rateRP = 1.75) =>
+  Math.round(sbc * (rateRP / 100));
 
 // Total CNPS (salarié + employeur)
-export const computeTotalCNPS = (baseSalary) => {
-  const sal = computePVID(baseSalary);
-  const emp = computePVIDEmployer(baseSalary) + computePFEmployer(baseSalary) + computeRPEmployer(baseSalary);
+export const computeTotalCNPS = (sbc) => {
+  const sal = computePVID(sbc);
+  const emp = computePVIDEmployer(sbc) + computePFEmployer(sbc) + computeRPEmployer(sbc);
   return { salarie: sal, employeur: emp, total: sal + emp };
 };
 
@@ -114,10 +114,10 @@ export const computeEmployerChargesFromBases = (sbc, sbt, { rpCategory = 'A', fn
   // Taux RP selon la catégorie
   const rpRate = TAUX_RP_CATEGORIES[rpCategory] || TAUX_RP_CATEGORIES.A;
 
-  // PVID/PF/RP sur salaire de base (avec plafond pour PVID uniquement)
-  const pvidEmployeur = Math.round(Math.min(baseBrut, CNPS_PLAFOND) * (TAUX_PVID_EMPLOYEUR / 100));
-  const prestationsFamiliales = Math.round(baseBrut * (TAUX_PF_EMPLOYEUR / 100));
-  const risquesPro = Math.round(baseBrut * (rpRate / 100));
+  // PVID sur SBC plafonné, PF/RP sur SBC total
+  const pvidEmployeur = Math.round(Math.min(baseSBC, CNPS_PLAFOND) * (TAUX_PVID_EMPLOYEUR / 100));
+  const prestationsFamiliales = Math.round(baseSBC * (TAUX_PF_EMPLOYEUR / 100));
+  const risquesPro = Math.round(baseSBC * (rpRate / 100));
 
   // FNE employeur sur SBT (1% par défaut)
   const fneEmployeur = Math.round(baseSBT * (Number(fneEmpRate) / 100));
@@ -207,66 +207,56 @@ export const computeRAV = (sbt) => {
 // ==================== TDL ====================
 // Taxe de Développement Local : barème officiel
 export const computeTDL = (baseSalary) => {
-  if (baseSalary <= 52000) return 0;
-  if (baseSalary <= 100000) return 1500;
-  if (baseSalary <= 150000) return 3000;
-  if (baseSalary <= 250000) return 5000;
-  if (baseSalary <= 350000) return 7000;
-  if (baseSalary <= 450000) return 9000;
-  if (baseSalary <= 550000) return 11000;
-  if (baseSalary <= 650000) return 13000;
-  if (baseSalary <= 750000) return 15000;
-  if (baseSalary <= 850000) return 17000;
-  if (baseSalary <= 950000) return 19000;
-  if (baseSalary <= 1050000) return 21000;
-  if (baseSalary <= 1150000) return 23000;
-  if (baseSalary <= 1250000) return 25000;
-  if (baseSalary <= 1350000) return 27000;
-  if (baseSalary <= 1450000) return 29000;
-  if (baseSalary <= 1550000) return 31000;
-  if (baseSalary <= 1650000) return 33000;
-  if (baseSalary <= 1750000) return 35000;
-  if (baseSalary <= 1850000) return 37000;
-  if (baseSalary <= 1950000) return 39000;
-  if (baseSalary <= 2050000) return 41000;
-  return 50000;
+  if (baseSalary <= 61750) return 0;
+  if (baseSalary <= 75000) return 250;
+  if (baseSalary <= 100000) return 500;
+  if (baseSalary <= 125000) return 750;
+  if (baseSalary <= 150000) return 1000;
+  if (baseSalary <= 200000) return 1250;
+  if (baseSalary <= 250000) return 1500;
+  // Au-delà de 250 000, appliquer une progression (estimation)
+  if (baseSalary <= 300000) return 1750;
+  if (baseSalary <= 350000) return 2000;
+  if (baseSalary <= 400000) return 2250;
+  if (baseSalary <= 450000) return 2500;
+  if (baseSalary <= 500000) return 2750;
+  return 3000; // Maximum pour les très hauts salaires
 };
 
-// ==================== IRPP (OFFICIEL SUR SALAIRE DE BASE) ====================
-// Barème 2024-2025 (mensuel):
-// 0 - 62 000 => 0%
-// 62 001 - 200 000 => 10%
-// 200 001 - 300 000 => 15%
-// 300 001 - 500 000 => 25%
-// > 500 000 => 35%
-export const computeIRPPFromBase = (baseSalary) => {
-  const b = Math.max(0, Number(baseSalary) || 0);
-  if (b <= 62000) return 0;
-  let tax = 0;
-  // 10% on 62,001 - 200,000
-  const tier2Upper = 200000;
-  const tier3Upper = 300000;
-  const tier4Upper = 500000;
-  if (b > 62000) {
-    const t = Math.min(b, tier2Upper) - 62000;
-    if (t > 0) tax += t * 0.10;
+// ==================== IRPP (OFFICIEL SUR SBC) ====================
+// Formules officielles IRPP Cameroun:
+// Jusqu'à 63 250: pas d'IRPP
+// 63 251 - 310 000: (SBC*70% - SBC*4,2% - 41 667)*10%
+// 310 001 - 429 000: 16 693 + (SBC-310 000)*70%*15%
+// 429 001 - 667 000: 29 188 + (SBC-429 000)*70%*25%
+// 667 001 et plus: 70 830 + (SBC-667 000)*70%*35%
+export const computeIRPPFromBase = (sbc) => {
+  const sbcVal = Math.max(0, Number(sbc) || 0);
+  
+  // Pas d'IRPP jusqu'à 63 250
+  if (sbcVal <= 63250) return 0;
+  
+  // Tranche 1: 63 251 - 310 000
+  if (sbcVal <= 310000) {
+    const baseImposable = sbcVal * 0.70 - sbcVal * 0.042 - 41667;
+    return Math.max(0, Math.round(baseImposable * 0.10));
   }
-  // 15% on 200,001 - 300,000
-  if (b > tier2Upper) {
-    const t = Math.min(b, tier3Upper) - tier2Upper;
-    if (t > 0) tax += t * 0.15;
+  
+  // Tranche 2: 310 001 - 429 000
+  if (sbcVal <= 429000) {
+    const irpp = 16693 + (sbcVal - 310000) * 0.70 * 0.15;
+    return Math.round(irpp);
   }
-  // 25% on 300,001 - 500,000
-  if (b > tier3Upper) {
-    const t = Math.min(b, tier4Upper) - tier3Upper;
-    if (t > 0) tax += t * 0.25;
+  
+  // Tranche 3: 429 001 - 667 000
+  if (sbcVal <= 667000) {
+    const irpp = 29188 + (sbcVal - 429000) * 0.70 * 0.25;
+    return Math.round(irpp);
   }
-  // 35% on > 500,000
-  if (b > tier4Upper) {
-    const t = b - tier4Upper;
-    tax += t * 0.35;
-  }
-  return Math.round(tax);
+  
+  // Tranche 4: 667 001 et plus
+  const irpp = 70830 + (sbcVal - 667000) * 0.70 * 0.35;
+  return Math.round(irpp);
 };
 
 // Backward compatibility: delegate SBT function name to base implementation
@@ -415,13 +405,12 @@ export function calculerBases(employeeData) {
 
 // ==================== CALCULS CNPS (sur SBC) ====================
 export function calculerCNPS(sbc, baseSalaryForPVID = null) {
-  // PVID Salarié ET Employeur: MÊME BASE (salaire de base plafonné)
-  const pvidBase = baseSalaryForPVID != null ? Number(baseSalaryForPVID) : Number(sbc);
-  const basePlafonneePVID = Math.min(pvidBase, CNPS_PLAFOND);
-  const pvidSalarie = Math.round(basePlafonneePVID * (TAUX_PVID_SALARIE / 100));
+  // PVID Salarié ET Employeur: sur SBC plafonné (salaire cotisable)
+  const sbcPlafonne = Math.min(Number(sbc) || 0, CNPS_PLAFOND);
+  const pvidSalarie = Math.round(sbcPlafonne * (TAUX_PVID_SALARIE / 100));
   
-  // PVID Employeur: MÊME BASE que salarié (salaire de base plafonné)
-  const pvidEmployeur = Math.round(basePlafonneePVID * (TAUX_PVID_EMPLOYEUR / 100));
+  // PVID Employeur: MÊME BASE que salarié (SBC plafonné)
+  const pvidEmployeur = Math.round(sbcPlafonne * (TAUX_PVID_EMPLOYEUR / 100));
   
   // Prestations Familiales (employeur) et Risques Pro: sur SBC total, sans plafond
   const prestationsFamiliales = Math.round(sbc * (TAUX_PF_EMPLOYEUR / 100));
@@ -466,15 +455,29 @@ export const computeStatutoryDeductions = (salaryDetails = {}, remuneration = {}
     primesNonCotisables: {}
   };
   
-  // Convertir les primes
+  // Convertir les primes avec classification
   primes.forEach(prime => {
-    const label = (prime.label || '').toLowerCase();
+    const label = prime.label || prime.type || '';
     const montant = num(prime.montant || prime.amount);
+    const key = `prime_${Date.now()}_${Math.random()}`;
     
-    if (label.includes('transport')) {
-      employeeData.primesNonCotisables.primeTransport = montant;
+    if (categorizeAsCotisable(label)) {
+      employeeData.primesCotisables[key] = montant;
     } else {
-      employeeData.primesCotisables[`prime_${Date.now()}_${Math.random()}`] = montant;
+      employeeData.primesNonCotisables[key] = montant;
+    }
+  });
+  
+  // Convertir les indemnités avec classification
+  indemnites.forEach(ind => {
+    const label = ind.label || ind.type || '';
+    const montant = num(ind.montant || ind.amount);
+    const key = `indemnite_${Date.now()}_${Math.random()}`;
+    
+    if (categorizeAsCotisable(label)) {
+      employeeData.primesCotisables[key] = montant;
+    } else {
+      employeeData.primesNonCotisables[key] = montant;
     }
   });
   
@@ -546,8 +549,8 @@ export function calculComplet(employeeData) {
   const rav = computeRAV(bases.sbt);
   const tdl = computeTDL(employeeData.salaireBrut);
   
-  // 5. IRPP (officiel sur salaire de base)
-  const { snc, irpp } = calculerIRPP(employeeData.salaireBrut);
+  // 5. IRPP (officiel sur SBC selon nouvelles formules)
+  const { snc, irpp } = calculerIRPP(bases.sbc);
   
   // 6. RÉCAPITULATIF FINAL
   const cac = Math.round(irpp * 0.10);
@@ -605,6 +608,92 @@ export const computeNetPay = ({ salaryDetails = {}, remuneration = {}, deduction
       total: result.totalRetenues
     },
     deductionsTotal: result.totalRetenues
+  };
+};
+
+// ==================== FONCTION CENTRALISÉE UNIVERSELLE ====================
+// Cette fonction calcule TOUT à partir des données brutes
+// À utiliser PARTOUT pour garantir la cohérence
+export const computeCompletePayroll = (payslipData) => {
+  const baseSalary = num(payslipData?.salaryDetails?.baseSalary || payslipData?.baseSalary || 0);
+  const primes = Array.isArray(payslipData?.primes) ? payslipData.primes : [];
+  const indemnites = Array.isArray(payslipData?.indemnites) ? payslipData.indemnites : [];
+  
+  const salaryDetails = { baseSalary };
+  const remuneration = payslipData?.remuneration || {};
+  
+  // Calcul des bases
+  const sbc = computeSBC(salaryDetails, remuneration, primes, indemnites);
+  const sbt = computeSBT(salaryDetails, remuneration, primes, indemnites);
+  
+  // Calcul des déductions avec calculComplet pour garantir la cohérence
+  const employeeData = {
+    salaireBrut: baseSalary,
+    primesCotisables: {},
+    primesNonCotisables: {}
+  };
+  
+  // Convertir les primes avec classification
+  primes.forEach(prime => {
+    const label = prime.label || prime.type || '';
+    const montant = num(prime.montant || prime.amount);
+    const key = `prime_${Date.now()}_${Math.random()}`;
+    
+    if (categorizeAsCotisable(label)) {
+      employeeData.primesCotisables[key] = montant;
+    } else {
+      employeeData.primesNonCotisables[key] = montant;
+    }
+  });
+  
+  // Convertir les indemnités avec classification
+  indemnites.forEach(ind => {
+    const label = ind.label || ind.type || '';
+    const montant = num(ind.montant || ind.amount);
+    const key = `indemnite_${Date.now()}_${Math.random()}`;
+    
+    if (categorizeAsCotisable(label)) {
+      employeeData.primesCotisables[key] = montant;
+    } else {
+      employeeData.primesNonCotisables[key] = montant;
+    }
+  });
+  
+  // Calcul complet avec calculComplet
+  const result = calculComplet(employeeData);
+  
+  // Calcul des charges employeur
+  const employerCharges = computeEmployerChargesFromBases(sbc, sbt, { 
+    baseSalary,
+    rpCategory: 'A'
+  });
+  
+  return {
+    baseSalary,
+    sbc: result.bases.sbc,
+    sbt: result.bases.sbt,
+    grossTotal: result.bases.salaireBrutTotal,
+    deductions: {
+      pvid: result.cnps.pvidSalarie,
+      irpp: result.irpp,
+      cac: result.cac,
+      cfc: result.autres.cfc,
+      rav: result.rav,
+      tdl: result.tdl,
+      fne: result.autres.fneSalarie,
+      total: result.totalRetenues
+    },
+    netPay: result.salaireNet,
+    employerCharges: {
+      pvidEmployeur: employerCharges.pvidEmployeur,
+      prestationsFamiliales: employerCharges.prestationsFamiliales,
+      risquesPro: employerCharges.risquesPro,
+      fneEmployeur: employerCharges.fneEmployeur,
+      cfcEmployeur: employerCharges.cfcEmployeur,
+      total: employerCharges.totalEmployeur
+    },
+    primes,
+    indemnites
   };
 };
 

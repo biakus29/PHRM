@@ -134,8 +134,16 @@ export const useCotisationCNPS = (companyId, cnpsEmployeur) => {
                            overtime + 
                            bonus;
           
-          // 3. Calcul des déductions
-          const pvid = computePVID(baseSalary);
+          // 3. Objet remuneration
+          const remuneration = {
+            overtime,
+            bonus,
+            total: totalBrut
+          };
+          
+          // 4. Calcul des déductions
+          const sbcForPVID = computeSBC(salaryDetails, remuneration, primes, indemnites);
+          const pvid = computePVID(sbcForPVID);
           const deductions = {
             pvid,
             irpp: Number(d.irpp || 0),
@@ -145,12 +153,7 @@ export const useCotisationCNPS = (companyId, cnpsEmployeur) => {
             tdl: Number(d.tdl || 0)
           };
           
-          // 4. Calcul du net à payer
-          const remuneration = {
-            overtime,
-            bonus,
-            total: totalBrut
-          };
+          // 5. Calcul du net à payer
           
           const autoCalc = computeNetPay({
             salaryDetails,
@@ -368,7 +371,7 @@ export const useCotisationCNPS = (companyId, cnpsEmployeur) => {
               const grossTotal = computeGrossTotal(salaryDetails, remuneration, primes, indemnites);
               const sbtValue = computeSBT(salaryDetails, remuneration, primes, indemnites);
               const sbcValue = computeSBC(salaryDetails, remuneration, primes, indemnites);
-              const pvidValue = computePVID(baseSalary);
+              const pvidValue = computePVID(sbcValue);
               
               const autoCalc = computeNetPay({
                 salaryDetails,

@@ -5,7 +5,7 @@ import autoTable from 'jspdf-autotable';
 import { toast } from 'react-toastify';
 import { displayGeneratedAt, displayDate } from "../utils/displayUtils";
 import { getPayslipRenderer } from "../utils/pdfTemplates/modeletemplate";
-import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, formatCFA, computeStatutoryDeductions, computeSBT, computeSBC } from "../utils/payrollCalculations";
+import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, formatCFA, computeStatutoryDeductions, computeSBT, computeSBC, computeCompletePayroll } from "../utils/payrollCalculations";
 import { getPayslipCacheKeyFromEmployee, setLastPayslipCache } from "../utils/payslipCache";
 
 // Formatage monétaire importé depuis utils centralisés
@@ -98,39 +98,19 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
       const workedDaysInit = Number(payslipData.remuneration.workedDays) || 0;
       const workedHours = Number(payslipData.remuneration.workedHours) || 0;
       
-      // Calculs centralisés via utils
-      const statutory = computeStatutoryDeductions(
-        payslipData.salaryDetails || {},
-        payslipData.remuneration || {},
-        payslipData.primes || [],
-        payslipData.indemnites || []
-      );
-      const mergedDeductions = { ...statutory, ...(payslipData.deductions || {}) };
-      const payrollCalc = computeNetPay({
-        salaryDetails: payslipData.salaryDetails || {},
-        remuneration: payslipData.remuneration || {},
-        deductions: mergedDeductions,
-        primes: payslipData.primes || [],
-        indemnites: payslipData.indemnites || []
-      });
-      const { grossTotal: totalGross, roundedDeductions: d, deductionsTotal: totalDeductions, netPay: netSalary } = payrollCalc;
+      // Calculs centralisés via computeCompletePayroll
+      const calc = computeCompletePayroll(payslipData);
+      const totalGross = calc.grossTotal;
+      const d = calc.deductions;
+      const totalDeductions = calc.deductions.total;
+      const netSalary = calc.netPay;
+      const sbt = calc.sbt;
+      const sbc = calc.sbc;
       
-      // Calculs SBT/SBC via utilitaires centralisés
+      // Valeurs supplémentaires pour compatibilité
       const representationAllowance = Number(payslipData.salaryDetails.representationAllowance) || 0;
       const dirtAllowance = Number(payslipData.salaryDetails.dirtAllowance) || 0;
       const mealAllowance = Number(payslipData.salaryDetails.mealAllowance) || 0;
-      const sbt = computeSBT(
-        payslipData.salaryDetails || {},
-        payslipData.remuneration || {},
-        payslipData.primes || [],
-        payslipData.indemnites || []
-      );
-      const sbc = computeSBC(
-        payslipData.salaryDetails || {},
-        payslipData.remuneration || {},
-        payslipData.primes || [],
-        payslipData.indemnites || []
-      );
       
       // Cache local des montants utiles pour CNPS (pré-remplissage)
       try {
