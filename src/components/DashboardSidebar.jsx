@@ -68,7 +68,6 @@ const mainItems = [
 
 const toolsItems = [
   { id: "notifications", label: "Notifications", icon: Bell },
-  { id: "badges", label: "Badges", icon: Users },
   { id: "settings", label: "Paramètres", icon: Settings },
 ];
 

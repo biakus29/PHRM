@@ -90,7 +90,6 @@ import LeaveRequestsPanel from "../components/LeaveRequestsPanel";
 import EmployeeFormModal from "../components/EmployeeFormModal";
 import Modal from "../components/Modal";
 import DashboardSidebar from "../components/DashboardSidebar";
-import DashboardHeader from "../components/DashboardHeader";
 import MobileFooterNav from "../components/MobileFooterNav";
 import generateBadgePDF from "../utils/badgePdf";
 import { VILLES_CAMEROUN, QUARTIERS_PAR_VILLE } from "../utils/constants";
@@ -99,6 +98,7 @@ import ContractGenerator from "../components/ContractGenerator";
 import Contract from "../components/Contract";
 import PaySlip from "../components/PaySlip";
 import Button from "../components/Button";
+import BadgeStudio from "../components/BadgeStudio";
 import Card from "../components/Card";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { formatDateOfBirthInput, validateDateOfBirth, convertFrenchDateToISO, ensureEmployeeFields } from "../utils/dateHelpers";
@@ -187,6 +187,8 @@ const CompanyAdminDashboard = () => {
   const [showPaySlipDetails, setShowPaySlipDetails] = useState(false);
   const [selectedPaySlip, setSelectedPaySlip] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [showBadgeForm, setShowBadgeForm] = useState(false);
+  const [employeeForBadge, setEmployeeForBadge] = useState(null);
   
   // Ajout des hooks pour suggestions
   const [allResidences, setAllResidences] = useState([]);
@@ -436,7 +438,38 @@ const deletePaySlip = async (employeeId, payslipId) => {
         if (!clientsSnapshot.empty) {
           const companyDoc = clientsSnapshot.docs[0];
           const companyId = companyDoc.id;
-          setCompanyData({ id: companyId, ...companyDoc.data() });
+          const companyInfo = { id: companyId, ...companyDoc.data() };
+          
+          // Vérification de l'expiration de la licence
+          const licenseExpiry = companyInfo.licenseExpiry;
+          const isActive = companyInfo.isActive !== false; // Par défaut actif si non défini
+          
+          if (!isActive) {
+            toast.error("Votre compte a été désactivé. Contactez l'administrateur.");
+            await signOut(auth);
+            navigate("/client-admin-login");
+            return;
+          }
+          
+          if (licenseExpiry) {
+            const expiryDate = new Date(licenseExpiry);
+            const today = new Date();
+            
+            if (expiryDate < today) {
+              toast.error("Votre licence a expiré. Contactez l'administrateur pour renouveler.");
+              await signOut(auth);
+              navigate("/client-admin-login");
+              return;
+            }
+            
+            // Avertissement si expiration dans moins de 7 jours
+            const daysLeft = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+            if (daysLeft <= 7 && daysLeft > 0) {
+              toast.warning(`Attention : Votre licence expire dans ${daysLeft} jour(s) !`);
+            }
+          }
+          
+          setCompanyData(companyInfo);
           setLogoData(localStorage.getItem(`logo_${companyId}`));
           unsubscribe = subscribeEmployees(
             db,
@@ -1001,10 +1034,6 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
       </div>
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-h-screen w-full">
-        {/* Header - Hidden on mobile (replaced by MobileFooterNav) */}
-        <div className="hidden md:block">
-          <DashboardHeader activeTab={activeTab} notifications={notifications} />
-        </div>
         {/* Main - Responsive padding and spacing */}
         <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-y-auto animate-fade-in pb-20 md:pb-6">
           {/* Mobile Page Title */}
@@ -1015,9 +1044,8 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
               {activeTab === "leaves" && "Congés"}
               {activeTab === "absences" && "Absences"}
               {activeTab === "payslips" && "Paie"}
-              {activeTab === "reports" && "Déclarations"}
+              {activeTab === "reports" && ""}
               {activeTab === "notifications" && "Notifications"}
-              {activeTab === "badges" && "Badges"}
               {activeTab === "settings" && "Paramètres"}
             </h1>
           </div>
@@ -1342,6 +1370,55 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
         )}
       </div>
     </Card>
+    
+    {/* Section Badges */}
+    <Card title="Badges Employes" className="mt-8">
+      <div className="mb-4 flex flex-col md:flex-row md:items-center gap-4">
+        <label className="font-semibold">Modele de badge :</label>
+        <select
+          value={selectedBadgeModel}
+          onChange={e => setSelectedBadgeModel(e.target.value)}
+          className="border rounded px-2 py-1"
+        >
+          <option value="BadgeModel1">Moderne</option>
+          <option value="BadgeModel2">Bandeau coloré</option>
+          <option value="BadgeModel3">Minimaliste</option>
+          <option value="BadgeModel4">Vertical coloré</option>
+          <option value="BadgeModel5">Photo fond</option>
+        </select>
+      </div>
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead>
+          <tr>
+            <th className="px-4 py-2">Nom</th>
+            <th className="px-4 py-2">Poste</th>
+            <th className="px-4 py-2">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {employees.map(emp => (
+            <tr key={emp.id}>
+              <td className="px-4 py-2">{emp.name}</td>
+              <td className="px-4 py-2">{emp.poste}</td>
+              <td className="px-4 py-2">
+                <button
+                  className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                  onClick={() => {
+                    setEmployeeForBadge(emp);
+                    setShowBadgeForm(true);
+                  }}
+                >
+                  Générer badge
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
+  </div>
+)}
+
 {showEmployeeModal && (
   <Modal
     isOpen={showEmployeeModal}
@@ -1577,8 +1654,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
     )}
   </div>
 </Modal>
-  </div>
-)}
+
           {activeTab === "leaves" && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
@@ -2449,7 +2525,10 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                         <td className="px-4 py-2">
                           <button
                             className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
-                            onClick={() => setSelectedEmployee(emp)}
+                            onClick={() => {
+                              setEmployeeForBadge(emp);
+                              setShowBadgeForm(true);
+                            }}
                           >
                             Générer badge
                           </button>
@@ -2461,41 +2540,12 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
               </Card>
             </div>
           )}
-          {activeTab === "badges" && (
-            <Card title="Badges Employés" className="mt-8">
-              <Suspense fallback={<div className="p-4">Chargement des badgesâ€¦</div>}>
-                <QRSection
-                  employees={employees}
-                  companyData={companyData}
-                  selectedBadgeModel={selectedBadgeModel}
-                  setSelectedBadgeModel={setSelectedBadgeModel}
-                  selectedQRType={selectedQRType}
-                  setSelectedQRType={setSelectedQRType}
-                  onOpenScanner={() => setShowQRScanner(true)}
-                  onSaveBadgeImage={async (employeeId, dataUrl) => {
-                    await svcUpdateEmployeeBadge(db, companyData.id, employeeId, {
-                      badgeImage: dataUrl,
-                      badgeModel: selectedBadgeModel,
-                      badgeUpdatedAt: new Date().toISOString(),
-                    });
-                  }}
-                />
-              </Suspense>
-            </Card>
-          )}
-          {activeTab === "reports" && (
-            <div className="space-y-6">
-              <h1 className="text-3xl font-bold text-gray-900">Declarations</h1>
-              <Card title="Declaration CNPS">
-                {companyData?.id && <CotisationCNPS companyId={companyData.id} cnpsEmployeur={companyData.cnpsNumber || ""} />}
-              </Card>
-              {/* Ici, vous pouvez ajouter d'autres rapports ou exports globaux Ã  l'avenir */}
-            </div>
+          {activeTab === "reports" && companyData?.id && companyData.cnpsNumber && (
+            <CotisationCNPS companyId={companyData.id} cnpsEmployeur={companyData.cnpsNumber} />
           )}
         </main>
       </div>
       
-      {/* Scanner QR Code Modal */}
       {showQRScanner && (
         <QRCodeScanner
           onScan={(data) => {
@@ -2517,11 +2567,40 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
         selectedContractTemplate={selectedContractTemplate}
       />
       
+      {/* Modal Badge */}
+      <Modal isOpen={showBadgeForm} onClose={() => {
+        setShowBadgeForm(false);
+        setEmployeeForBadge(null);
+      }}>
+        {employeeForBadge && (
+          <BadgeStudio
+            employee={employeeForBadge}
+            companyData={companyData}
+            qrType="userInfo"
+            initialModel={selectedBadgeModel}
+            onSaveBadgeImage={async (employeeId, dataUrl) => {
+              try {
+                await svcUpdateEmployeeBadge(db, companyData.id, employeeId, {
+                  badgeImage: dataUrl,
+                  badgeModel: selectedBadgeModel,
+                  badgeUpdatedAt: new Date().toISOString(),
+                });
+                toast.success("Badge enregistré avec succès !");
+              } catch (error) {
+                console.error("Erreur lors de l'enregistrement du badge:", error);
+                toast.error("Erreur lors de l'enregistrement du badge");
+              }
+            }}
+          />
+        )}
+      </Modal>
+      
       {/* Mobile Footer Navigation */}
       <MobileFooterNav 
         activeTab={activeTab} 
         setActiveTab={setActiveTab}
         notificationCount={notifications?.length || 0}
+        handleLogout={handleLogout}
       />
     </div>
   );

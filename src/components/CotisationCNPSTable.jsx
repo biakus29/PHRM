@@ -134,8 +134,8 @@ const CotisationCNPSTable = ({
           <h2 className="text-xl font-bold text-gray-800">Tableau des Impôts et Taxes</h2>
         </div>
 
-        {/* Version Mobile/Tablette : Désactivée - Utiliser vue desktop */}
-        <div className="hidden">
+        {/* Version Mobile uniquement : Cards responsive */}
+        <div className="md:hidden space-y-4">
           {selectedIds.map((id, index) => {
             const d = formData[id] || {};
             const calc = employeeCalculations[id];
@@ -217,8 +217,8 @@ const CotisationCNPSTable = ({
           })}
         </div>
 
-        {/* Version Desktop : Tableau - Visible sur tous les écrans */}
-        <div className="w-full overflow-x-auto">
+        {/* Version Tablette/Desktop : Tableau */}
+        <div className="hidden md:block w-full overflow-x-auto">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <table className="w-full min-w-[1024px] md:min-w-0">
               <thead className="bg-orange-500 text-white">
@@ -352,8 +352,8 @@ const CotisationCNPSTable = ({
           <h2 className="text-xl font-bold text-gray-800">Déclaration CNPS Officielle</h2>
         </div>
         
-        {/* Version mobile : Désactivée - Utiliser vue desktop */}
-        <div className="hidden">
+        {/* Version mobile uniquement : Cards responsive */}
+        <div className="md:hidden space-y-4">
           {selectedIds.map(id => {
             const d = formData[id] || {};
             const calc = employeeCalculations[id];
@@ -407,8 +407,8 @@ const CotisationCNPSTable = ({
           })}
         </div>
         
-        {/* Version desktop : tableau - Visible sur tous les écrans */}
-        <div className="overflow-x-auto">
+        {/* Version Tablette/Desktop : Tableau */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full border-collapse bg-white rounded-lg overflow-hidden shadow-sm">
             <thead className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
               <tr>
@@ -435,12 +435,12 @@ const CotisationCNPSTable = ({
                   <tr key={id} className={`hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'}`}>
                     <td className="p-3 border-b border-gray-100">{d.matricule || '-'}</td>
                     <td className="p-3 border-b border-gray-100 font-medium">{d.nom || '-'}</td>
-                    <td className="p-3 border-b border-gray-100 text-right">{formatFR(cnpsCalculs.baseCotisable)} FCFA</td>
-                    <td className="p-3 border-b border-gray-100 text-right text-green-600">{formatFR(cnpsCalculs.cotisSalarie)} FCFA</td>
-                    <td className="p-3 border-b border-gray-100 text-right text-yellow-600">{formatFR(cnpsCalculs.prestationsFamilles)} FCFA</td>
-                    <td className="p-3 border-b border-gray-100 text-right text-purple-600">{formatFR(cnpsCalculs.pvidEmployeur)} FCFA</td>
-                    <td className="p-3 border-b border-gray-100 text-right text-red-600">{formatFR(cnpsCalculs.risquesProfessionnels)} FCFA</td>
-                    <td className="p-3 border-b border-gray-100 text-right font-bold text-blue-600">{formatFR(cnpsCalculs.totalGlobal)} FCFA</td>
+                    <td className="p-3 border-b border-gray-100 text-right">{formatFR(cnpsCalculs.baseCotisable)}</td>
+                    <td className="p-3 border-b border-gray-100 text-right text-green-600">{formatFR(cnpsCalculs.cotisSalarie)}</td>
+                    <td className="p-3 border-b border-gray-100 text-right text-yellow-600">{formatFR(cnpsCalculs.prestationsFamilles)}</td>
+                    <td className="p-3 border-b border-gray-100 text-right text-purple-600">{formatFR(cnpsCalculs.pvidEmployeur)}</td>
+                    <td className="p-3 border-b border-gray-100 text-right text-red-600">{formatFR(cnpsCalculs.risquesProfessionnels)}</td>
+                    <td className="p-3 border-b border-gray-100 text-right font-bold text-blue-600">{formatFR(cnpsCalculs.totalGlobal)}</td>
                     <td className="p-3 border-b border-gray-100 text-center">
                       <button
                         onClick={() => onEmployeeDeselect(id)}
@@ -461,27 +461,27 @@ const CotisationCNPSTable = ({
                 <td className="p-3 border-t-2 border-gray-300 text-right">{formatFR(selectedIds.reduce((acc, id) => {
                   const calc = employeeCalculations[id];
                   return acc + (Number(calc?.cnpsCalculs.baseCotisable) || 0);
-                }, 0))} FCFA</td>
+                }, 0))}</td>
                 <td className="p-3 border-t-2 border-gray-300 text-right">{formatFR(selectedIds.reduce((acc, id) => {
                   const calc = employeeCalculations[id];
                   return acc + (Number(calc?.cnpsCalculs.cotisSalarie) || 0);
-                }, 0))} FCFA</td>
+                }, 0))}</td>
                 <td className="p-3 border-t-2 border-gray-300 text-right">{formatFR(selectedIds.reduce((acc, id) => {
                   const calc = employeeCalculations[id];
                   return acc + (Number(calc?.cnpsCalculs.prestationsFamilles) || 0);
-                }, 0))} FCFA</td>
+                }, 0))}</td>
                 <td className="p-3 border-t-2 border-gray-300 text-right">{formatFR(selectedIds.reduce((acc, id) => {
                   const calc = employeeCalculations[id];
                   return acc + (Number(calc?.cnpsCalculs.pvidEmployeur) || 0);
-                }, 0))} FCFA</td>
+                }, 0))}</td>
                 <td className="p-3 border-t-2 border-gray-300 text-right">{formatFR(selectedIds.reduce((acc, id) => {
                   const calc = employeeCalculations[id];
                   return acc + (Number(calc?.cnpsCalculs.risquesProfessionnels) || 0);
-                }, 0))} FCFA</td>
+                }, 0))}</td>
                 <td className="p-3 border-t-2 border-gray-300 text-right text-blue-700">{formatFR(selectedIds.reduce((acc, id) => {
                   const calc = employeeCalculations[id];
                   return acc + (Number(calc?.cnpsCalculs.totalGlobal) || 0);
-                }, 0))} FCFA</td>
+                }, 0))}</td>
                 <td className="p-3 border-t-2 border-gray-300">-</td>
               </tr>
             </tfoot>
@@ -500,8 +500,8 @@ const CotisationCNPSTable = ({
           <h2 className="text-xl font-bold text-gray-800">Format DIPE - Déclaration Fiscale</h2>
         </div>
 
-        {/* Version Mobile/Tablette : Désactivée - Utiliser vue desktop */}
-        <div className="hidden">
+        {/* Version Mobile uniquement : Cards responsive */}
+        <div className="md:hidden space-y-4">
           {selectedIds.map((id, index) => {
             const d = formData[id] || {};
             const calc = employeeCalculations[id];
@@ -610,8 +610,8 @@ const CotisationCNPSTable = ({
           })}
         </div>
 
-        {/* Version Desktop : Tableau - Visible sur tous les écrans */}
-        <div className="overflow-x-auto">
+        {/* Version Tablette/Desktop : Tableau */}
+        <div className="hidden md:block overflow-x-auto">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <table className="w-full">
               <thead className="bg-purple-500 text-white">
@@ -625,6 +625,7 @@ const CotisationCNPSTable = ({
                   <th className="p-3 text-right">TDL</th>
                   <th className="p-3 text-right">FNE Emp</th>
                   <th className="p-3 text-right">CFC Emp</th>
+                  <th className="p-3 text-right">Total</th>
                   <th className="p-3 text-center">Action</th>
                 </tr>
               </thead>
@@ -672,6 +673,7 @@ const CotisationCNPSTable = ({
                       <td className="p-3 text-right">{formatFR(vTdl)}</td>
                       <td className="p-3 text-right text-green-600">{formatFR(employerCharges.fneEmployeur)}</td>
                       <td className="p-3 text-right text-green-600">{formatFR(employerCharges.cfcEmployeur)}</td>
+                      <td className="p-3 text-right font-bold text-blue-600">{formatFR(vIrpp + vCac + vCfc + vRav + vTdl + employerCharges.fneEmployeur + employerCharges.cfcEmployeur)}</td>
                       <td className="p-3 text-center">
                         <button
                           onClick={() => onEmployeeDeselect(id)}
@@ -729,6 +731,21 @@ const CotisationCNPSTable = ({
             });
                     return acc + (employerCharges.cfcEmployeur || 0);
                   }, 0))}</td>
+                  <td className="p-3 text-right font-bold text-blue-700">{formatFR(selectedIds.reduce((acc, id) => {
+                    const calc = employeeCalculations[id];
+                    const { sbt, sbc, statutoryDeductions, salaryDetails } = calc;
+                    const baseSalaryValue = Number(salaryDetails?.baseSalary || 0);
+                    const employerCharges = computeEmployerChargesFromBases(sbc, sbt, { 
+              baseSalary: baseSalaryValue,
+              rpCategory: employerOptions?.rpCategory || 'A'
+            });
+                    const vIrpp = Math.round(Number(statutoryDeductions.irpp || 0));
+                    const vCac = Math.round(Number(statutoryDeductions.cac || 0));
+                    const vCfc = Math.round(Number(statutoryDeductions.cfc || 0));
+                    const vRav = Math.round(Number(statutoryDeductions.rav || 0));
+                    const vTdl = Math.round(Number(statutoryDeductions.tdl || 0));
+                    return acc + (vIrpp + vCac + vCfc + vRav + vTdl + employerCharges.fneEmployeur + employerCharges.cfcEmployeur);
+                  }, 0))}</td>
                   <td className="p-3 text-center">-</td>
                 </tr>
               </tfoot>
@@ -747,8 +764,8 @@ const CotisationCNPSTable = ({
         <h2 className="text-xl font-bold text-gray-800">Tableau Détaillé des Cotisations</h2>
       </div>
 
-      {/* Version Mobile/Tablette : Désactivée - Utiliser vue desktop */}
-      <div className="hidden">
+      {/* Version Mobile uniquement : Cards responsive */}
+      <div className="md:hidden space-y-4">
         {selectedIds.map((id, index) => {
           const d = formData[id] || {};
           const calc = employeeCalculations[id];
@@ -888,21 +905,23 @@ const CotisationCNPSTable = ({
         })}
       </div>
 
-      {/* Version Desktop : Tableau optimisé - Visible sur tous les écrans */}
-      <div>
+      {/* Version Tablette/Desktop : Tableau optimisé */}
+      <div className="hidden md:block">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
                 <tr>
                   <th className="p-3 text-left font-semibold sticky left-0 bg-blue-500">Employé</th>
+                  <th className="p-3 text-right font-semibold">Salaire Base</th>
+                  <th className="p-3 text-right font-semibold">Brut Total</th>
                   <th className="p-3 text-right font-semibold">SBT</th>
                   <th className="p-3 text-right font-semibold">SBC</th>
-                  <th className="p-3 text-right font-semibold">P&I</th>
+                  <th className="p-3 text-right font-semibold">Primes & Indem.</th>
                   <th className="p-3 text-right font-semibold">IRPP</th>
                   <th className="p-3 text-right font-semibold">PVID</th>
-                  <th className="p-3 text-right font-semibold">Autres</th>
-                  <th className="p-3 text-right font-semibold">Net</th>
+                  <th className="p-3 text-right font-semibold">Autres Déd.</th>
+                  <th className="p-3 text-right font-semibold">Net à Payer</th>
                   <th className="p-3 text-center font-semibold">Action</th>
                 </tr>
               </thead>
@@ -963,6 +982,14 @@ const CotisationCNPSTable = ({
                   <td className="p-3 border-t-2 border-gray-300 sticky left-0 bg-gray-100">
                     TOTAUX ({selectedIds.length} employés)
                   </td>
+                  <td className="p-3 border-t-2 border-gray-300 text-right">{formatFR(selectedIds.reduce((acc, id) => {
+                    const calc = employeeCalculations[id];
+                    return acc + (Number(calc?.salaryDetails.baseSalary) || 0);
+                  }, 0))}</td>
+                  <td className="p-3 border-t-2 border-gray-300 text-right">{formatFR(selectedIds.reduce((acc, id) => {
+                    const calc = employeeCalculations[id];
+                    return acc + (Number(calc?.netPayResult.grossTotal) || 0);
+                  }, 0))}</td>
                   <td className="p-3 border-t-2 border-gray-300 text-right text-blue-700">{formatFR(selectedIds.reduce((acc, id) => {
                     const calc = employeeCalculations[id];
                     return acc + (calc?.sbt || 0);

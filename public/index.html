@@ -1,43 +1,48 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <link rel="icon" href="%PUBLIC_URL%/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#3B82F6" />
-    <meta
-      name="description"
-      content="Web site created using create-react-app"
-    />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <!--
-      manifest.json provides metadata used when your web app is installed on a
-      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
-    -->
+    <meta name="description" content="PRHM - Plateforme de gestion des Ressources Humaines au Cameroun. Gestion de paie, cotisations CNPS, déclarations fiscales, congés et absences." />
+    <meta name="keywords" content="PRHM, RH, Ressources Humaines, Paie, CNPS, Cameroun, Gestion Employés, Bulletins de Paie, DIPE, Déclarations Fiscales" />
+    <meta name="author" content="PRHM" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="PRHM - Gestion des Ressources Humaines" />
+    <meta property="og:description" content="Plateforme complète de gestion RH pour les entreprises camerounaises" />
+    <meta property="og:image" content="%PUBLIC_URL%/logo.png" />
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="PRHM - Gestion des Ressources Humaines" />
+    <meta name="twitter:description" content="Plateforme complète de gestion RH pour les entreprises camerounaises" />
+    <meta name="twitter:image" content="%PUBLIC_URL%/logo.png" />
+    
+    <!-- Apple Touch Icon -->
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo.png" />
+    
+    <!-- Manifest -->
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <!--
-      Notice the use of %PUBLIC_URL% in the tags above.
-      It will be replaced with the URL of the `public` folder during the build.
-      Only files inside the `public` folder can be referenced from the HTML.
-
-      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-      work correctly both with client-side routing and a non-root public URL.
-      Learn how to configure a non-root public URL by running `npm run build`.
-    -->
-    <title>React App</title>
+    
+    <!-- Preconnect for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    
+    <title>PRHM - Gestion des Ressources Humaines</title>
   </head>
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <noscript>
+      <div style="display: flex; align-items: center; justify-content: center; height: 100vh; font-family: system-ui, -apple-system, sans-serif; text-align: center; padding: 20px;">
+        <div>
+          <h1 style="color: #3B82F6; margin-bottom: 16px;">PRHM</h1>
+          <p style="color: #6B7280; margin-bottom: 8px;">Vous devez activer JavaScript pour utiliser cette application.</p>
+          <p style="color: #9CA3AF; font-size: 14px;">You need to enable JavaScript to run this app.</p>
+        </div>
+      </div>
+    </noscript>
     <div id="root"></div>
-    <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
-
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the <body> tag.
-
-      To begin the development, run `npm start` or `yarn start`.
-      To create a production bundle, use `npm run build` or `yarn build`.
-    -->
   </body>
 </html>

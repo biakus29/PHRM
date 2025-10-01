@@ -485,18 +485,6 @@ const EmployeeDashboard = () => {
       </aside>
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-h-screen w-full">
-        {/* Header - Hidden on mobile */}
-        <header className="hidden md:flex bg-white shadow-sm border-b border-gray-100 p-4 items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900 capitalize">{sidebarItems.find(i => i.id === activeTab)?.label}</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-500">
-              {new Date().toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-            </span>
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-400 rounded-full flex items-center justify-center text-white font-semibold">
-              {employeeData.name[0]?.toUpperCase() || "U"}
-            </div>
-          </div>
-        </header>
         <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-y-auto pb-20 md:pb-6 animate-fade-in">
       <ToastContainer
         position="top-right"
@@ -1201,6 +1189,7 @@ const EmployeeDashboard = () => {
       <MobileFooterNav 
         activeTab={activeTab} 
         setActiveTab={setActiveTab}
+        handleLogout={handleLogout}
       />
     </div>
   );

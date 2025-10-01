@@ -153,32 +153,8 @@ export const DashboardSection = ({
   children,
   className = "" 
 }) => {
-  const isMobile = useIsMobile();
-  
   return (
     <div className={`bg-white rounded-lg shadow-sm border border-gray-200 ${className}`}>
-      {/* En-tête de section */}
-      {(title || actions) && (
-        <div className={`
-          px-4 py-4 sm:px-6 border-b border-gray-200
-          ${isMobile ? 'space-y-3' : 'flex items-center justify-between'}
-        `}>
-          <div>
-            {title && (
-              <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-            )}
-            {subtitle && (
-              <p className="mt-1 text-sm text-gray-600">{subtitle}</p>
-            )}
-          </div>
-          {actions && (
-            <div className={`${isMobile ? 'flex flex-col gap-2' : 'flex gap-2'}`}>
-              {actions}
-            </div>
-          )}
-        </div>
-      )}
-      
       {/* Contenu de la section */}
       <div className="px-4 py-4 sm:px-6">
         {children}

@@ -121,7 +121,6 @@ const CotisationCNPS = ({ companyId, cnpsEmployeur }) => {
   return (
     <div className="space-y-6">
       <div className="bg-white p-6 rounded-lg shadow">
-        <h2 className="text-2xl font-bold mb-6">Cotisations CNPS</h2>
 
         {/* Sélecteur d'employés */}
         <CotisationEmployeeSelector
@@ -158,9 +157,6 @@ const CotisationCNPS = ({ companyId, cnpsEmployeur }) => {
       {/* Tableau des cotisations */}
       {selectedIds.length > 0 && (
         <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-xl font-semibold mb-4">
-            Tableau des Cotisations ({selectedIds.length} employé{selectedIds.length > 1 ? 's' : ''})
-          </h3>
 
           {/* Switch de vue */}
           <div className="flex items-center gap-2 mb-4">

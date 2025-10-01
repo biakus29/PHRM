@@ -5,7 +5,6 @@
 import React, { useState, useEffect } from "react";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import DashboardSidebar from "./DashboardSidebar";
-import DashboardHeader from "./DashboardHeader";
 import MobileFooterNav from "./MobileFooterNav";
 
 const ResponsiveLayout = ({
@@ -17,10 +16,10 @@ const ResponsiveLayout = ({
   userEmail,
   notificationCount = 0,
   onSignOut,
+  handleLogout,
 }) => {
   // États pour gérer la sidebar
   const [sidebarState, setSidebarState] = useState("fullyOpen");
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
   
   // Media queries
   const isMobile = useMediaQuery("(max-width: 767px)");
@@ -84,44 +83,6 @@ const ResponsiveLayout = ({
       
       {/* Layout principal */}
       <div className={getMainContainerClass()}>
-        {/* Header */}
-        <DashboardHeader
-          userEmail={userEmail}
-          onSignOut={onSignOut}
-          onMenuToggle={() => {
-            if (isMobile) {
-              setShowMobileMenu(!showMobileMenu);
-            } else {
-              setSidebarState(prev => 
-                prev === "fullyOpen" ? "minimized" : "fullyOpen"
-              );
-            }
-          }}
-          notificationCount={notificationCount}
-          isMobile={isMobile}
-        />
-        
-        {/* Menu mobile (drawer) */}
-        {isMobile && showMobileMenu && (
-          <div className="fixed inset-0 z-50 lg:hidden">
-            <div className="fixed inset-0 bg-gray-900/50" onClick={() => setShowMobileMenu(false)} />
-            <div className="fixed inset-y-0 left-0 flex w-full max-w-xs flex-col bg-white">
-              <DashboardSidebar
-                activeTab={activeTab}
-                setActiveTab={(tab) => {
-                  setActiveTab(tab);
-                  setShowMobileMenu(false);
-                }}
-                sidebarState="fullyOpen"
-                setSidebarState={() => {}}
-                companyData={companyData}
-                logoData={logoData}
-                isMobileDrawer={true}
-                onClose={() => setShowMobileMenu(false)}
-              />
-            </div>
-          </div>
-        )}
         
         {/* Contenu principal */}
         <main className={getContentClass()}>
@@ -129,12 +90,13 @@ const ResponsiveLayout = ({
         </main>
       </div>
       
-      {/* Footer Navigation Mobile */}
-      {isMobile && (
+      {/* Footer Navigation Mobile & Tablet */}
+      {(isMobile || isTablet) && (
         <MobileFooterNav
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           notificationCount={notificationCount}
+          handleLogout={handleLogout || onSignOut}
         />
       )}
     </>

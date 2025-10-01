@@ -1,23 +1,11 @@
-// modeletemplate.js
-// Point d'entrée principal pour tous les templates de bulletins de paie
-// Ce fichier importe et réexporte tous les templates modulaires pour compatibilité
+// Index central des templates de bulletins de paie
+// Tous les templates sont maintenant modularisés dans des fichiers séparés
 
-// Import de tous les templates modulaires
 import { renderClassicPayslip } from './classic';
 import { renderBulletinPaieTemplate } from './bulletin_paie';
 import { renderEneoPayslip } from './eneo';
 import { renderComptaOnlineTemplate } from './compta_online';
 import { renderEnterpriseTemplate } from './enterprise';
-
-// Import des utilitaires partagés
-import {
-  COLORS,
-  FONTS,
-  setFont,
-  hasValue,
-  addLogoWithReservedSpace,
-  getEmployerCustomItems
-} from './shared';
 
 // Registre central des templates de bulletins de paie
 export const PAYSLIP_TEMPLATE_REGISTRY = {
@@ -46,24 +34,16 @@ export function getPayslipTemplates() {
   return Object.entries(PAYSLIP_TEMPLATE_REGISTRY).map(([value, meta]) => ({ value, label: meta.label }));
 }
 
-// Réexport des renderers individuels pour compatibilité
+// Exports individuels pour imports directs
 export { renderClassicPayslip } from './classic';
 export { renderBulletinPaieTemplate } from './bulletin_paie';
 export { renderEneoPayslip } from './eneo';
 export { renderComptaOnlineTemplate } from './compta_online';
 export { renderEnterpriseTemplate } from './enterprise';
 
-// Réexport des utilitaires partagés pour compatibilité
-export {
-  COLORS,
-  FONTS,
-  setFont,
-  hasValue,
-  addLogoWithReservedSpace,
-  getEmployerCustomItems
-} from './shared';
+// Export des utilitaires partagés
+export * from './shared';
 
-// Export par défaut
 export default {
   PAYSLIP_TEMPLATE_REGISTRY,
   getPayslipRenderer,

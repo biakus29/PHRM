@@ -13,9 +13,10 @@ import {
   Settings,
   MoreHorizontal,
   X,
+  LogOut,
 } from "lucide-react";
 
-const MobileFooterNav = ({ activeTab, setActiveTab, notificationCount = 0 }) => {
+const MobileFooterNav = ({ activeTab, setActiveTab, notificationCount = 0, handleLogout }) => {
   const [showToolsMenu, setShowToolsMenu] = useState(false);
   
   // Sections principales (identiques à la sidebar desktop)
@@ -31,8 +32,8 @@ const MobileFooterNav = ({ activeTab, setActiveTab, notificationCount = 0 }) => 
   // Outils (regroupés dans le menu "Outils")
   const toolsItems = [
     { id: "notifications", label: "Notifications", icon: Bell },
-    { id: "badges", label: "Badges", icon: Users },
     { id: "settings", label: "Paramètres", icon: Settings },
+    { id: "logout", label: "Déconnexion", icon: LogOut, isLogout: true },
   ];
   
   // Footer avec 5 items principaux + menu Outils
@@ -49,8 +50,15 @@ const MobileFooterNav = ({ activeTab, setActiveTab, notificationCount = 0 }) => 
   };
   
   const handleToolItemClick = (itemId) => {
-    setActiveTab(itemId);
-    setShowToolsMenu(false);
+    if (itemId === 'logout') {
+      setShowToolsMenu(false);
+      if (handleLogout) {
+        handleLogout();
+      }
+    } else {
+      setActiveTab(itemId);
+      setShowToolsMenu(false);
+    }
   };
   
   const isToolsActive = toolsItems.some(item => item.id === activeTab);
@@ -59,7 +67,7 @@ const MobileFooterNav = ({ activeTab, setActiveTab, notificationCount = 0 }) => 
     <>
       {/* Menu Outils (popup) */}
       {showToolsMenu && (
-        <div className="md:hidden fixed inset-0 bg-gray-900/50 z-50 flex items-end" onClick={() => setShowToolsMenu(false)}>
+        <div className="lg:hidden fixed inset-0 bg-gray-900/50 z-50 flex items-end" onClick={() => setShowToolsMenu(false)}>
           <div className="bg-white w-full rounded-t-2xl shadow-xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-gray-200 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900">Outils</h3>
@@ -77,12 +85,14 @@ const MobileFooterNav = ({ activeTab, setActiveTab, notificationCount = 0 }) => 
                     key={item.id}
                     onClick={() => handleToolItemClick(item.id)}
                     className={`w-full flex items-center gap-3 p-4 rounded-lg transition-colors ${
-                      isActive
+                      item.isLogout
+                        ? "text-red-600 hover:bg-red-50"
+                        : isActive
                         ? "bg-blue-50 text-blue-600"
                         : "text-gray-700 hover:bg-gray-50"
                     }`}
                   >
-                    <Icon className="w-5 h-5" />
+                    <Icon className={`w-5 h-5 ${item.isLogout ? 'text-red-600' : ''}`} />
                     <span className="font-medium">{item.label}</span>
                     {item.id === "notifications" && notificationCount > 0 && (
                       <span className="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
@@ -98,7 +108,7 @@ const MobileFooterNav = ({ activeTab, setActiveTab, notificationCount = 0 }) => 
       )}
       
       {/* Footer Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
         <div className="flex justify-around items-center h-16">
           {footerItems.map((item) => {
             const Icon = item.icon;

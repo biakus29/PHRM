@@ -5,23 +5,24 @@ import ClientAdminDashboard from "./pages/ClientAdminDashboard";
 import EmployeeLogin from "./pages/EmployeeLogin";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
 import SuperAdminLogin from "./pages/superadminlogin";
+import { FiscalSettingsProvider } from "./contexts/FiscalSettingsContext";
 
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/super-admin-login" element={<SuperAdminLogin />} />
-        <Route path="/super-admin" element={<SuperAdminDashboard />} />
-        <Route path="/client-admin-login" element={<ClientAdminLogin />} />
-        <Route path="/client-admin-dashboard" element={<ClientAdminDashboard />} />
-        <Route path="/employee-login" element={<EmployeeLogin />} />
-        <Route path="/employee-dashboard" element={<EmployeeDashboard />} />
-        <Route path="/" element={<ClientAdminLogin />} />
-        
-        
-      </Routes>
-    </BrowserRouter>
+    <FiscalSettingsProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/super-admin-login" element={<SuperAdminLogin />} />
+          <Route path="/super-admin" element={<SuperAdminDashboard />} />
+          <Route path="/client-admin-login" element={<ClientAdminLogin />} />
+          <Route path="/client-admin-dashboard" element={<ClientAdminDashboard />} />
+          <Route path="/employee-login" element={<EmployeeLogin />} />
+          <Route path="/employee-dashboard" element={<EmployeeDashboard />} />
+          <Route path="/" element={<ClientAdminLogin />} />
+        </Routes>
+      </BrowserRouter>
+    </FiscalSettingsProvider>
   );
 }
 

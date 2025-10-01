@@ -48,26 +48,10 @@ const CotisationEmployeeSelector = ({
 
   return (
     <div className="bg-white p-4 rounded-lg shadow">
-      <div className="flex items-center justify-between mb-4">
+      <div className="mb-4">
         <h3 className="text-lg font-semibold">
           Sélection des Employés ({selectedIds.length}/{employees.length})
         </h3>
-        <div className="flex space-x-2">
-          <button
-            onClick={onSelectAll}
-            className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-            disabled={allSelected}
-          >
-            Tout sélectionner
-          </button>
-          <button
-            onClick={onDeselectAll}
-            className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
-            disabled={selectedIds.length === 0}
-          >
-            Tout désélectionner
-          </button>
-        </div>
       </div>
 
       {/* Checkbox principal */}

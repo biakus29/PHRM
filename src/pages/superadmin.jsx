@@ -36,8 +36,10 @@ import {
   FiPlus,
   FiRefreshCw,
   FiSearch,
+  FiSettings,
 } from "react-icons/fi";
 import { buildCommonOptions } from "../utils/chartConfig";
+import FiscalSettings from "../components/FiscalSettings";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -444,6 +446,7 @@ const SuperAdminDashboard = () => {
               { id: "licenses", label: "Licences", icon: FiShield },
               { id: "clients", label: "Clients", icon: FiUsers },
               { id: "stats", label: "Statistiques", icon: FiBarChart2 },
+              { id: "settings", label: "Paramètres Fiscaux", icon: FiSettings },
             ].map((section) => (
               <li key={section.id}>
                 <button
@@ -494,12 +497,14 @@ const SuperAdminDashboard = () => {
               {activeSection === "licenses" && "Gestion des licences"}
               {activeSection === "clients" && "Gestion des clients"}
               {activeSection === "stats" && "Statistiques"}
+              {activeSection === "settings" && "Paramètres Fiscaux & CNPS"}
             </h1>
             <p className="text-gray-600 text-sm animate-scale-in">
               {activeSection === "dashboard" && "Aperçu global de votre administration"}
               {activeSection === "licenses" && "Gérez les licences de vos clients"}
               {activeSection === "clients" && "Liste complète de vos clients"}
               {activeSection === "stats" && "Analyse des données d'utilisation"}
+              {activeSection === "settings" && "Configuration des taux CNPS, fiscaux et barèmes"}
             </p>
           </div>
 
@@ -844,17 +849,23 @@ const SuperAdminDashboard = () => {
                         {new Date(client.licenseExpiry).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        <button
-                          onClick={() => toggleClientStatus(client.id, client.isActive)}
-                          className={`px-2 py-1 rounded-full text-xs transition-colors transform hover:scale-105 ${
-                            client.isActive
-                              ? "bg-green-100 text-green-600"
-                              : "bg-red-100 text-red-600"
-                          }`}
-                          aria-label={`Basculer le statut de ${client.name}`}
-                        >
-                          {client.isActive ? "Actif" : "Inactif"}
-                        </button>
+                        {(() => {
+                          const isExpired = client.licenseExpiry && new Date(client.licenseExpiry) <= new Date();
+                          const isActive = client.isActive !== false && !isExpired;
+                          return (
+                            <button
+                              onClick={() => toggleClientStatus(client.id, client.isActive)}
+                              className={`px-2 py-1 rounded-full text-xs transition-colors transform hover:scale-105 ${
+                                isActive
+                                  ? "bg-green-100 text-green-600"
+                                  : "bg-red-100 text-red-600"
+                              }`}
+                              aria-label={`Basculer le statut de ${client.name}`}
+                            >
+                              {isActive ? "Actif" : isExpired ? "Expiré" : "Inactif"}
+                            </button>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                         <div className="flex space-x-2">
@@ -920,6 +931,10 @@ const SuperAdminDashboard = () => {
               />
             </div>
           </Card>
+        )}
+
+        {activeSection === "settings" && (
+          <FiscalSettings />
         )}
       </main>
     </div>
