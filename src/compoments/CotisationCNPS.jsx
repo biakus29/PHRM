@@ -97,7 +97,29 @@ const CotisationCNPS = ({ companyId, cnpsEmployeur }) => {
   // Export PDF CNPS
   const handleExportCNPDF = () => {
     if (selectedIds.length === 0) return toast.error("Sélectionnez au moins un salarié");
-    exportCnpsPDF({ selectedIds, formData, employerOptions, employerSummary, cnpsEmployeur });
+    
+    // Créer les données CNPS à partir des calculs existants
+    const cnpsData = {
+      rows: selectedIds.map(id => {
+        const d = formData[id] || {};
+        const emp = employees?.find(e => e.id === id);
+        return {
+          id,
+          cnps: d.cnps || d.matricule,
+          nom: d.nom || emp?.name,
+          brut: d.brut || 0,
+          primes: d.primesImposables || 0,
+          indemnites: d.indemniteTransport || 0,
+          sbc: d.sbc || d.baseCotisable || 0,
+          pvidSalarie: d.pvidSalarie || d.cotisSalarie || 0,
+          prestationsFamilles: d.prestationsFamilles || 0,
+          pvidEmployeur: d.pvidEmployeur || 0,
+          risquesProfessionnels: d.risquesProfessionnels || 0
+        };
+      })
+    };
+    
+    exportCnpsPDF({ selectedIds, formData, employerOptions, employerSummary, cnpsEmployeur, cnpsData });
   };
 
   // Export PDF Impôts

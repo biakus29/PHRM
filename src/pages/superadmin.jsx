@@ -88,21 +88,31 @@ const SuperAdminDashboard = () => {
                   
                   // Compter le nombre d'employés pour ce client
                   try {
-                    const employeesQuery = query(
-                      collection(db, "employees"),
-                      where("employerId", "==", clientDoc.id)
+                    console.log(`🔍 Recherche employés pour client ${clientData.name} (clientId: ${clientDoc.id})`);
+                    
+                    // Les employés sont dans la sous-collection: clients/{clientId}/employees
+                    const employeesSnapshot = await getDocs(
+                      collection(db, "clients", clientDoc.id, "employees")
                     );
-                    const employeesSnapshot = await getDocs(employeesQuery);
+                    
                     clientData.currentUsers = employeesSnapshot.size;
+                    
+                    console.log(`✅ Client ${clientData.name}: ${clientData.currentUsers} employés trouvés`);
+                    
+                    if (employeesSnapshot.size > 0) {
+                      const employeeNames = employeesSnapshot.docs.map(doc => doc.data().name || doc.id);
+                      console.log(`   Employés: ${employeeNames.join(', ')}`);
+                    }
                     
                     // Mettre à jour le document client avec le nombre réel d'employés
                     if (clientData.currentUsers !== clientDoc.data().currentUsers) {
+                      console.log(`📝 Mise à jour de ${clientData.name}: ${clientDoc.data().currentUsers} → ${clientData.currentUsers}`);
                       await updateDoc(doc(db, "clients", clientDoc.id), {
                         currentUsers: clientData.currentUsers
                       });
                     }
                   } catch (error) {
-                    console.error(`Erreur comptage employés pour ${clientDoc.id}:`, error);
+                    console.error(`❌ Erreur comptage employés pour ${clientData.name}:`, error);
                     clientData.currentUsers = clientDoc.data().currentUsers || 0;
                   }
                   
