@@ -138,10 +138,9 @@ function calculateCotisations(employeeData, employerOptions) {
 }
 
 /**
- * Export PDF pour les cotisations CNPS - SUPPRIMÉ
- * Utiliser la fonction dans pdfCnps.js à la place
+ * Export PDF pour les cotisations CNPS
  */
-export function exportCnpsPDF_OLD({ selectedIds, formData, employerOptions, employerSummary, cnpsEmployeur }) {
+export function exportCnpsPDF({ selectedIds, formData, employerOptions, employerSummary, cnpsEmployeur }) {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const { margins, colors, fonts } = PDF_CONFIG;
   
@@ -320,10 +319,9 @@ export function exportCnpsPDF_OLD({ selectedIds, formData, employerOptions, empl
 }
 
 /**
- * Export PDF pour les déclarations d'impôts - SUPPRIMÉ
- * Utiliser la fonction dans pdfCnps.js à la place
+ * Export PDF pour les déclarations d'impôts
  */
-export function exportTaxesPDF_OLD({ selectedIds, taxesData, formData, cnpsEmployeur }) {
+export function exportTaxesPDF({ selectedIds, taxesData, formData, cnpsEmployeur }) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const { margins, colors, fonts } = PDF_CONFIG;
   
@@ -483,5 +481,4 @@ export function exportTaxesPDF_OLD({ selectedIds, taxesData, formData, cnpsEmplo
   doc.save(filename);
 }
 
-// Anciennes fonctions supprimées - utiliser pdfCnps.js
-export default {};
+export default { exportCnpsPDF, exportTaxesPDF };

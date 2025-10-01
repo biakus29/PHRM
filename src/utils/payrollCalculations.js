@@ -1041,34 +1041,38 @@ export const calculateTotalNet = (selectedIds = [], formData = {}) => {
   return totals.totalNet;
 };
 
-export const generateExcelData = (selectedIds = [], formData = {}, employees = []) => {
-  const data = [];
+// Fonction pour calculer les taxes de tous les employés sélectionnés (pour PDF Impôts)
+export const computeTaxesForEmployees = (selectedIds = [], formData = {}, employerOptions = {}, taxOptions = {}) => {
+  const rows = [];
   
   selectedIds.forEach(id => {
-    const employee = employees.find(e => e.id === id);
-    const formDataItem = formData[id] || {};
+    const d = formData[id] || {};
+    const baseSalary = num(d.baseSalary || d.brut);
+    const primesArr = Array.isArray(d.primesArray) ? d.primesArray : [];
+    const indemArr = Array.isArray(d.indemnitesArray) ? d.indemnitesArray : [];
     
-    if (employee) {
-      const employeeData = {
-        salaireBrut: num(formDataItem.baseSalary || formDataItem.brut),
-        primesCotisables: {},
-        primesNonCotisables: {}
-      };
-      
-      const result = calculComplet(employeeData);
-      
-      data.push({
-        nom: employee.name,
-        matricule: employee.matricule,
-        salaireBrut: result.bases.salaireBrutTotal,
-        sbc: result.bases.sbc,
-        sbt: result.bases.sbt,
-        pvid: result.cnps.pvidSalarie,
-        irpp: result.irpp,
-        netPayer: result.salaireNet
-      });
-    }
+    // Calculer SBT et SBC
+    const sbt = computeSBT({ baseSalary }, {}, primesArr, indemArr);
+    const sbc = computeSBC({ baseSalary }, {}, primesArr, indemArr);
+    
+    // Calculer les taxes
+    const taxes = computeTaxes(baseSalary, sbt, sbc, taxOptions);
+    
+    rows.push({
+      id,
+      cnps: d.cnps || d.matricule || '-',
+      nom: d.nom || d.name || '-',
+      sbt,
+      sbc,
+      irpp: taxes.irpp,
+      cac: Math.round(taxes.irpp * 0.10),
+      cfc: taxes.cfc,
+      rav: taxes.rav,
+      tdl: taxes.tdl,
+      fne: taxes.fne.salarie,
+      fneEmployeur: taxes.fne.employeur
+    });
   });
   
-  return data;
+  return { rows };
 };

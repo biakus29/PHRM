@@ -4,12 +4,12 @@ import * as XLSX from "xlsx";
 import { formatFR } from "../utils/numberUtils";
 import { exportCnpsPDF, exportTaxesPDF } from "../utils/pdfCnps";
 import { 
-  computeTaxes,
+  computeTaxesForEmployees,
   calculateEmployerSummary, 
   calculateTableTotals, 
-  calculateTotalNet,
-  generateExcelData 
+  calculateTotalNet
 } from "../utils/payrollCalculations";
+import { generateExcelData, generateDeclarationCNPSExcelData, generateDIPEExcelData } from "../utils/excelExports";
 import { useCotisationCNPS } from "../hooks/useCotisationCNPS";
 import CotisationEmployeeSelector from "../components/CotisationEmployeeSelector";
 import CotisationCNPSControls from "../components/CotisationCNPSControls";
@@ -68,7 +68,7 @@ const CotisationCNPS = ({ companyId, cnpsEmployeur }) => {
   );
 
   const taxesData = React.useMemo(
-    () => computeTaxes(selectedIds, formData, employerOptions, taxOptions),
+    () => computeTaxesForEmployees(selectedIds, formData, employerOptions, taxOptions),
     [selectedIds, formData, employerOptions, taxOptions]
   );
 
@@ -97,29 +97,7 @@ const CotisationCNPS = ({ companyId, cnpsEmployeur }) => {
   // Export PDF CNPS
   const handleExportCNPDF = () => {
     if (selectedIds.length === 0) return toast.error("Sélectionnez au moins un salarié");
-    
-    // Créer les données CNPS à partir des calculs existants
-    const cnpsData = {
-      rows: selectedIds.map(id => {
-        const d = formData[id] || {};
-        const emp = employees?.find(e => e.id === id);
-        return {
-          id,
-          cnps: d.cnps || d.matricule,
-          nom: d.nom || emp?.name,
-          brut: d.brut || 0,
-          primes: d.primesImposables || 0,
-          indemnites: d.indemniteTransport || 0,
-          sbc: d.sbc || d.baseCotisable || 0,
-          pvidSalarie: d.pvidSalarie || d.cotisSalarie || 0,
-          prestationsFamilles: d.prestationsFamilles || 0,
-          pvidEmployeur: d.pvidEmployeur || 0,
-          risquesProfessionnels: d.risquesProfessionnels || 0
-        };
-      })
-    };
-    
-    exportCnpsPDF({ selectedIds, formData, employerOptions, employerSummary, cnpsEmployeur, cnpsData });
+    exportCnpsPDF({ selectedIds, formData, employerOptions, employerSummary, cnpsEmployeur, employees });
   };
 
   // Export PDF Impôts
@@ -128,16 +106,41 @@ const CotisationCNPS = ({ companyId, cnpsEmployeur }) => {
     exportTaxesPDF({ selectedIds, taxesData, formData, cnpsEmployeur });
   };
 
-  // Export Excel
-  const handleExportExcel = () => {
+  // Export Excel CNPS (adapté selon la vue)
+  const handleExportExcelCNPS = () => {
     if (selectedIds.length === 0) return toast.error("Sélectionnez au moins un salarié");
     
-    const data = generateExcelData(selectedIds, formData, employerOptions, cnpsEmployeur);
+    let data, sheetName, fileName;
+    
+    if (viewMode === 'declaration') {
+      // Vue Déclaration CNPS Officielle
+      data = generateDeclarationCNPSExcelData(selectedIds, formData, employees, employerOptions);
+      sheetName = "Déclaration CNPS";
+      fileName = `declaration_cnps_${new Date().toISOString().split('T')[0]}.xlsx`;
+    } else {
+      // Vue Detailed (par défaut)
+      data = generateExcelData(selectedIds, formData, employees, employerOptions);
+      sheetName = "Cotisations CNPS";
+      fileName = `cotisations_cnps_${new Date().toISOString().split('T')[0]}.xlsx`;
+    }
+    
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Cotisations CNPS");
-    XLSX.writeFile(wb, `cotisations_cnps_${new Date().toISOString().split('T')[0]}.xlsx`);
-    toast.success("Export Excel généré avec succès!");
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    XLSX.writeFile(wb, fileName);
+    toast.success("Export Excel CNPS généré avec succès!");
+  };
+
+  // Export Excel DIPE
+  const handleExportExcelDIPE = () => {
+    if (selectedIds.length === 0) return toast.error("Sélectionnez au moins un salarié");
+    
+    const data = generateDIPEExcelData(selectedIds, formData, employees, employerOptions);
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "DIPE");
+    XLSX.writeFile(wb, `dipe_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success("Export Excel DIPE généré avec succès!");
   };
 
   return (
@@ -170,7 +173,8 @@ const CotisationCNPS = ({ companyId, cnpsEmployeur }) => {
         onSave={handleSave}
         onExportCNPDF={handleExportCNPDF}
         onExportTaxesPDF={handleExportTaxesPDF}
-        onExportExcel={handleExportExcel}
+        onExportExcelCNPS={handleExportExcelCNPS}
+        onExportExcelDIPE={handleExportExcelDIPE}
         selectedIds={selectedIds}
         saving={saving}
         loading={loading}

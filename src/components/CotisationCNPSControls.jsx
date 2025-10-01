@@ -15,7 +15,8 @@ const CotisationCNPSControls = ({
   onSave,
   onExportCNPDF,
   onExportTaxesPDF,
-  onExportExcel,
+  onExportExcelCNPS,
+  onExportExcelDIPE,
   selectedIds,
   saving,
   loading
@@ -118,11 +119,18 @@ const CotisationCNPSControls = ({
             📄 Export PDF Impôts
           </Button>
           <Button
-            onClick={onExportExcel}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm sm:text-base py-2 px-3 sm:px-4 min-w-[100px] sm:min-w-[120px]"
+            onClick={onExportExcelCNPS}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm sm:text-base py-2 px-3 sm:px-4 min-w-[140px] sm:min-w-[160px]"
             disabled={selectedIds.length === 0}
           >
-            📊 Export Excel
+            📊 Excel CNPS
+          </Button>
+          <Button
+            onClick={onExportExcelDIPE}
+            className="bg-teal-600 hover:bg-teal-700 text-white text-sm sm:text-base py-2 px-3 sm:px-4 min-w-[140px] sm:min-w-[160px]"
+            disabled={selectedIds.length === 0}
+          >
+            📊 Excel DIPE
           </Button>
         </div>
       </div>
