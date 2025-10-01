@@ -8,6 +8,9 @@ import {
   updateDoc,
   onSnapshot,
   getDoc,
+  getDocs,
+  query,
+  where,
 } from "firebase/firestore";
 import { createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { Bar } from "react-chartjs-2";
@@ -78,11 +81,34 @@ const SuperAdminDashboard = () => {
           console.log("SuperAdmin confirmé, chargement des clients");
           const unsubscribeSnapshot = onSnapshot(
             collection(db, "clients"),
-            (snapshot) => {
-              const clientsData = snapshot.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-              }));
+            async (snapshot) => {
+              const clientsData = await Promise.all(
+                snapshot.docs.map(async (clientDoc) => {
+                  const clientData = { id: clientDoc.id, ...clientDoc.data() };
+                  
+                  // Compter le nombre d'employés pour ce client
+                  try {
+                    const employeesQuery = query(
+                      collection(db, "employees"),
+                      where("employerId", "==", clientDoc.id)
+                    );
+                    const employeesSnapshot = await getDocs(employeesQuery);
+                    clientData.currentUsers = employeesSnapshot.size;
+                    
+                    // Mettre à jour le document client avec le nombre réel d'employés
+                    if (clientData.currentUsers !== clientDoc.data().currentUsers) {
+                      await updateDoc(doc(db, "clients", clientDoc.id), {
+                        currentUsers: clientData.currentUsers
+                      });
+                    }
+                  } catch (error) {
+                    console.error(`Erreur comptage employés pour ${clientDoc.id}:`, error);
+                    clientData.currentUsers = clientDoc.data().currentUsers || 0;
+                  }
+                  
+                  return clientData;
+                })
+              );
               setClients(clientsData);
               setIsLoading(false);
             },
