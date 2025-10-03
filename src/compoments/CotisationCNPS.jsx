@@ -68,8 +68,8 @@ const CotisationCNPS = ({ companyId, cnpsEmployeur }) => {
   );
 
   const taxesData = React.useMemo(
-    () => computeTaxesForEmployees(selectedIds, formData, employerOptions, taxOptions),
-    [selectedIds, formData, employerOptions, taxOptions]
+    () => computeTaxesForEmployees(selectedIds, formData, employerOptions, taxOptions, employees),
+    [selectedIds, formData, employerOptions, taxOptions, employees]
   );
 
   const totalNet = React.useMemo(

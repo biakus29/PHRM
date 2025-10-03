@@ -1,15 +1,7 @@
-// src/utils/pdfCnps.js
+// src/utils/validationUtils.jsx
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { formatFR } from './numberUtils';
-
-/**
- * Formate un nombre pour l'affichage PDF avec séparateur d'espaces
- */
-function formatNumber(number) {
-  if (!number || isNaN(number)) return '0';
-  return Math.round(Number(number)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-}
 import { buildCnpsCode } from './cnpsUtils';
 
 /**
@@ -117,7 +109,7 @@ function calculateCotisations(employeeData, employerOptions) {
              (Number(employeeData.tauxRP) || 0);
   }
   
-  const pvid = Math.round(base * 0.049);
+  const pvid = Math.round(base * 0.042);
   const pf = Math.round(base * 0.07);
   const rp = Math.round(base * (rpRate / 100));
   const cotisEmployeur = pvid + pf + rp;
@@ -264,7 +256,7 @@ export function exportCnpsPDF({ selectedIds, formData, employerOptions, employer
   const recapHead = [['RÉCAPITULATIF EMPLOYEUR', 'MONTANT (FCFA)']];
   const recapBody = [
     [`Prestations Familiales (${employerOptions.ratePF}%)`, formatNumber(employerSummary.totalPF) + ' F'],
-    [`PVID Employeur (${employerOptions.ratePVID}%)`, formatNumber(employerSummary.totalPVID) + ' F'],
+    [`PVID Employeur (4,2%)`, formatNumber(employerSummary.totalPVID) + ' F'],
     [
       `Risques Professionnels ${employerOptions.includeRP ? '(Activé)' : '(Désactivé)'}`, 
       formatNumber(employerSummary.totalRP) + ' F'
@@ -310,7 +302,7 @@ export function exportCnpsPDF({ selectedIds, formData, employerOptions, employer
   doc.setTextColor(...colors.gray);
   doc.text('Note: Base cotisable plafonnée à 750 000 FCFA. Taux salarié: 4,2% (PVID).', 
            margins.left, finalY);
-  doc.text('Taux employeur: 4,9% (PVID) + 7% (PF) + Taux RP variable selon la catégorie professionnelle.',
+  doc.text('Taux employeur: 4,2% (PVID) + 7% (PF) + Taux RP variable selon la catégorie professionnelle.',
            margins.left, finalY + 5);
   
   // Sauvegarde du fichier
@@ -347,7 +339,7 @@ export function exportTaxesPDF({ selectedIds, taxesData, formData, cnpsEmployeur
   
   // Tableau principal des impôts
   const tableHead = [
-    ['Mat.', 'Nom Complet', 'SBT (F)', 'IRPP (F)', 'CAC (F)', 'CFC SAL (F)', 'FNE Sal. (F)', 'FNE Emp. (F)']
+    ['Mat.', 'Nom Complet', 'SBT (F)', 'IRPP (F)', 'CAC (F)', 'CFC SAL (F)', 'CFC EMP (F)', 'FNE Sal. (F)', 'FNE Emp. (F)']
   ];
   
   const tableBody = taxesData.rows.map((row) => [
@@ -357,6 +349,7 @@ export function exportTaxesPDF({ selectedIds, taxesData, formData, cnpsEmployeur
     formatNumber(row.irpp),
     formatNumber(row.cac),
     formatNumber(row.cfc),
+    formatNumber(row.cfcEmp || 0),
     formatNumber(row.fneSal),
     formatNumber(row.fneEmp)
   ]);
@@ -391,14 +384,15 @@ export function exportTaxesPDF({ selectedIds, taxesData, formData, cnpsEmployeur
       fillColor: colors.lightGray
     },
     columnStyles: {
-      0: { halign: 'center', cellWidth: 20 },
-      1: { cellWidth: 45 },
-      2: { halign: 'right', cellWidth: 25 },
-      3: { halign: 'right', cellWidth: 25 },
-      4: { halign: 'right', cellWidth: 20 },
-      5: { halign: 'right', cellWidth: 25 },
+      0: { halign: 'center', cellWidth: 18 },
+      1: { cellWidth: 40 },
+      2: { halign: 'right', cellWidth: 22 },
+      3: { halign: 'right', cellWidth: 22 },
+      4: { halign: 'right', cellWidth: 18 },
+      5: { halign: 'right', cellWidth: 22 },
       6: { halign: 'right', cellWidth: 22 },
-      7: { halign: 'right', cellWidth: 22 }
+      7: { halign: 'right', cellWidth: 20 },
+      8: { halign: 'right', cellWidth: 20 }
     },
     didDrawPage: (data) => {
       addDocumentFooter(doc, data);
@@ -413,13 +407,14 @@ export function exportTaxesPDF({ selectedIds, taxesData, formData, cnpsEmployeur
     ['Salaire Brut Taxable', formatNumber(taxesData.totals.sbt) + ' F', 'Base de calcul'],
     ['IRPP (Impôt sur le Revenu)', formatNumber(taxesData.totals.irpp) + ' F', 'Retenue salariale'],
     ['CAC (Centimes Additionnels)', formatNumber(taxesData.totals.cac) + ' F', '10% de l\'IRPP'],
-    ['CFC SAL (Centre Fiscal)', formatNumber(taxesData.totals.cfc) + ' F', '2,5% du SBT'],
-    ['FNE Salarié', formatNumber(taxesData.totals.fneSal) + ' F', '1% du SBT'],
-    ['FNE Employeur', formatNumber(taxesData.totals.fneEmp) + ' F', '1,5% du SBT'],
+    ['CFC SAL (Centre Fiscal)', formatNumber(taxesData.totals.cfc) + ' F', '1% du SBT'],
+    ['CFC EMP (Centre Fiscal)', formatNumber(taxesData.totals.cfcEmp || 0) + ' F', '1,5% du SBT'],
+    ['FNE Salarié', formatNumber(taxesData.totals.fneSal) + ' F', '0% du SBT'],
+    ['FNE Employeur', formatNumber(taxesData.totals.fneEmp) + ' F', '1% du SBT'],
     ['', '', ''], // Ligne de séparation
     [
       'TOTAL À VERSER AU TRÉSOR', 
-      formatNumber(taxesData.totals.irpp + taxesData.totals.cac + taxesData.totals.cfc + taxesData.totals.fneSal + taxesData.totals.fneEmp) + ' F',
+      formatNumber(taxesData.totals.irpp + taxesData.totals.cac + taxesData.totals.cfc + (taxesData.totals.cfcEmp || 0) + taxesData.totals.fneSal + taxesData.totals.fneEmp) + ' F',
       'Montant global'
     ]
   ];

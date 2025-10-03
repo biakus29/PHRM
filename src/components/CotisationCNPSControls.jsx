@@ -66,6 +66,28 @@ const CotisationCNPSControls = ({
       <div className="bg-white p-4 rounded-lg shadow">
         <h3 className="text-lg font-semibold mb-3 sm:mb-4">Options Employeur</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Activation RP */}
+          <div>
+            <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
+              Risques Professionnels
+            </label>
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="includeRP"
+                checked={employerOptions.includeRP || false}
+                onChange={(e) => setEmployerOptions(prev => ({ ...prev, includeRP: e.target.checked }))}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="includeRP" className="ml-2 block text-sm sm:text-base text-gray-900">
+                Activer les risques professionnels
+              </label>
+            </div>
+            <p className="text-xs sm:text-sm text-gray-500 mt-1">
+              Cochez pour inclure les cotisations RP selon la catégorie sélectionnée
+            </p>
+          </div>
+          
           <div>
             <label className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
               Catégorie Risques Professionnels
@@ -74,6 +96,7 @@ const CotisationCNPSControls = ({
               value={employerOptions.rpCategory || 'A'}
               onChange={(e) => setEmployerOptions(prev => ({ ...prev, rpCategory: e.target.value }))}
               className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
+              disabled={!employerOptions.includeRP}
             >
               <option value="A">Catégorie A - 1,75% (Bureaux, Commerce)</option>
               <option value="B">Catégorie B - 2,5% (Industrie légère)</option>

@@ -357,12 +357,16 @@ export function applyEmployerOptionsToCNPS({ baseSalary, sbc, sbt, cnps, autres 
   // FNE employeur toujours appliqué à 1,5%
   const fneEmployeur = Math.round(sbt * (rateFNEmp / 100));
 
+  // CFC employeur toujours appliqué à 1,5%
+  const cfcEmployeur = Math.round(sbt * (TAUX_CFC_EMPLOYEUR / 100));
+
   return {
     pvidEmployeur,
     prestationsFamiliales,
     risquesPro,
     totalEmployeur,
     fneEmployeur,
+    cfcEmployeur,
   };
 }
 
@@ -761,7 +765,6 @@ export const safeGetDeductions = (payrollResult) => {
   };
 };
 
-// ==================== FONCTIONS DE COMPATIBILITÉ MANQUANTES ====================
 
 // Alias pour CNPS_CAP
 export const CNPS_CAP = CNPS_PLAFOND;
@@ -924,6 +927,7 @@ export const calculateEmployerSummary = (selectedIds = [], formData = {}, employ
   let pf = 0;
   let rp = 0;
   let fneEmp = 0;
+  let cfcEmp = 0;
 
   selectedIds.forEach(id => {
     const data = formData[id] || {};
@@ -961,13 +965,14 @@ export const calculateEmployerSummary = (selectedIds = [], formData = {}, employ
     totalBrut += brutFromPayslip || result.bases.salaireBrutTotal;
     // Employeur: appliquer options (incl. RP coché)
     const adj = applyEmployerOptionsToCNPS({ baseSalary, sbc: result.bases.sbc, sbt: result.bases.sbt, cnps: result.cnps, autres: result.autres }, employerOptions);
-    const employeurThis = adj.totalEmployeur + adj.fneEmployeur;
+    const employeurThis = adj.totalEmployeur + adj.fneEmployeur + adj.cfcEmployeur;
     totalEmployeurDu += employeurThis;
     // Détail
     pvidEmp += adj.pvidEmployeur;
     pf += adj.prestationsFamiliales;
     rp += adj.risquesPro;
     fneEmp += adj.fneEmployeur;
+    cfcEmp += adj.cfcEmployeur;
     // Salarié: toutes retenues du salarié
     totalSalarie += result.totalRetenues;
     totalNet += result.salaireNet;
@@ -978,7 +983,7 @@ export const calculateEmployerSummary = (selectedIds = [], formData = {}, employ
     totalEmployeurDu,
     totalSalarie,
     totalNet,
-    employerBreakdown: { pvidEmp, pf, rp, fneEmp },
+    employerBreakdown: { pvidEmp, pf, rp, fneEmp, cfcEmp },
     // Champs de compatibilité
     totalEmployeur: totalEmployeurDu,
     totalGeneral: totalEmployeurDu + totalSalarie
@@ -1030,7 +1035,7 @@ export const calculateTableTotals = (selectedIds = [], formData = {}, employees 
     brut += brutFromPayslip || result.bases.salaireBrutTotal;
     sal += result.totalRetenues;
     const adj = applyEmployerOptionsToCNPS({ sbc: result.bases.sbc, sbt: result.bases.sbt, cnps: result.cnps, autres: result.autres }, employerOptions);
-    emp += adj.totalEmployeur + adj.fneEmployeur;
+    emp += adj.totalEmployeur + adj.fneEmployeur + adj.cfcEmployeur;
   });
   
   return { totalSBC, totalSBT, totalNet, brut, sal, emp };
@@ -1042,28 +1047,46 @@ export const calculateTotalNet = (selectedIds = [], formData = {}) => {
 };
 
 // Fonction pour calculer les taxes de tous les employés sélectionnés (pour PDF Impôts)
-export const computeTaxesForEmployees = (selectedIds = [], formData = {}, employerOptions = {}, taxOptions = {}) => {
+export const computeTaxesForEmployees = (selectedIds = [], formData = {}, employerOptions = {}, taxOptions = {}, employees = []) => {
   const rows = [];
   
   selectedIds.forEach(id => {
     const d = formData[id] || {};
-    const baseSalary = num(d.baseSalary || d.brut);
-    const primesArr = Array.isArray(d.primesArray) ? d.primesArray : [];
-    const indemArr = Array.isArray(d.indemnitesArray) ? d.indemnitesArray : [];
+    const emp = employees?.find(e => e.id === id);
+    const payslips = Array.isArray(emp?.payslips) ? emp.payslips : [];
+    const latestPayslip = payslips[payslips.length - 1] || {};
     
-    // Calculer SBT et SBC
-    const sbt = computeSBT({ baseSalary }, {}, primesArr, indemArr);
-    const sbc = computeSBC({ baseSalary }, {}, primesArr, indemArr);
+    // Utiliser exactement les mêmes données que le tableau principal
+    const baseSalaryValue = Number(
+      latestPayslip.salaryDetails?.baseSalary ?? d.baseSalary ?? d.brut ?? emp?.baseSalary ?? 0
+    );
+    const salaryDetails = { baseSalary: baseSalaryValue };
     
-    // Calculer les taxes
-    const taxes = computeTaxes(baseSalary, sbt, sbc, taxOptions);
+    const remuneration = {
+      total: Number(latestPayslip.remuneration?.total ?? d.brut ?? baseSalaryValue ?? 0)
+    };
+    
+    const primes = Array.isArray(latestPayslip.primes) ? latestPayslip.primes : [];
+    const indemnites = Array.isArray(latestPayslip.indemnites) ? latestPayslip.indemnites : [];
+    
+    // Utiliser computeCompletePayroll comme dans le tableau principal
+    const payslipData = {
+      salaryDetails,
+      remuneration,
+      primes,
+      indemnites
+    };
+    const calc = computeCompletePayroll(payslipData);
+    
+    // Calculer les taxes avec les mêmes données que le tableau
+    const taxes = computeTaxes(baseSalaryValue, calc.sbt, calc.sbc, taxOptions);
     
     rows.push({
       id,
       cnps: d.cnps || d.matricule || '-',
       nom: d.nom || d.name || '-',
-      sbt,
-      sbc,
+      sbt: calc.sbt,
+      sbc: calc.sbc,
       irpp: taxes.irpp,
       cac: Math.round(taxes.irpp * 0.10),
       cfc: taxes.cfc,
