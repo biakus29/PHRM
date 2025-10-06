@@ -159,12 +159,12 @@ const CotisationCNPSTable = ({
             return (
               <div key={id} className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                 {/* En-tête employé */}
-                <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-4">
+                <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4">
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="font-semibold text-lg">{d.nom || 'N/A'}</h3>
-                      <p className="text-orange-100 text-sm">N° {index + 1} | CNPS: {d.cnps || 'N/A'}</p>
-                      <p className="text-orange-100 text-xs">SBT: {formatFR(sbt)} FCFA</p>
+                      <p className="text-blue-100 text-sm">N° {index + 1} | CNPS: {d.cnps || 'N/A'}</p>
+                      <p className="text-blue-100 text-xs">SBT: {formatFR(sbt)} FCFA</p>
                     </div>
                     <button
                       onClick={() => onEmployeeDeselect(id)}
@@ -193,7 +193,7 @@ const CotisationCNPSTable = ({
                     </div>
                     <div className="bg-green-50 p-3 rounded">
                       <div className="text-xs text-gray-600">CFC Employeur (1,5%)</div>
-                      <div className="font-bold text-green-600">{formatFR(employerCharges.cfcEmployeur)} FCFA</div>
+                      <div className="font-bold text-sky-600">{formatFR(employerCharges.cfcEmployeur)} FCFA</div>
                     </div>
                     <div className="bg-purple-50 p-3 rounded">
                       <div className="text-xs text-gray-600">RAV</div>
@@ -221,7 +221,7 @@ const CotisationCNPSTable = ({
         <div className="hidden md:block w-full overflow-x-auto">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <table className="w-full min-w-[1024px] md:min-w-0">
-              <thead className="bg-orange-500 text-white">
+              <thead className="bg-blue-500 text-white">
                 <tr>
                   <th className="p-3 text-left whitespace-nowrap">Employé</th>
                   <th className="p-3 text-right whitespace-nowrap">SBT</th>
@@ -268,10 +268,10 @@ const CotisationCNPSTable = ({
                       <td className="p-3 text-right text-blue-600 whitespace-nowrap">{formatFR(vIrpp)}</td>
                       <td className="p-3 text-right whitespace-nowrap">{formatFR(vCac)}</td>
                       <td className="p-3 text-right whitespace-nowrap">{formatFR(vCfc)}</td>
-                      <td className="p-3 text-right text-green-600 whitespace-nowrap">{formatFR(employerCharges.cfcEmployeur)}</td>
+                      <td className="p-3 text-right text-sky-600 whitespace-nowrap">{formatFR(employerCharges.cfcEmployeur)}</td>
                       <td className="p-3 text-right whitespace-nowrap">{formatFR(vRav)}</td>
                       <td className="p-3 text-right whitespace-nowrap">{formatFR(vTdl)}</td>
-                      <td className="p-3 text-right font-bold text-red-600 whitespace-nowrap">{formatFR(totalSalarie)}</td>
+                      <td className="p-3 text-right font-bold text-blue-600 whitespace-nowrap">{formatFR(totalSalarie)}</td>
                       <td className="p-3 text-center whitespace-nowrap">
                         <button
                           onClick={() => onEmployeeDeselect(id)}
@@ -419,6 +419,8 @@ const CotisationCNPSTable = ({
                 <th className="p-3 text-right font-semibold">Prestations Fam.</th>
                 <th className="p-3 text-right font-semibold">PVID Employeur</th>
                 <th className="p-3 text-right font-semibold">Risques Prof.</th>
+                <th className="p-3 text-right font-semibold">Total Employé</th>
+                <th className="p-3 text-right font-semibold">Total Employeur</th>
                 <th className="p-3 text-right font-semibold">Total Global</th>
                 <th className="p-3 text-center font-semibold">Action</th>
               </tr>
@@ -436,10 +438,12 @@ const CotisationCNPSTable = ({
                     <td className="p-3 border-b border-gray-100">{d.matricule || '-'}</td>
                     <td className="p-3 border-b border-gray-100 font-medium">{d.nom || '-'}</td>
                     <td className="p-3 border-b border-gray-100 text-right">{formatFR(cnpsCalculs.baseCotisable)}</td>
-                    <td className="p-3 border-b border-gray-100 text-right text-green-600">{formatFR(cnpsCalculs.cotisSalarie)}</td>
-                    <td className="p-3 border-b border-gray-100 text-right text-yellow-600">{formatFR(cnpsCalculs.prestationsFamilles)}</td>
-                    <td className="p-3 border-b border-gray-100 text-right text-purple-600">{formatFR(cnpsCalculs.pvidEmployeur)}</td>
-                    <td className="p-3 border-b border-gray-100 text-right text-red-600">{formatFR(cnpsCalculs.risquesProfessionnels)}</td>
+                    <td className="p-3 border-b border-gray-100 text-right text-blue-600">{formatFR(cnpsCalculs.cotisSalarie)}</td>
+                    <td className="p-3 border-b border-gray-100 text-right text-sky-600">{formatFR(cnpsCalculs.prestationsFamilles)}</td>
+                    <td className="p-3 border-b border-gray-100 text-right text-blue-500">{formatFR(cnpsCalculs.pvidEmployeur)}</td>
+                    <td className="p-3 border-b border-gray-100 text-right text-blue-700">{formatFR(cnpsCalculs.risquesProfessionnels)}</td>
+                    <td className="p-3 border-b border-gray-100 text-right font-medium text-sky-500">{formatFR(cnpsCalculs.cotisSalarie)}</td>
+                    <td className="p-3 border-b border-gray-100 text-right font-medium text-blue-600">{formatFR(cnpsCalculs.cotisEmployeur)}</td>
                     <td className="p-3 border-b border-gray-100 text-right font-bold text-blue-600">{formatFR(cnpsCalculs.totalGlobal)}</td>
                     <td className="p-3 border-b border-gray-100 text-center">
                       <button
@@ -478,7 +482,15 @@ const CotisationCNPSTable = ({
                   const calc = employeeCalculations[id];
                   return acc + (Number(calc?.cnpsCalculs.risquesProfessionnels) || 0);
                 }, 0))}</td>
-                <td className="p-3 border-t-2 border-gray-300 text-right text-blue-700">{formatFR(selectedIds.reduce((acc, id) => {
+                <td className="p-3 border-t-2 border-gray-300 text-right font-semibold text-sky-500">{formatFR(selectedIds.reduce((acc, id) => {
+                  const calc = employeeCalculations[id];
+                  return acc + (Number(calc?.cnpsCalculs.cotisSalarie) || 0);
+                }, 0))}</td>
+                <td className="p-3 border-t-2 border-gray-300 text-right font-semibold text-blue-600">{formatFR(selectedIds.reduce((acc, id) => {
+                  const calc = employeeCalculations[id];
+                  return acc + (Number(calc?.cnpsCalculs.cotisEmployeur) || 0);
+                }, 0))}</td>
+                <td className="p-3 border-t-2 border-gray-300 text-right text-blue-700 font-bold">{formatFR(selectedIds.reduce((acc, id) => {
                   const calc = employeeCalculations[id];
                   return acc + (Number(calc?.cnpsCalculs.totalGlobal) || 0);
                 }, 0))}</td>
@@ -486,6 +498,57 @@ const CotisationCNPSTable = ({
               </tr>
             </tfoot>
           </table>
+        </div>
+
+        {/* Cartes de résumé des totaux */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+          <div className="bg-gradient-to-br from-blue-400 to-blue-500 rounded-lg shadow-lg p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm opacity-90">TOTAL EMPLOYÉ</div>
+                <div className="text-xs opacity-75 mt-1">Cotisations salariales</div>
+              </div>
+              <div className="text-2xl">👤</div>
+            </div>
+            <div className="mt-4 text-3xl font-bold">
+              {formatFR(selectedIds.reduce((acc, id) => {
+                const calc = employeeCalculations[id];
+                return acc + (Number(calc?.cnpsCalculs.cotisSalarie) || 0);
+              }, 0))} FCFA
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-sky-400 to-sky-500 rounded-lg shadow-lg p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm opacity-90">TOTAL EMPLOYEUR</div>
+                <div className="text-xs opacity-75 mt-1">Charges patronales</div>
+              </div>
+              <div className="text-2xl">🏢</div>
+            </div>
+            <div className="mt-4 text-3xl font-bold">
+              {formatFR(selectedIds.reduce((acc, id) => {
+                const calc = employeeCalculations[id];
+                return acc + (Number(calc?.cnpsCalculs.cotisEmployeur) || 0);
+              }, 0))} FCFA
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg shadow-lg p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm opacity-90">TOTAL GLOBAL</div>
+                <div className="text-xs opacity-75 mt-1">Employé + Employeur</div>
+              </div>
+              <div className="text-2xl">💰</div>
+            </div>
+            <div className="mt-4 text-3xl font-bold">
+              {formatFR(selectedIds.reduce((acc, id) => {
+                const calc = employeeCalculations[id];
+                return acc + (Number(calc?.cnpsCalculs.totalGlobal) || 0);
+              }, 0))} FCFA
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -501,7 +564,7 @@ const CotisationCNPSTable = ({
         </div>
 
         {/* Version Mobile uniquement : Cards responsive */}
-        <div className="md:hidden space-y-4">
+        <div className="lg:hidden space-y-4">
           {selectedIds.map((id, index) => {
             const d = formData[id] || {};
             const calc = employeeCalculations[id];
@@ -533,12 +596,12 @@ const CotisationCNPSTable = ({
             return (
               <div key={id} className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                 {/* En-tête employé */}
-                <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-4">
+                <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4">
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="font-semibold text-lg">{d.nom || 'N/A'}</h3>
-                      <p className="text-purple-100 text-sm">N° {index + 1} | CNPS: {d.cnps || 'N/A'}</p>
-                      <p className="text-purple-100 text-xs">Code: {codeCNPS}</p>
+                      <p className="text-blue-100 text-sm">N° {index + 1} | CNPS: {d.cnps || 'N/A'}</p>
+                      <p className="text-blue-100 text-xs">Code: {codeCNPS}</p>
                     </div>
                     <button
                       onClick={() => onEmployeeDeselect(id)}
@@ -604,17 +667,203 @@ const CotisationCNPSTable = ({
                       </div>
                     </div>
                   </div>
+
+                  {/* Totaux pour cet employé */}
+                  <div className="border-t pt-3 bg-gray-50">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-blue-50 p-3 rounded-lg text-center">
+                        <div className="text-xs text-gray-600 mb-1">Total Employé</div>
+                        <div className="font-bold text-sky-600 text-lg">
+                          {formatFR(vIrpp + vCac + vCfc + vRav + vTdl)} FCFA
+                        </div>
+                      </div>
+                      <div className="bg-sky-50 p-3 rounded-lg text-center">
+                        <div className="text-xs text-gray-600 mb-1">Total Employeur</div>
+                        <div className="font-bold text-blue-600 text-lg">
+                          {formatFR(employerCharges.pvidEmployeur + employerCharges.prestationsFamiliales + employerCharges.risquesPro + employerCharges.fneEmployeur + employerCharges.cfcEmployeur)} FCFA
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             );
           })}
         </div>
 
-        {/* Version Tablette/Desktop : Tableau */}
-        <div className="hidden md:block overflow-x-auto">
+        {/* Version Tablette : Tableau optimisé pour écrans moyens */}
+        <div className="hidden md:block lg:hidden overflow-x-auto">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <table className="w-full min-w-[900px]">
+              <thead className="bg-blue-500 text-white">
+                <tr>
+                  <th className="p-3 text-left">Employé</th>
+                  <th className="p-3 text-center">Code</th>
+                  <th className="p-3 text-right">IRPP</th>
+                  <th className="p-3 text-right">CAC</th>
+                  <th className="p-3 text-right">CFC Sal</th>
+                  <th className="p-3 text-right">RAV</th>
+                  <th className="p-3 text-right">TDL</th>
+                  <th className="p-3 text-right">FNE</th>
+                  <th className="p-3 text-right">CFC Emp</th>
+                  <th className="p-3 text-right">Total Emp</th>
+                  <th className="p-3 text-right">Total Emp'eur</th>
+                  <th className="p-3 text-right">Total</th>
+                  <th className="p-3 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedIds.map((id, index) => {
+                  const d = formData[id] || {};
+                  const calc = employeeCalculations[id];
+                  if (!calc) return null;
+
+                  const { sbt, sbc, statutoryDeductions, salaryDetails } = calc;
+                  const baseSalaryValue = Number(salaryDetails?.baseSalary || 0);
+                  const employerCharges = computeEmployerChargesFromBases(sbc, sbt, {
+                    baseSalary: baseSalaryValue,
+                    rpCategory: employerOptions?.rpCategory || 'A'
+                  });
+
+                  const mois = String(d.mois || '').padStart(2, '0');
+                  const annee = String(d.annee || '');
+                  const regime = d.regime || 'GC';
+                  const cnpsEmp = (cnpsEmployeur || '').toString();
+                  const cnpsSal = (d.cnps || '').toString();
+                  const jours = String(d.joursTravailles != null ? d.joursTravailles : 30).padStart(2, '0');
+                  const codeCNPS = `${annee}${mois}-${cnpsEmp}-${regime}-${cnpsSal}-${jours}`;
+
+                  const r = (n) => Math.round(n || 0);
+                  const vIrpp = r(statutoryDeductions.irpp || 0);
+                  const vCac = r(statutoryDeductions.cac || 0);
+                  const vCfc = r(statutoryDeductions.cfc || 0);
+                  const vRav = r(statutoryDeductions.rav || 0);
+                  const vTdl = r(statutoryDeductions.tdl || 0);
+
+                  const totalEmployee = vIrpp + vCac + vCfc + vRav + vTdl;
+                  const totalEmployer = employerCharges.fneEmployeur + employerCharges.cfcEmployeur;
+
+                  return (
+                    <tr key={id} className={`border-b border-gray-100 hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'}`}>
+                      <td className="p-3 font-medium">{d.nom || '-'}</td>
+                      <td className="p-3 text-center text-xs font-mono">{codeCNPS}</td>
+                      <td className="p-3 text-right text-blue-700">{formatFR(vIrpp)}</td>
+                      <td className="p-3 text-right">{formatFR(vCac)}</td>
+                      <td className="p-3 text-right">{formatFR(vCfc)}</td>
+                      <td className="p-3 text-right">{formatFR(vRav)}</td>
+                      <td className="p-3 text-right">{formatFR(vTdl)}</td>
+                      <td className="p-3 text-right text-sky-600">{formatFR(employerCharges.fneEmployeur)}</td>
+                      <td className="p-3 text-right text-sky-600">{formatFR(employerCharges.cfcEmployeur)}</td>
+                      <td className="p-3 text-right font-semibold text-sky-500">{formatFR(totalEmployee)}</td>
+                      <td className="p-3 text-right font-semibold text-blue-600">{formatFR(totalEmployer)}</td>
+                      <td className="p-3 text-right font-bold text-blue-600">{formatFR(totalEmployee + totalEmployer)}</td>
+                      <td className="p-3 text-center">
+                        <button
+                          onClick={() => onEmployeeDeselect(id)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded"
+                          title="Retirer de la sélection"
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot className="bg-gradient-to-r from-gray-100 to-gray-200">
+                <tr className="font-bold">
+                  <td className="p-3 border-t-2 border-gray-300 sticky left-0 bg-gray-100">
+                    TOTAUX ({selectedIds.length} employés)
+                  </td>
+                  <td className="p-3 border-t-2 border-gray-300">-</td>
+                  <td className="p-3 border-t-2 border-gray-300 text-right">{formatFR(selectedIds.reduce((acc, id) => {
+                    const calc = employeeCalculations[id];
+                    return acc + Math.round(Number(calc?.statutoryDeductions.irpp || 0));
+                  }, 0))}</td>
+                  <td className="p-3 border-t-2 border-gray-300 text-right">{formatFR(selectedIds.reduce((acc, id) => {
+                    const calc = employeeCalculations[id];
+                    return acc + Math.round(Number(calc?.statutoryDeductions.cac || 0));
+                  }, 0))}</td>
+                  <td className="p-3 border-t-2 border-gray-300 text-right">{formatFR(selectedIds.reduce((acc, id) => {
+                    const calc = employeeCalculations[id];
+                    return acc + Math.round(Number(calc?.statutoryDeductions.cfc || 0));
+                  }, 0))}</td>
+                  <td className="p-3 border-t-2 border-gray-300 text-right">{formatFR(selectedIds.reduce((acc, id) => {
+                    const calc = employeeCalculations[id];
+                    return acc + Math.round(Number(calc?.statutoryDeductions.rav || 0));
+                  }, 0))}</td>
+                  <td className="p-3 border-t-2 border-gray-300 text-right">{formatFR(selectedIds.reduce((acc, id) => {
+                    const calc = employeeCalculations[id];
+                    return acc + Math.round(Number(calc?.statutoryDeductions.tdl || 0));
+                  }, 0))}</td>
+                  <td className="p-3 border-t-2 border-gray-300 text-right text-sky-600">{formatFR(selectedIds.reduce((acc, id) => {
+                    const calc = employeeCalculations[id];
+                    const { sbt, sbc, salaryDetails } = calc;
+                    const baseSalaryValue = Number(salaryDetails?.baseSalary || 0);
+                    const employerCharges = computeEmployerChargesFromBases(sbc, sbt, {
+                      baseSalary: baseSalaryValue,
+                      rpCategory: employerOptions?.rpCategory || 'A'
+                    });
+                    return acc + (employerCharges.fneEmployeur || 0);
+                  }, 0))}</td>
+                  <td className="p-3 border-t-2 border-gray-300 text-right text-sky-600">{formatFR(selectedIds.reduce((acc, id) => {
+                    const calc = employeeCalculations[id];
+                    const { sbt, sbc, salaryDetails } = calc;
+                    const baseSalaryValue = Number(salaryDetails?.baseSalary || 0);
+                    const employerCharges = computeEmployerChargesFromBases(sbc, sbt, {
+                      baseSalary: baseSalaryValue,
+                      rpCategory: employerOptions?.rpCategory || 'A'
+                    });
+                    return acc + (employerCharges.cfcEmployeur || 0);
+                  }, 0))}</td>
+                  <td className="p-3 border-t-2 border-gray-300 text-right font-semibold text-sky-500">{formatFR(selectedIds.reduce((acc, id) => {
+                    const calc = employeeCalculations[id];
+                    if (!calc) return acc;
+                    const vIrpp = Math.round(Number(calc.statutoryDeductions.irpp || 0));
+                    const vCac = Math.round(Number(calc.statutoryDeductions.cac || 0));
+                    const vCfc = Math.round(Number(calc.statutoryDeductions.cfc || 0));
+                    const vRav = Math.round(Number(calc.statutoryDeductions.rav || 0));
+                    const vTdl = Math.round(Number(calc.statutoryDeductions.tdl || 0));
+                    return acc + (vIrpp + vCac + vCfc + vRav + vTdl);
+                  }, 0))}</td>
+                  <td className="p-3 border-t-2 border-gray-300 text-right font-semibold text-blue-600">{formatFR(selectedIds.reduce((acc, id) => {
+                    const calc = employeeCalculations[id];
+                    const { sbt, sbc, salaryDetails } = calc;
+                    const baseSalaryValue = Number(salaryDetails?.baseSalary || 0);
+                    const employerCharges = computeEmployerChargesFromBases(sbc, sbt, {
+                      baseSalary: baseSalaryValue,
+                      rpCategory: employerOptions?.rpCategory || 'A'
+                    });
+                    return acc + (employerCharges.fneEmployeur + employerCharges.cfcEmployeur);
+                  }, 0))}</td>
+                  <td className="p-3 border-t-2 border-gray-300 text-right text-blue-700 font-bold">{formatFR(selectedIds.reduce((acc, id) => {
+                    const calc = employeeCalculations[id];
+                    if (!calc) return acc;
+                    const vIrpp = Math.round(Number(calc.statutoryDeductions.irpp || 0));
+                    const vCac = Math.round(Number(calc.statutoryDeductions.cac || 0));
+                    const vCfc = Math.round(Number(calc.statutoryDeductions.cfc || 0));
+                    const vRav = Math.round(Number(calc.statutoryDeductions.rav || 0));
+                    const vTdl = Math.round(Number(calc.statutoryDeductions.tdl || 0));
+                    const { sbt, sbc, salaryDetails } = calc;
+                    const baseSalaryValue = Number(salaryDetails?.baseSalary || 0);
+                    const employerCharges = computeEmployerChargesFromBases(sbc, sbt, {
+                      baseSalary: baseSalaryValue,
+                      rpCategory: employerOptions?.rpCategory || 'A'
+                    });
+                    return acc + (vIrpp + vCac + vCfc + vRav + vTdl + employerCharges.fneEmployeur + employerCharges.cfcEmployeur);
+                  }, 0))}</td>
+                  <td className="p-3 border-t-2 border-gray-300">-</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        {/* Version Desktop : Tableau complet */}
+        <div className="hidden lg:block overflow-x-auto">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <table className="w-full">
-              <thead className="bg-purple-500 text-white">
+              <thead className="bg-blue-500 text-white">
                 <tr>
                   <th className="p-3 text-left">Employé</th>
                   <th className="p-3 text-center">Code CNPS</th>
@@ -625,6 +874,8 @@ const CotisationCNPSTable = ({
                   <th className="p-3 text-right">TDL</th>
                   <th className="p-3 text-right">FNE Emp</th>
                   <th className="p-3 text-right">CFC Emp</th>
+                  <th className="p-3 text-right">Total Employé</th>
+                  <th className="p-3 text-right">Total Employeur</th>
                   <th className="p-3 text-right">Total</th>
                   <th className="p-3 text-center">Action</th>
                 </tr>
@@ -671,8 +922,10 @@ const CotisationCNPSTable = ({
                       <td className="p-3 text-right">{formatFR(vCfc)}</td>
                       <td className="p-3 text-right">{formatFR(vRav)}</td>
                       <td className="p-3 text-right">{formatFR(vTdl)}</td>
-                      <td className="p-3 text-right text-green-600">{formatFR(employerCharges.fneEmployeur)}</td>
-                      <td className="p-3 text-right text-green-600">{formatFR(employerCharges.cfcEmployeur)}</td>
+                      <td className="p-3 text-right text-sky-600">{formatFR(employerCharges.fneEmployeur)}</td>
+                      <td className="p-3 text-right text-sky-600">{formatFR(employerCharges.cfcEmployeur)}</td>
+                      <td className="p-3 text-right font-medium text-sky-500">{formatFR(vIrpp + vCac + vCfc + vRav + vTdl)}</td>
+                      <td className="p-3 text-right font-medium text-blue-600">{formatFR(employerCharges.fneEmployeur + employerCharges.cfcEmployeur)}</td>
                       <td className="p-3 text-right font-bold text-blue-600">{formatFR(vIrpp + vCac + vCfc + vRav + vTdl + employerCharges.fneEmployeur + employerCharges.cfcEmployeur)}</td>
                       <td className="p-3 text-center">
                         <button
@@ -861,7 +1114,7 @@ const CotisationCNPSTable = ({
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-gray-600">IRPP:</span>
-                        <span className="font-medium text-red-600">{formatFR(vIrpp)} FCFA</span>
+                        <span className="font-medium text-blue-700">{formatFR(vIrpp)} FCFA</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">CAC:</span>
@@ -888,10 +1141,10 @@ const CotisationCNPSTable = ({
                 </div>
 
                 {/* Net à payer */}
-                <div className="bg-green-50 p-3 rounded border-l-4 border-green-400">
+                <div className="bg-sky-50 p-3 rounded border-l-4 border-sky-400">
                   <div className="flex justify-between items-center">
                     <span className="font-medium text-gray-800">💵 Net à Payer</span>
-                    <span className="font-bold text-lg text-green-600">{formatFR(netToPay)} FCFA</span>
+                    <span className="font-bold text-lg text-sky-600">{formatFR(netToPay)} FCFA</span>
                   </div>
                 </div>
 
@@ -958,12 +1211,12 @@ const CotisationCNPSTable = ({
                       <td className="p-3 border-b border-gray-100 text-right">{formatFR(salaryDetails.baseSalary)}</td>
                       <td className="p-3 border-b border-gray-100 text-right">{formatFR(netPayResult.grossTotal)}</td>
                       <td className="p-3 border-b border-gray-100 text-right font-medium text-blue-600">{formatFR(sbt)}</td>
-                      <td className="p-3 border-b border-gray-100 text-right font-medium text-purple-600">{formatFR(sbc)}</td>
+                      <td className="p-3 border-b border-gray-100 text-right font-medium text-sky-600">{formatFR(sbc)}</td>
                       <td className="p-3 border-b border-gray-100 text-right">{totalPrimesIndemnites > 0 ? formatFR(totalPrimesIndemnites) : '-'}</td>
-                      <td className="p-3 border-b border-gray-100 text-right font-medium text-red-600">{formatFR(vIrpp)}</td>
+                      <td className="p-3 border-b border-gray-100 text-right font-medium text-blue-700">{formatFR(vIrpp)}</td>
                       <td className="p-3 border-b border-gray-100 text-right font-medium text-blue-600">{formatFR(vPvid)}</td>
                       <td className="p-3 border-b border-gray-100 text-right">{autresDeductions > 0 ? formatFR(autresDeductions) : '-'}</td>
-                      <td className="p-3 border-b border-gray-100 text-right font-bold text-green-600">{formatFR(netToPay)}</td>
+                      <td className="p-3 border-b border-gray-100 text-right font-bold text-sky-600">{formatFR(netToPay)}</td>
                       <td className="p-3 border-b border-gray-100 text-center">
                         <button
                           onClick={() => onEmployeeDeselect(id)}
@@ -1022,6 +1275,26 @@ const CotisationCNPSTable = ({
                     const vTdl = Math.round(Number(calc.statutoryDeductions.tdl || 0));
                     return acc + (vCfc + vCac + vRav + vTdl);
                   }, 0))}</td>
+                  <td className="p-3 border-t-2 border-gray-300 text-right font-semibold text-sky-500">{formatFR(selectedIds.reduce((acc, id) => {
+                    const calc = employeeCalculations[id];
+                    if (!calc) return acc;
+                    const vIrpp = Math.round(Number(calc.statutoryDeductions.irpp || 0));
+                    const vCac = Math.round(Number(calc.statutoryDeductions.cac || 0));
+                    const vCfc = Math.round(Number(calc.statutoryDeductions.cfc || 0));
+                    const vRav = Math.round(Number(calc.statutoryDeductions.rav || 0));
+                    const vTdl = Math.round(Number(calc.statutoryDeductions.tdl || 0));
+                    return acc + (vIrpp + vCac + vCfc + vRav + vTdl);
+                  }, 0))}</td>
+                  <td className="p-3 border-t-2 border-gray-300 text-right font-semibold text-blue-600">{formatFR(selectedIds.reduce((acc, id) => {
+                    const calc = employeeCalculations[id];
+                    const { sbt, sbc, salaryDetails } = calc;
+                    const baseSalaryValue = Number(salaryDetails?.baseSalary || 0);
+                    const employerCharges = computeEmployerChargesFromBases(sbc, sbt, {
+                      baseSalary: baseSalaryValue,
+                      rpCategory: employerOptions?.rpCategory || 'A'
+                    });
+                    return acc + (employerCharges.fneEmployeur + employerCharges.cfcEmployeur);
+                  }, 0))}</td>
                   <td className="p-3 border-t-2 border-gray-300 text-right text-green-700">{formatFR(selectedIds.reduce((acc, id) => {
                     const calc = employeeCalculations[id];
                     return acc + Math.round(Number(calc?.netPayResult.netPay || 0));
@@ -1036,7 +1309,7 @@ const CotisationCNPSTable = ({
 
       {/* Résumé Employeur - Charges CNPS */}
       <div className="mt-8 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="bg-blue-500 text-white p-4">
+        <div className="bg-blue-600 text-white p-4">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <span>🏛️</span>
             Charges CNPS Employeur
@@ -1061,8 +1334,8 @@ const CotisationCNPSTable = ({
               <div className="text-xs text-gray-500">(4,2% du SBC)</div>
             </div>
             
-            <div className="bg-purple-50 p-4 rounded-lg text-center">
-              <div className="text-xl font-bold text-purple-600">
+            <div className="bg-blue-50 p-4 rounded-lg text-center">
+              <div className="text-xl font-bold text-blue-600">
                 {formatFR(selectedIds.reduce((acc, id) => {
                   const calc = employeeCalculations[id];
                   const { sbt, sbc, salaryDetails } = calc;
@@ -1078,8 +1351,8 @@ const CotisationCNPSTable = ({
               <div className="text-xs text-gray-500">(7% du SBC)</div>
             </div>
             
-            <div className="bg-orange-50 p-4 rounded-lg text-center">
-              <div className="text-xl font-bold text-orange-600">
+            <div className="bg-sky-50 p-4 rounded-lg text-center">
+              <div className="text-xl font-bold text-sky-600">
                 {formatFR(selectedIds.reduce((acc, id) => {
                   const calc = employeeCalculations[id];
                   const { sbt, sbc, salaryDetails } = calc;
@@ -1118,7 +1391,7 @@ const CotisationCNPSTable = ({
 
       {/* Résumé Employeur - Charges Fiscales */}
       <div className="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="bg-purple-500 text-white p-4">
+        <div className="bg-blue-600 text-white p-4">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <span>💰</span>
             Charges Fiscales Employeur
@@ -1126,8 +1399,8 @@ const CotisationCNPSTable = ({
         </div>
         <div className="p-6">
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-yellow-50 p-4 rounded-lg text-center">
-              <div className="text-xl font-bold text-yellow-600">
+            <div className="bg-sky-50 p-4 rounded-lg text-center">
+              <div className="text-xl font-bold text-sky-600">
                 {formatFR(selectedIds.reduce((acc, id) => {
                   const calc = employeeCalculations[id];
                   const { sbt, sbc, salaryDetails } = calc;
@@ -1143,8 +1416,8 @@ const CotisationCNPSTable = ({
               <div className="text-xs text-gray-500">(1% du SBT)</div>
             </div>
             
-            <div className="bg-teal-50 p-4 rounded-lg text-center">
-              <div className="text-xl font-bold text-teal-600">
+            <div className="bg-blue-50 p-4 rounded-lg text-center">
+              <div className="text-xl font-bold text-blue-600">
                 {formatFR(selectedIds.reduce((acc, id) => {
                   const calc = employeeCalculations[id];
                   const { sbt, sbc, salaryDetails } = calc;
@@ -1161,10 +1434,10 @@ const CotisationCNPSTable = ({
             </div>
           </div>
           
-          <div className="mt-4 bg-purple-100 p-4 rounded-lg">
+          <div className="mt-4 bg-blue-100 p-4 rounded-lg">
             <div className="flex justify-between items-center">
-              <span className="font-semibold text-purple-800">Total Charges Fiscales:</span>
-              <span className="text-xl font-bold text-purple-600">
+              <span className="font-semibold text-blue-800">Total Charges Fiscales:</span>
+              <span className="text-xl font-bold text-blue-600">
                 {formatFR(selectedIds.reduce((acc, id) => {
                   const calc = employeeCalculations[id];
                   const { sbt, sbc, salaryDetails } = calc;
@@ -1182,7 +1455,7 @@ const CotisationCNPSTable = ({
       </div>
 
       {/* Total Général */}
-      <div className="mt-6 bg-gradient-to-r from-green-500 to-blue-500 rounded-lg shadow-lg p-6 text-white">
+      <div className="mt-6 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-lg p-6 text-white">
         <div className="flex justify-between items-center">
           <div>
             <div className="text-sm opacity-90">TOTAL GÉNÉRAL CHARGES EMPLOYEUR</div>

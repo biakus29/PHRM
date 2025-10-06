@@ -1,7 +1,7 @@
 // src/components/EmployeeCard.jsx
 import React from "react";
 import styled from "styled-components";
-import { FiEdit, FiTrash, FiCalendar, FiUpload, FiFileText, FiFile } from "react-icons/fi";
+import { FiEdit, FiTrash, FiCalendar, FiUpload, FiFileText, FiFile, FiUserX } from "react-icons/fi";
 import PropTypes from "prop-types";
 import { displayDepartment, displayMatricule, displayPhone, displayGeneratedAt } from "../utils/displayUtils";
 
@@ -13,7 +13,9 @@ const EmployeeCard = ({
   onUploadPaySlip,
   onCreatePaySlip,
   onManageContract,
+  onDismissal,
   animationDelay,
+  actionLoading,
 }) => {
   if (!employee) {
     return (
@@ -110,8 +112,17 @@ const EmployeeCard = ({
               onClick={() => onManageContract(employee)}
               className="action-btn contract"
               aria-label={contract ? `Modifier le contrat de ${name}` : `Créer un contrat pour ${name}`}
+              disabled={actionLoading}
             >
               <FiFile className="icon" /> {contract ? "Modifier Contrat" : "Créer Contrat"}
+            </button>
+            <button
+              onClick={() => onDismissal(employee)}
+              className="action-btn dismissal"
+              aria-label={`Gérer le licenciement de ${name}`}
+              disabled={actionLoading}
+            >
+              <FiUserX className="icon" /> Licenciement
             </button>
             <label
               htmlFor={`payslip-${employee.id}`}
@@ -124,6 +135,7 @@ const EmployeeCard = ({
                 onChange={(e) => onUploadPaySlip(e, employee.id)}
                 className="hidden-input"
                 accept=".pdf,.doc,.docx"
+                disabled={actionLoading}
               />
               <FiUpload className="icon" /> Uploader
             </label>
@@ -160,7 +172,9 @@ EmployeeCard.propTypes = {
   onUploadPaySlip: PropTypes.func.isRequired,
   onCreatePaySlip: PropTypes.func.isRequired,
   onManageContract: PropTypes.func.isRequired,
+  onDismissal: PropTypes.func.isRequired,
   animationDelay: PropTypes.string,
+  actionLoading: PropTypes.bool,
 };
 
 EmployeeCard.defaultProps = {
@@ -338,6 +352,14 @@ const StyledWrapper = styled.div`
 
   .contract:hover {
     background-color: #4b5563;
+  }
+
+  .dismissal {
+    background-color: #dc2626; /* Rouge foncé */
+  }
+
+  .dismissal:hover {
+    background-color: #b91c1c;
   }
 
   .upload {

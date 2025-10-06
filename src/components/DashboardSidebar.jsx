@@ -11,6 +11,7 @@ import {
   Menu,
   X,
   Download,
+  ClipboardList,
 } from "lucide-react";
 
 const NavItem = React.memo(({ id, label, icon: Icon, badge, isActive, setActiveTab, sidebarState }) => {
@@ -63,6 +64,7 @@ const mainItems = [
   { id: "leaves", label: "Congés", icon: Calendar },
   { id: "absences", label: "Absences", icon: Clock },
   { id: "payslips", label: "Paie", icon: CreditCard },
+  { id: "hr-procedures", label: "Procédures RH", icon: ClipboardList },
   { id: "reports", label: "Déclarations", icon: Download },
 ];
 

@@ -92,6 +92,7 @@ import Modal from "../components/Modal";
 import DashboardSidebar from "../components/DashboardSidebar";
 import MobileFooterNav from "../components/MobileFooterNav";
 import generateBadgePDF from "../utils/badgePdf";
+import HRProceduresPage from "./HRProceduresPage";
 import { VILLES_CAMEROUN, QUARTIERS_PAR_VILLE } from "../utils/constants";
 import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, computeGrossTotal, computeSBT, computeSBC, validateDeductions, formatCFA, computePVID, computeStatutoryDeductions, computeCompletePayroll } from "../utils/payrollCalculations";
 import ContractGenerator from "../components/ContractGenerator";
@@ -1044,6 +1045,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
               {activeTab === "leaves" && "Congés"}
               {activeTab === "absences" && "Absences"}
               {activeTab === "payslips" && "Paie"}
+              {activeTab === "hr-procedures" && "Procédures RH"}
               {activeTab === "reports" && ""}
               {activeTab === "notifications" && "Notifications"}
               {activeTab === "settings" && "Paramètres"}
@@ -2539,6 +2541,15 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                 </table>
               </Card>
             </div>
+          )}
+          {activeTab === "hr-procedures" && (
+            <HRProceduresPage
+              companyData={companyData}
+              employees={employees}
+              setEmployees={setEmployees}
+              actionLoading={actionLoading}
+              setActionLoading={setActionLoading}
+            />
           )}
           {activeTab === "reports" && companyData?.id && companyData.cnpsNumber && (
             <CotisationCNPS companyId={companyData.id} cnpsEmployeur={companyData.cnpsNumber} />
