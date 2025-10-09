@@ -1,6 +1,6 @@
 // src/utils/contractUtils.js
 import { addMonths, addYears, format, differenceInDays, differenceInMonths, differenceInYears } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { fr } from 'date-fns/locale/fr';
 
 /**
  * Types de contrat disponibles

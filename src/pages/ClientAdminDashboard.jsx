@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from "react";
 import TemplateSelector from "../components/TemplateSelector";
+import DocumentsManager from "../components/DocumentsManager";
 import { createRoot } from "react-dom/client";
 import { auth, db } from "../firebase";
 import {
@@ -93,6 +94,7 @@ import DashboardSidebar from "../components/DashboardSidebar";
 import MobileFooterNav from "../components/MobileFooterNav";
 import generateBadgePDF from "../utils/badgePdf";
 import HRProceduresPage from "./HRProceduresPage";
+import ContractManagementPage from "./ContractManagementPage";
 import { VILLES_CAMEROUN, QUARTIERS_PAR_VILLE } from "../utils/constants";
 import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, computeGrossTotal, computeSBT, computeSBC, validateDeductions, formatCFA, computePVID, computeStatutoryDeductions, computeCompletePayroll } from "../utils/payrollCalculations";
 import ContractGenerator from "../components/ContractGenerator";
@@ -1045,6 +1047,8 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
               {activeTab === "leaves" && "Congés"}
               {activeTab === "absences" && "Absences"}
               {activeTab === "payslips" && "Paie"}
+              {activeTab === "contracts" && "Contrats"}
+              {activeTab === "documents" && "Documents"}
               {activeTab === "hr-procedures" && "Procédures RH"}
               {activeTab === "reports" && ""}
               {activeTab === "notifications" && "Notifications"}
@@ -2541,6 +2545,24 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                 </table>
               </Card>
             </div>
+          )}
+          {activeTab === "contracts" && (
+            <ContractManagementPage
+              employees={employees}
+              onEmployeeUpdate={(employeeId, updatedEmployee) => {
+                setEmployees(prev => prev.map(emp => 
+                  emp.id === employeeId ? updatedEmployee : emp
+                ));
+              }}
+            />
+          )}
+          {activeTab === "documents" && companyData?.id && (
+            <DocumentsManager 
+              companyId={companyData.id} 
+              userRole="admin" 
+              companyData={companyData} 
+              employees={employees}
+            />
           )}
           {activeTab === "hr-procedures" && (
             <HRProceduresPage

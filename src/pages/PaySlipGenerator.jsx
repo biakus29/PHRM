@@ -296,7 +296,7 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
         lastName: employee.name?.split(" ")[1] || "TEST123",
         firstName: employee.name?.split(" ")[0] || "",
         matricule: employee.matricule || "N/A",
-        professionalClassification: employee.poste || "DRH",
+        professionalClassification: formData.employeeClassification || employee.poste || "DRH",
         diplomas: formData.diplomas || "Non spécifié",
         echelon: formData.echelon || "Non spécifié",
         department: formData.department || "Non spécifié",

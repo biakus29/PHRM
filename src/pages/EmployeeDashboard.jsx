@@ -5,6 +5,7 @@ import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { FiLogOut, FiCalendar, FiFileText, FiAlertTriangle, FiCheck, FiBell, FiClock, FiEdit, FiDownload, FiEye, FiHome } from "react-icons/fi";
+import "../styles/sidebar.css";
 import { Line } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from "chart.js";
 import { Tooltip as ReactTooltip } from "react-tooltip";
@@ -434,58 +435,163 @@ const EmployeeDashboard = () => {
     );
   }
 
-  // Sidebar navigation
+  // Sidebar navigation avec badges et descriptions
   const sidebarItems = [
-    { id: "dashboard", label: "Accueil", icon: FiHome },
-    { id: "profile", label: "Profil", icon: FiEdit },
-    { id: "leaves", label: "Congés", icon: FiCalendar },
-    { id: "payslips", label: "Fiches de Paie", icon: FiFileText },
-    { id: "contract", label: "Contrat", icon: FiFileText },
-    { id: "overtime", label: "Heures Sup", icon: FiClock },
-    { id: "notifications", label: "Notifications", icon: FiBell },
+    { 
+      id: "dashboard", 
+      label: "Accueil", 
+      icon: FiHome, 
+      description: "Tableau de bord",
+      badge: null
+    },
+    { 
+      id: "profile", 
+      label: "Profil", 
+      icon: FiEdit, 
+      description: "Informations personnelles",
+      badge: null
+    },
+    { 
+      id: "leaves", 
+      label: "Congés", 
+      icon: FiCalendar, 
+      description: "Gestion des congés",
+      badge: employeeData?.leaves?.balance || 0
+    },
+    { 
+      id: "payslips", 
+      label: "Fiches de Paie", 
+      icon: FiFileText, 
+      description: "Historique des salaires",
+      badge: employeeData?.payslips?.length || 0
+    },
+    { 
+      id: "contract", 
+      label: "Contrat", 
+      icon: FiFileText, 
+      description: "Contrat de travail",
+      badge: employeeData?.contract ? "✓" : null
+    },
+    { 
+      id: "overtime", 
+      label: "Heures Sup", 
+      icon: FiClock, 
+      description: "Heures supplémentaires",
+      badge: employeeData?.overtime?.length || 0
+    },
+    { 
+      id: "notifications", 
+      label: "Notifications", 
+      icon: FiBell, 
+      description: "Messages et alertes",
+      badge: employeeData?.notifications?.filter(n => !n.read)?.length || 0
+    },
   ];
 
   return (
     <div className="min-h-screen flex bg-gray-50">
       {/* Sidebar - Cachée sur mobile */}
-      <aside className="w-64 bg-white border-r border-gray-200 flex-shrink-0 hidden md:block">
-        <div className="p-6 border-b border-gray-100">
-          <h2 className="text-xl font-bold text-blue-600">Mon Espace</h2>
-          <p className="text-sm text-gray-500 mt-1">{employeeData.name}</p>
-        </div>
-        <nav className="p-4">
-          <ul className="space-y-2">
-            {sidebarItems.map((item) => (
-              <li key={item.id}>
-                <button
-                  onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors duration-200 ${
-                    activeTab === item.id
-                      ? "bg-blue-50 text-blue-600 font-medium"
-                      : "text-gray-600 hover:bg-gray-100"
-                  }`}
-                >
-                  <item.icon className="h-5 w-5" />
-                  <span>{item.label}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-8 pt-4 border-t border-gray-100">
-            <Button
-              onClick={handleLogout}
-              variant="danger"
-              icon={FiLogOut}
-              className="w-full justify-start"
-            >
-              Déconnexion
-            </Button>
+      <aside className="w-72 bg-gradient-to-b from-blue-50 to-white border-r border-blue-100 flex-shrink-0 hidden md:block shadow-lg sidebar-scroll overflow-y-auto">
+        {/* Header avec avatar et infos */}
+        <div className="p-6 border-b border-blue-100 bg-gradient-to-r from-blue-600 to-blue-700">
+          <div className="flex items-center space-x-4">
+            <div className="relative">
+              <img
+                src={employeeData.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(employeeData.name)}&background=3B82F6&color=white&bold=true`}
+                alt={`Avatar de ${employeeData.name}`}
+                className="w-12 h-12 rounded-full border-2 border-white shadow-md"
+              />
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 border-2 border-white rounded-full status-indicator"></div>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg font-bold text-white truncate">Mon Espace</h2>
+              <p className="text-blue-100 text-sm truncate">{employeeData.name}</p>
+              <p className="text-blue-200 text-xs truncate">{employeeData.poste}</p>
+            </div>
           </div>
+        </div>
+
+        {/* Navigation */}
+        <nav className="p-4 space-y-2">
+          {sidebarItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`w-full group relative overflow-hidden rounded-xl transition-all duration-300 transform hover:scale-105 sidebar-item ${
+                activeTab === item.id
+                  ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-200"
+                  : "text-gray-700 hover:bg-blue-50 hover:text-blue-600"
+              }`}
+            >
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center space-x-3">
+                  <div className={`p-2 rounded-lg ${
+                    activeTab === item.id 
+                      ? "bg-white bg-opacity-20" 
+                      : "bg-blue-100 group-hover:bg-blue-200"
+                  }`}>
+                    <item.icon className={`h-5 w-5 ${
+                      activeTab === item.id ? "text-white" : "text-blue-600"
+                    }`} />
+                  </div>
+                  <div className="text-left">
+                    <p className={`font-medium ${
+                      activeTab === item.id ? "text-white" : "text-gray-900"
+                    }`}>
+                      {item.label}
+                    </p>
+                    <p className={`text-xs ${
+                      activeTab === item.id ? "text-blue-100" : "text-gray-500"
+                    }`}>
+                      {item.description}
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Badge */}
+                {item.badge && (
+                  <div className={`px-2 py-1 rounded-full text-xs font-bold badge-glow ${
+                    activeTab === item.id
+                      ? "bg-white bg-opacity-20 text-white"
+                      : "bg-blue-500 text-white"
+                  }`}>
+                    {item.badge}
+                  </div>
+                )}
+              </div>
+              
+              {/* Indicateur actif */}
+              {activeTab === item.id && (
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-white rounded-r-full"></div>
+              )}
+            </button>
+          ))}
         </nav>
+
+        {/* Section déconnexion */}
+        <div className="mt-auto p-4 border-t border-blue-100">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center space-x-3 p-4 rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-200 group"
+          >
+            <div className="p-2 rounded-lg bg-red-100 group-hover:bg-red-200">
+              <FiLogOut className="h-5 w-5" />
+            </div>
+            <span className="font-medium">Déconnexion</span>
+          </button>
+        </div>
+
+        {/* Footer avec version */}
+        <div className="p-4 border-t border-blue-100">
+          <div className="text-center">
+            <p className="text-xs text-gray-500">PHRM v2.0</p>
+            <p className="text-xs text-gray-400">© 2024 Tous droits réservés</p>
+          </div>
+        </div>
       </aside>
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-h-screen w-full">
-        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-y-auto pb-20 md:pb-6 animate-fade-in">
+        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-y-auto pb-20 md:pb-6 animate-fade-in main-content-scroll">
       <ToastContainer
         position="top-right"
         autoClose={3000}
@@ -722,7 +828,7 @@ const EmployeeDashboard = () => {
                   </div>
                 </div>
                 {leaveHistory.length > 0 ? (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto hide-scrollbar">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-100">
                         <tr>
@@ -808,7 +914,7 @@ const EmployeeDashboard = () => {
                     Exporter CSV
                   </Button>
                 </div>
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto hide-scrollbar">
                   <table className="w-full table-auto">
                     <thead>
                         <tr>
@@ -1084,7 +1190,7 @@ const EmployeeDashboard = () => {
                   Historique des demandes
                 </h3>
                 {employeeData.overtime?.length > 0 ? (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto hide-scrollbar">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-100">
                         <tr>

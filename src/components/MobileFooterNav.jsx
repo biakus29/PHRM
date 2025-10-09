@@ -2,47 +2,55 @@
 // Navigation footer pour mobile/tablette style Android
 
 import React, { useState } from "react";
+import "../styles/sidebar.css";
 import {
-  BarChart3,
-  Users,
-  Calendar,
-  Clock,
-  CreditCard,
-  Download,
-  Bell,
-  Settings,
-  MoreHorizontal,
-  X,
-  LogOut,
-} from "lucide-react";
+  FiHome,
+  FiUsers,
+  FiCalendar,
+  FiFileText,
+  FiClock,
+  FiBell,
+  FiMoreHorizontal,
+  FiX,
+  FiLogOut,
+  FiSettings,
+  FiBarChart,
+  FiFile,
+} from "react-icons/fi";
 
 const MobileFooterNav = ({ activeTab, setActiveTab, notificationCount = 0, handleLogout }) => {
   const [showToolsMenu, setShowToolsMenu] = useState(false);
   
   // Sections principales (identiques à la sidebar desktop)
   const mainItems = [
-    { id: "overview", label: "Tableau de bord", icon: BarChart3 },
-    { id: "employees", label: "Employés", icon: Users },
-    { id: "leaves", label: "Congés", icon: Calendar },
-    { id: "absences", label: "Absences", icon: Clock },
-    { id: "payslips", label: "Paie", icon: CreditCard },
-    { id: "reports", label: "Déclarations", icon: Download },
+    { id: "overview", label: "Accueil", icon: FiHome },
+    { id: "employees", label: "Employés", icon: FiUsers },
+    { id: "leaves", label: "Congés", icon: FiCalendar },
+    { id: "absences", label: "Absences", icon: FiClock },
+    { id: "payslips", label: "Fiches de Paie", icon: FiFileText },
+    { id: "contracts", label: "Contrats", icon: FiFile },
+    { id: "documents", label: "Documents", icon: FiFileText },
   ];
   
   // Outils (regroupés dans le menu "Outils")
   const toolsItems = [
-    { id: "notifications", label: "Notifications", icon: Bell },
-    { id: "settings", label: "Paramètres", icon: Settings },
-    { id: "logout", label: "Déconnexion", icon: LogOut, isLogout: true },
+    { id: "leaves", label: "Congés", icon: FiCalendar },
+    { id: "absences", label: "Absences", icon: FiClock },
+    { id: "documents", label: "Documents", icon: FiFileText },
+    { id: "hr-procedures", label: "Procédures RH", icon: FiFileText },
+    { id: "reports", label: "Rapports", icon: FiBarChart },
+    { id: "notifications", label: "Notifications", icon: FiBell },
+    { id: "settings", label: "Paramètres", icon: FiSettings },
+    { id: "logout", label: "Déconnexion", icon: FiLogOut, isLogout: true },
   ];
   
   // Footer avec 5 items principaux + menu Outils
   const footerItems = [
-    { id: "overview", label: "Accueil", icon: BarChart3 },
-    { id: "employees", label: "Employés", icon: Users },
-    { id: "payslips", label: "Paie", icon: CreditCard },
-    { id: "reports", label: "Déclarations", icon: Download },
-    { id: "tools", label: "Outils", icon: MoreHorizontal, isMenu: true },
+    { id: "overview", label: "Accueil", icon: FiHome },
+    { id: "employees", label: "Employés", icon: FiUsers },
+    { id: "payslips", label: "Paie", icon: FiFileText },
+    { id: "contracts", label: "Contrats", icon: FiFile },
+    { id: "tools", label: "Plus", icon: FiMoreHorizontal, isMenu: true },
   ];
   
   const handleToolsClick = () => {
@@ -68,14 +76,14 @@ const MobileFooterNav = ({ activeTab, setActiveTab, notificationCount = 0, handl
       {/* Menu Outils (popup) */}
       {showToolsMenu && (
         <div className="lg:hidden fixed inset-0 bg-gray-900/50 z-50 flex items-end" onClick={() => setShowToolsMenu(false)}>
-          <div className="bg-white w-full rounded-t-2xl shadow-xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Outils</h3>
-              <button onClick={() => setShowToolsMenu(false)} className="p-2 hover:bg-gray-100 rounded-full">
-                <X className="w-5 h-5 text-gray-600" />
+          <div className="bg-gradient-to-b from-white to-blue-50 w-full rounded-t-2xl shadow-2xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-blue-100 flex items-center justify-between bg-gradient-to-r from-blue-600 to-blue-700 rounded-t-2xl">
+              <h3 className="text-lg font-bold text-white">Menu</h3>
+              <button onClick={() => setShowToolsMenu(false)} className="p-2 hover:bg-white hover:bg-opacity-20 rounded-full transition-colors">
+                <FiX className="w-5 h-5 text-white" />
               </button>
             </div>
-            <div className="p-2">
+            <div className="p-4 space-y-2 hide-scrollbar overflow-y-auto max-h-96">
               {toolsItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -84,18 +92,36 @@ const MobileFooterNav = ({ activeTab, setActiveTab, notificationCount = 0, handl
                   <button
                     key={item.id}
                     onClick={() => handleToolItemClick(item.id)}
-                    className={`w-full flex items-center gap-3 p-4 rounded-lg transition-colors ${
+                    className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all duration-200 transform hover:scale-105 ${
                       item.isLogout
                         ? "text-red-600 hover:bg-red-50"
                         : isActive
-                        ? "bg-blue-50 text-blue-600"
-                        : "text-gray-700 hover:bg-gray-50"
+                        ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg"
+                        : "text-gray-700 hover:bg-blue-50 hover:text-blue-600"
                     }`}
                   >
-                    <Icon className={`w-5 h-5 ${item.isLogout ? 'text-red-600' : ''}`} />
-                    <span className="font-medium">{item.label}</span>
+                    <div className={`p-2 rounded-lg ${
+                      item.isLogout 
+                        ? "bg-red-100" 
+                        : isActive 
+                        ? "bg-white bg-opacity-20" 
+                        : "bg-blue-100"
+                    }`}>
+                      <Icon className={`w-5 h-5 ${
+                        item.isLogout 
+                          ? 'text-red-600' 
+                          : isActive 
+                          ? 'text-white' 
+                          : 'text-blue-600'
+                      }`} />
+                    </div>
+                    <span className="font-medium flex-1 text-left">{item.label}</span>
                     {item.id === "notifications" && notificationCount > 0 && (
-                      <span className="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                        isActive 
+                          ? "bg-white bg-opacity-20 text-white" 
+                          : "bg-red-500 text-white"
+                      }`}>
                         {notificationCount > 9 ? "9+" : notificationCount}
                       </span>
                     )}
@@ -108,8 +134,8 @@ const MobileFooterNav = ({ activeTab, setActiveTab, notificationCount = 0, handl
       )}
       
       {/* Footer Navigation */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
-        <div className="flex justify-around items-center h-16">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-gradient-to-t from-white to-blue-50 border-t border-blue-200 shadow-2xl z-50">
+        <div className="flex justify-around items-center h-20 px-2">
           {footerItems.map((item) => {
             const Icon = item.icon;
             const isActive = item.isMenu ? isToolsActive : activeTab === item.id;
@@ -118,21 +144,31 @@ const MobileFooterNav = ({ activeTab, setActiveTab, notificationCount = 0, handl
               <button
                 key={item.id}
                 onClick={() => item.isMenu ? handleToolsClick() : setActiveTab(item.id)}
-                className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+                className={`flex flex-col items-center justify-center flex-1 h-full transition-all duration-200 transform hover:scale-105 ${
                   isActive
                     ? "text-blue-600"
-                    : "text-gray-600 active:bg-gray-100"
+                    : "text-gray-600 active:bg-blue-100"
                 }`}
               >
-                <div className="relative">
-                  <Icon className={`w-6 h-6 ${isActive ? "stroke-[2.5]" : "stroke-2"}`} />
+                <div className="relative mb-1">
+                  <div className={`p-2 rounded-xl ${
+                    isActive 
+                      ? "bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg" 
+                      : "bg-blue-100 group-hover:bg-blue-200"
+                  }`}>
+                    <Icon className={`w-5 h-5 ${
+                      isActive ? "text-white" : "text-blue-600"
+                    }`} />
+                  </div>
                   {item.id === "tools" && notificationCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
                       {notificationCount > 9 ? "9+" : notificationCount}
                     </span>
                   )}
                 </div>
-                <span className={`text-xs mt-1 ${isActive ? "font-semibold" : "font-normal"}`}>
+                <span className={`text-xs font-medium ${
+                  isActive ? "text-blue-600 font-bold" : "text-gray-600"
+                }`}>
                   {item.label}
                 </span>
               </button>

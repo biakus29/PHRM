@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import des styles globaux pour masquer les barres de scroll */
+@import './styles/global.css';
+
 :root {
   --background: #f9fafb;
   --text: #1f2937;

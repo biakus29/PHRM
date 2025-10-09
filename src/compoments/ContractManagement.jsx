@@ -1,7 +1,7 @@
 // src/components/ContractManagement.jsx
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { fr } from 'date-fns/locale/fr';
 import { toast } from 'react-toastify';
 import Button from '../components/Button';
 import {

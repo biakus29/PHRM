@@ -111,106 +111,107 @@ export function renderClassicPayslip(doc, ctx) {
     currentY = doc.lastAutoTable.finalY + 12;
   }
 
-  // Section Gains avec header stylé
-  doc.setFillColor(...COLORS.headerGray);
-  doc.rect(margin, currentY, pageWidth - (2 * margin), 8, 'F');
-  doc.setLineWidth(0.3);
-  doc.rect(margin, currentY, pageWidth - (2 * margin), 8, 'S');
+  // Section Gains masquée - ne montrer que les déductions
+  // doc.setFillColor(...COLORS.headerGray);
+  // doc.rect(margin, currentY, pageWidth - (2 * margin), 8, 'F');
+  // doc.setLineWidth(0.3);
+  // doc.rect(margin, currentY, pageWidth - (2 * margin), 8, 'S');
   
-  setFont(doc, FONTS.header);
-  doc.setTextColor(...COLORS.black);
-  doc.text('GAINS ET AVANTAGES', margin + 4, currentY + 5.5);
-  currentY += 12;
+  // setFont(doc, FONTS.header);
+  // doc.setTextColor(...COLORS.black);
+  // doc.text('GAINS ET AVANTAGES', margin + 4, currentY + 5.5);
+  // currentY += 12;
 
-  // Table des gains optimisée avec primes personnalisées
-  const gainsRows = [];
-  const addGainRow = (label, amount, category = 'standard') => {
-    if (amount > 0) {
-      gainsRows.push([label, formatCFA(amount), 'F CFA', category]);
-    }
-  };
+  // Table des gains masquée - ne montrer que les déductions
+  // const gainsRows = [];
+  // const addGainRow = (label, amount, category = 'standard') => {
+  //   if (amount > 0) {
+  //     gainsRows.push([label, formatCFA(amount), 'F CFA', category]);
+  //   }
+  // };
 
-  // Gains standards
-  addGainRow('Salaire de base', baseSalary);
-  addGainRow('Indemnité de logement', housingAllowance);
-  addGainRow('Indemnité de transport', transportAllowance);
-  addGainRow('Indemnité de représentation', representationAllowance);
-  addGainRow('Prime de salissures', dirtAllowance);
-  addGainRow('Prime de panier', mealAllowance);
-  addGainRow('Heures supplémentaires', overtime);
-  addGainRow('Prime/Bonus', bonus);
+  // Gains standards masqués
+  // addGainRow('Salaire de base', baseSalary);
+  // addGainRow('Indemnité de logement', housingAllowance);
+  // addGainRow('Indemnité de transport', transportAllowance);
+  // addGainRow('Indemnité de représentation', representationAllowance);
+  // addGainRow('Prime de salissures', dirtAllowance);
+  // addGainRow('Prime de panier', mealAllowance);
+  // addGainRow('Heures supplémentaires', overtime);
+  // addGainRow('Prime/Bonus', bonus);
 
-  // Primes personnalisées par employeur
-  const customPrimes = getEmployerCustomItems(payslipData?.employer?.id, 'primes');
-  if (customPrimes.length > 0) {
-    gainsRows.push(['--- PRIMES SPÉCIFIQUES ---', '', '', 'separator']);
-    customPrimes.forEach(prime => {
-      const montant = Number(prime.montant) || 0;
-      if (montant > 0) {
-        const label = prime.label || prime.type || prime.name || 'Prime personnalisée';
-        addGainRow(label, montant, 'custom');
-      }
-    });
-  }
+  // Primes personnalisées masquées
+  // const customPrimes = getEmployerCustomItems(payslipData?.employer?.id, 'primes');
+  // if (customPrimes.length > 0) {
+  //   gainsRows.push(['--- PRIMES SPÉCIFIQUES ---', '', '', 'separator']);
+  //   customPrimes.forEach(prime => {
+  //     const montant = Number(prime.montant) || 0;
+  //     if (montant > 0) {
+  //       const label = prime.label || prime.type || prime.name || 'Prime personnalisée';
+  //       addGainRow(label, montant, 'custom');
+  //     }
+  //   });
+  // }
 
-  // Indemnités personnalisées par employeur
-  const customIndemnites = getEmployerCustomItems(payslipData?.employer?.id, 'indemnites');
-  if (customIndemnites.length > 0) {
-    gainsRows.push(['--- INDEMNITÉS SPÉCIFIQUES ---', '', '', 'separator']);
-    customIndemnites.forEach(indemnite => {
-      const montant = Number(indemnite.montant) || 0;
-      if (montant > 0) {
-        const label = indemnite.label || indemnite.type || indemnite.name || 'Indemnité personnalisée';
-        addGainRow(label, montant, 'custom');
-      }
-    });
-  }
+  // Indemnités personnalisées masquées
+  // const customIndemnites = getEmployerCustomItems(payslipData?.employer?.id, 'indemnites');
+  // if (customIndemnites.length > 0) {
+  //   gainsRows.push(['--- INDEMNITÉS SPÉCIFIQUES ---', '', '', 'separator']);
+  //   customIndemnites.forEach(indemnite => {
+  //     const montant = Number(indemnite.montant) || 0;
+  //     if (montant > 0) {
+  //       const label = indemnite.label || indemnite.type || indemnite.name || 'Indemnité personnalisée';
+  //       addGainRow(label, montant, 'custom');
+  //     }
+  //   });
+  // }
 
-  if (gainsRows.length > 0) {
-    autoTable(doc, {
-      startY: currentY,
-      head: [['DÉSIGNATION', 'MONTANT', 'DEVISE', 'TYPE']],
-      body: gainsRows,
-      theme: 'grid',
-      styles: { 
-        font: 'helvetica', 
-        fontSize: 9, 
-        cellPadding: 2.5, 
-        lineColor: COLORS.black, 
-        lineWidth: 0.2,
-        textColor: COLORS.black
-      },
-      headStyles: { 
-        fillColor: COLORS.darkGray, 
-        textColor: COLORS.white, 
-        fontSize: 9, 
-        fontStyle: 'bold', 
-        halign: 'center' 
-      },
-      columnStyles: { 
-        0: { cellWidth: 90, halign: 'left' }, 
-        1: { cellWidth: 35, halign: 'right' }, 
-        2: { cellWidth: 25, halign: 'center' },
-        3: { cellWidth: 20, halign: 'center' }
-      },
-      margin: { left: margin, right: margin },
-      didParseCell: function(data) {
-        if (data.row && data.row.raw && data.row.raw[3] === 'separator') {
-          data.cell.styles.fillColor = COLORS.orange;
-          data.cell.styles.fontStyle = 'bold';
-        } else if (data.row && data.row.raw && data.row.raw[3] === 'custom') {
-          if (data.column.index === 1) data.cell.styles.fillColor = COLORS.blue;
-        } else if (data.row && data.row.raw && data.row.raw[3] === 'standard') {
-          if (data.column.index === 1) data.cell.styles.fillColor = COLORS.gains;
-        }
-        if (data.column.index === 3) {
-          data.cell.text = [''];
-          data.cell.styles.fillColor = COLORS.white;
-        }
-      }
-    });
-    currentY = doc.lastAutoTable.finalY + 8;
-  }
+  // Table des gains masquée - ne montrer que les déductions
+  // if (gainsRows.length > 0) {
+  //   autoTable(doc, {
+  //     startY: currentY,
+  //     head: [['DÉSIGNATION', 'MONTANT', 'DEVISE', 'TYPE']],
+  //     body: gainsRows,
+  //     theme: 'grid',
+  //     styles: { 
+  //       font: 'helvetica', 
+  //       fontSize: 9, 
+  //       cellPadding: 2.5, 
+  //       lineColor: COLORS.black, 
+  //       lineWidth: 0.2,
+  //       textColor: COLORS.black
+  //     },
+  //     headStyles: { 
+  //       fillColor: COLORS.darkGray, 
+  //       textColor: COLORS.white, 
+  //       fontSize: 9, 
+  //       fontStyle: 'bold', 
+  //       halign: 'center' 
+  //     },
+  //     columnStyles: { 
+  //       0: { cellWidth: 90, halign: 'left' }, 
+  //       1: { cellWidth: 35, halign: 'right' }, 
+  //       2: { cellWidth: 25, halign: 'center' },
+  //       3: { cellWidth: 20, halign: 'center' }
+  //     },
+  //     margin: { left: margin, right: margin },
+  //     didParseCell: function(data) {
+  //       if (data.row && data.row.raw && data.row.raw[3] === 'separator') {
+  //         data.cell.styles.fillColor = COLORS.orange;
+  //         data.cell.styles.fontStyle = 'bold';
+  //       } else if (data.row && data.row.raw && data.row.raw[3] === 'custom') {
+  //         if (data.column.index === 1) data.cell.styles.fillColor = COLORS.blue;
+  //       } else if (data.row && data.row.raw && data.row.raw[3] === 'standard') {
+  //         if (data.column.index === 1) data.cell.styles.fillColor = COLORS.gains;
+  //       }
+  //       if (data.column.index === 3) {
+  //         data.cell.text = [''];
+  //         data.cell.styles.fillColor = COLORS.white;
+  //       }
+  //     }
+  //   });
+  //   currentY = doc.lastAutoTable.finalY + 8;
+  // }
 
   // Totaux avec mise en forme améliorée
   const drawTotalRow = (label, amount, fillColor, textColor = COLORS.black) => {
@@ -226,10 +227,11 @@ export function renderClassicPayslip(doc, ctx) {
     currentY += 8;
   };
 
-  drawTotalRow('TOTAL BRUT', totalGross, COLORS.gains);
-  drawTotalRow('SBT (Salaire Brut Taxable)', sbt, COLORS.lightGray);
-  drawTotalRow('SBC (Salaire Brut Cotisable)', sbc, COLORS.lightGray);
-  currentY += 4;
+  // Totaux des gains masqués - ne montrer que les déductions
+  // drawTotalRow('TOTAL BRUT', totalGross, COLORS.gains);
+  // drawTotalRow('SBT (Salaire Brut Taxable)', sbt, COLORS.lightGray);
+  // drawTotalRow('SBC (Salaire Brut Cotisable)', sbc, COLORS.lightGray);
+  // currentY += 4;
 
   // Section Déductions
   doc.setFillColor(...COLORS.headerGray);

@@ -1,0 +1,165 @@
+/* Styles globaux pour masquer les barres de scroll */
+
+/* Masquer toutes les barres de scroll par défaut */
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+*::-webkit-scrollbar {
+  display: none; /* Webkit (Chrome, Safari, Edge) */
+}
+
+/* Classe utilitaire pour masquer les barres de scroll */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Masquer les barres de scroll pour les éléments spécifiques */
+.overflow-x-auto.hide-scrollbar,
+.overflow-y-auto.hide-scrollbar,
+.overflow-auto.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.overflow-x-auto.hide-scrollbar::-webkit-scrollbar,
+.overflow-y-auto.hide-scrollbar::-webkit-scrollbar,
+.overflow-auto.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Assurer que le scroll fonctionne toujours */
+.hide-scrollbar {
+  overflow: auto;
+}
+
+/* Styles pour les modales et popups */
+.modal-content {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.modal-content::-webkit-scrollbar {
+  display: none;
+}
+
+/* Styles pour les tableaux */
+.table-container {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.table-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* Responsive - garder le scroll sur mobile pour l'accessibilité */
+@media (max-width: 768px) {
+  /* Sur mobile, on peut garder les barres de scroll pour l'accessibilité */
+  .hide-scrollbar-mobile {
+    -ms-overflow-style: auto;
+    scrollbar-width: thin;
+  }
+  
+  .hide-scrollbar-mobile::-webkit-scrollbar {
+    display: block;
+    width: 4px;
+    height: 4px;
+  }
+  
+  .hide-scrollbar-mobile::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .hide-scrollbar-mobile::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 2px;
+  }
+  
+  .hide-scrollbar-mobile::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* Animations for modals */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.4s ease-out;
+}
+
+.animate-slideInLeft {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Smooth transitions */
+.transition-all {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Hover effects */
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+/* Focus effects */
+.focus-ring:focus {
+  outline: none;
+  ring: 4px;
+  ring-color: rgba(59, 130, 246, 0.1);
+}
+
+

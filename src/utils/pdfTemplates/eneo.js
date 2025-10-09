@@ -175,41 +175,13 @@ export function renderEneoPayslip(doc, ctx) {
   const hoursWorked = (workedDays * 8) / 30;
 
   const headers = [
-    ['Désignations', 'Nbre', 'Base', 'Taux', 'Gain', 'Retenue', 'Taux', 'Retenue(-)']
+    ['DÉDUCTIONS ET RETENUES', '', '', '', '', 'MONTANT', '', '']
   ];
   const subHeaders = [
-    ['', '', '', 'Part Salariale', '', '', 'Part Patronale', '']
+    ['', '', '', '', '', 'SALARIÉ', '', '']
   ];
 
-  // Add salary components
-  if (baseSalary > 0) tableData.push(['Salaire de base', hoursWorked.toFixed(2), formatNumber(baseSalary), '', formatNumber(baseSalary), '', '', '']);
-  if (housingAllowance > 0) tableData.push(['Indemnité de Logement', hoursWorked.toFixed(2), formatNumber(housingAllowance), '', formatNumber(housingAllowance), '', '', '']);
-  if (transportAllowance > 0) tableData.push(['Prime de Transport', hoursWorked.toFixed(2), formatNumber(transportAllowance), '', formatNumber(transportAllowance), '', '', '']);
-  if (representationAllowance > 0) tableData.push(['Indemnité de représentation', hoursWorked.toFixed(2), formatNumber(representationAllowance), '', formatNumber(representationAllowance), '', '', '']);
-  if (dirtAllowance > 0) tableData.push(['Prime de salissures', hoursWorked.toFixed(2), formatNumber(dirtAllowance), '', formatNumber(dirtAllowance), '', '', '']);
-  if (mealAllowance > 0) tableData.push(['Prime de panier', hoursWorked.toFixed(2), formatNumber(mealAllowance), '', formatNumber(mealAllowance), '', '', '']);
-  if (overtime > 0) tableData.push(['Heures supplémentaires', '', formatNumber(overtime), '', formatNumber(overtime), '', '', '']);
-  if (bonus > 0) tableData.push(['Prime/Bonus', '', formatNumber(bonus), '', formatNumber(bonus), '', '', '']);
-  
-  // Add custom bonuses
-  if (Array.isArray(primes)) {
-    primes.forEach(prime => {
-      const amount = Number(prime.montant) || 0;
-      if (amount > 0) {
-        tableData.push([prime.label || 'Prime', '', formatNumber(amount), '', formatNumber(amount), '', '', '']);
-      }
-    });
-  }
-  
-  // Add custom allowances
-  if (Array.isArray(indemnites)) {
-    indemnites.forEach(indemnite => {
-      const amount = Number(indemnite.montant) || 0;
-      if (amount > 0) {
-        tableData.push([indemnite.label || 'Indemnité', '', formatNumber(amount), '', formatNumber(amount), '', '', '']);
-      }
-    });
-  }
+  // Ne pas afficher les gains/entrées - seulement les déductions/sorties
 
   // Add deductions
   const deductions = d || {};

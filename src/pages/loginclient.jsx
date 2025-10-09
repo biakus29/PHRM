@@ -19,6 +19,25 @@ const ClientAdminLogin = () => {
     setIsLoading(true);
     setErrorMessage("");
 
+    // Validation côté client
+    if (!email || !password) {
+      setErrorMessage("Veuillez remplir tous les champs.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!email.includes("@")) {
+      setErrorMessage("Veuillez entrer une adresse email valide.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (password.length < 6) {
+      setErrorMessage("Le mot de passe doit contenir au moins 6 caractères.");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       console.log("Tentative de connexion avec:", email);
 
@@ -64,10 +83,20 @@ const ClientAdminLogin = () => {
       }
     } catch (error) {
       console.error("Erreur de connexion:", error.code, error.message);
+      console.error("Détails de l'erreur:", error);
+      
       if (error.code === "auth/invalid-credential") {
-        setErrorMessage("Email ou mot de passe incorrect.");
+        setErrorMessage("Email ou mot de passe incorrect. Vérifiez vos identifiants.");
+      } else if (error.code === "auth/user-not-found") {
+        setErrorMessage("Aucun compte trouvé avec cet email.");
+      } else if (error.code === "auth/wrong-password") {
+        setErrorMessage("Mot de passe incorrect.");
+      } else if (error.code === "auth/invalid-email") {
+        setErrorMessage("Format d'email invalide.");
       } else if (error.code === "auth/too-many-requests") {
         setErrorMessage("Trop de tentatives. Réessayez plus tard.");
+      } else if (error.code === "auth/network-request-failed") {
+        setErrorMessage("Erreur de connexion réseau. Vérifiez votre connexion internet.");
       } else {
         setErrorMessage("Erreur de connexion : " + error.message);
       }
