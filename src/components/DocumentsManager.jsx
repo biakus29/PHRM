@@ -11,6 +11,7 @@ import { generateAttestationPDFCameroon } from '../utils/pdfTemplates/attestatio
 import { generateCertificatePDFCameroon } from '../utils/pdfTemplates/certificateTemplateCameroon';
 import { generateContractPDFCameroon } from '../utils/pdfTemplates/contractTemplateCameroon';
 import { generateContractAmendmentPDFCameroon } from '../utils/pdfTemplates/contractAmendmentTemplateCameroon';
+import { exportDocumentContract } from '../utils/exportContractPDF';
 import TextCustomizationModal from './TextCustomizationModal';
 import { 
   POSTES_EMPLOI, 
@@ -503,7 +504,7 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
           generateCertificatePDFCameroon(documentData);
           break;
         case 'contracts':
-          generateContractPDFCameroon(documentData);
+          exportDocumentContract(documentData);
           break;
         case 'amendments':
           generateContractAmendmentPDFCameroon(documentData);
@@ -511,7 +512,7 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
         default:
           toast.error('Type de document non supporté');
       }
-      toast.success('PDF généré avec succès');
+      // Le toast de succès est géré par chaque fonction d'export
     } catch (error) {
       console.error('Erreur lors de la génération PDF:', error);
       toast.error('Erreur lors de la génération PDF');
@@ -638,70 +639,161 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
 
     if (loading) {
       return (
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="flex flex-col justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mb-4"></div>
+          <p className="text-gray-500 animate-pulse">Chargement des documents...</p>
         </div>
       );
     }
 
     if (currentDocs.length === 0) {
       return (
-        <div className="text-center py-12">
-          <currentType.icon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">Aucun document</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Commencez par créer un nouveau {currentType.title.toLowerCase()}.
+        <div className="text-center py-16">
+          <div className="bg-gray-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
+            <currentType.icon className="h-10 w-10 text-gray-400" />
+          </div>
+          <h3 className="text-xl font-medium text-gray-900 mb-2">Aucun {currentType.title.toLowerCase()}</h3>
+          <p className="text-gray-500 mb-6 max-w-md mx-auto">
+            Créez votre premier document pour commencer à gérer vos {currentType.title.toLowerCase()}.
           </p>
+          <button
+            onClick={() => {
+              setEditingDoc(null);
+              const defaultValues = getDefaultValues(activeTab);
+              setFormData(defaultValues);
+              setShowForm(true);
+            }}
+            className="inline-flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:scale-105"
+          >
+            <FiPlus className="h-5 w-5" />
+            <span>Créer mon premier document</span>
+          </button>
         </div>
       );
     }
 
     return (
-      <div className="grid gap-4">
-        {currentDocs.map((doc) => (
-          <div key={doc.id} className="bg-white rounded-lg shadow border p-4">
-            <div className="flex justify-between items-start">
-              <div className="flex-1">
-                <h4 className="text-lg font-medium text-gray-900">
-                  {doc.title || doc.employeeName || doc.position || 'Document'}
-                </h4>
-                <p className="text-sm text-gray-500 mt-1">
-                  Créé le {new Date(doc.createdAt?.seconds * 1000).toLocaleDateString('fr-FR')}
-                </p>
-                {doc.department && (
-                  <p className="text-sm text-gray-600 mt-1">
-                    Département: {doc.department}
-                  </p>
-                )}
-              </div>
-              <div className="flex space-x-2 ml-4">
-                <button
-                  onClick={() => {
-                    setEditingDoc(doc);
-                    setFormData(doc);
-                    setShowForm(true);
-                  }}
-                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-md"
-                  title="Modifier"
-                >
-                  <FiEdit className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => deleteDocument(doc.id)}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded-md"
-                  title="Supprimer"
-                >
-                  <FiTrash2 className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => generatePDF(doc)}
-                  className="p-2 text-green-600 hover:bg-green-50 rounded-md"
-                  title="Télécharger PDF"
-                >
-                  <FiDownload className="h-4 w-4" />
-                </button>
+      <div className="grid gap-4 sm:gap-6">
+        {currentDocs.map((doc, index) => (
+          <div key={doc.id} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 hover:scale-[1.01] sm:hover:scale-[1.02] overflow-hidden">
+            <div className="p-4 sm:p-6">
+              <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start space-y-4 lg:space-y-0">
+                <div className="flex-1">
+                  <div className="flex items-start space-x-3 mb-3">
+                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center bg-gradient-to-br flex-shrink-0 ${
+                      currentType.color === 'blue' ? 'from-blue-500 to-blue-600' :
+                      currentType.color === 'green' ? 'from-green-500 to-green-600' :
+                      currentType.color === 'purple' ? 'from-purple-500 to-purple-600' :
+                      currentType.color === 'orange' ? 'from-orange-500 to-orange-600' :
+                      currentType.color === 'indigo' ? 'from-indigo-500 to-indigo-600' :
+                      'from-gray-500 to-gray-600'
+                    }`}>
+                      <currentType.icon className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
+                        {doc.title || doc.employeeName || doc.position || `Document #${index + 1}`}
+                      </h4>
+                      <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                        📅 <span className="hidden sm:inline">Créé le </span>
+                        {new Date(doc.createdAt?.seconds * 1000).toLocaleDateString('fr-FR', {
+                          weekday: window.innerWidth >= 640 ? 'long' : undefined,
+                          year: 'numeric',
+                          month: window.innerWidth >= 640 ? 'long' : 'short',
+                          day: 'numeric'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Informations supplémentaires - Responsive */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 mt-4">
+                    {doc.employeeName && (
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <span className="text-xs font-medium text-gray-500 flex-shrink-0">👤</span>
+                        <span className="text-xs sm:text-sm text-gray-700 font-medium truncate">{doc.employeeName}</span>
+                      </div>
+                    )}
+                    {doc.position && (
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <span className="text-xs font-medium text-gray-500 flex-shrink-0">💼</span>
+                        <span className="text-xs sm:text-sm text-gray-700 truncate">{doc.position}</span>
+                      </div>
+                    )}
+                    {doc.category && (
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <span className="text-xs font-medium text-gray-500 flex-shrink-0">📊</span>
+                        <span className="text-xs sm:text-sm text-gray-700 truncate">{doc.category}</span>
+                      </div>
+                    )}
+                    {doc.salary && (
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <span className="text-xs font-medium text-gray-500 flex-shrink-0">💰</span>
+                        <span className="text-xs sm:text-sm text-gray-700 font-medium truncate">
+                          {Number(doc.salary).toLocaleString()} FCFA
+                        </span>
+                      </div>
+                    )}
+                    {doc.reference && (
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <span className="text-xs font-medium text-gray-500 flex-shrink-0">🔖</span>
+                        <span className="text-xs sm:text-sm text-gray-700 truncate">{doc.reference}</span>
+                      </div>
+                    )}
+                    {doc.city && (
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <span className="text-xs font-medium text-gray-500 flex-shrink-0">📍</span>
+                        <span className="text-xs sm:text-sm text-gray-700 truncate">{doc.city}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Actions - Responsive */}
+                <div className="flex flex-row sm:flex-col lg:flex-col space-x-2 sm:space-x-0 sm:space-y-2 lg:ml-6">
+                  <button
+                    onClick={() => generatePDF(doc)}
+                    className="flex-1 sm:flex-none flex items-center justify-center space-x-2 bg-gradient-to-r from-green-600 to-green-700 text-white px-3 sm:px-4 py-2 rounded-lg hover:from-green-700 hover:to-green-800 transition-all shadow-sm hover:scale-105 text-xs sm:text-sm"
+                    title="Télécharger PDF"
+                  >
+                    <FiDownload className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="font-medium">PDF</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingDoc(doc);
+                      setFormData(doc);
+                      setShowForm(true);
+                    }}
+                    className="flex-1 sm:flex-none flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-3 sm:px-4 py-2 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm hover:scale-105 text-xs sm:text-sm"
+                    title="Modifier"
+                  >
+                    <FiEdit className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="font-medium hidden sm:inline">Modifier</span>
+                    <span className="font-medium sm:hidden">Edit</span>
+                  </button>
+                  <button
+                    onClick={() => deleteDocument(doc.id)}
+                    className="flex-1 sm:flex-none flex items-center justify-center space-x-2 bg-gradient-to-r from-red-600 to-red-700 text-white px-3 sm:px-4 py-2 rounded-lg hover:from-red-700 hover:to-red-800 transition-all shadow-sm hover:scale-105 text-xs sm:text-sm"
+                    title="Supprimer"
+                  >
+                    <FiTrash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="font-medium hidden sm:inline">Supprimer</span>
+                    <span className="font-medium sm:hidden">Del</span>
+                  </button>
+                </div>
               </div>
             </div>
+            
+            {/* Barre de statut */}
+            <div className={`h-1 bg-gradient-to-r ${
+              currentType.color === 'blue' ? 'from-blue-500 to-blue-600' :
+              currentType.color === 'green' ? 'from-green-500 to-green-600' :
+              currentType.color === 'purple' ? 'from-purple-500 to-purple-600' :
+              currentType.color === 'orange' ? 'from-orange-500 to-orange-600' :
+              currentType.color === 'indigo' ? 'from-indigo-500 to-indigo-600' :
+              'from-gray-500 to-gray-600'
+            }`}></div>
           </div>
         ))}
       </div>
@@ -710,48 +802,46 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
 
   return (
     <div className="space-y-6">
-      {/* En-tête */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Gestion des Documents</h2>
-          <p className="text-gray-600">Gérez les offres d'emploi, attestations et certificats</p>
-        </div>
-        <div className="flex items-center space-x-4">
-          {/* Sélecteur d'employé */}
-          <div className="flex items-center space-x-2">
-            <label className="text-sm font-medium text-gray-700">Employé:</label>
-            <select
-              value={selectedEmployee?.id || ''}
-              onChange={(e) => {
-                const employee = employees.find(emp => emp.id === e.target.value);
-                setSelectedEmployee(employee || null);
-              }}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Sélectionner un employé</option>
-              {employees.map(employee => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.name} - {employee.poste}
-                </option>
-              ))}
-            </select>
-            {selectedEmployee && (
-              <div className="flex items-center space-x-2 text-green-600">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-sm font-medium">
-                  {selectedEmployee.name} sélectionné
+      {/* En-tête moderne avec indicateur temps réel - Responsive */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 sm:p-6 border border-blue-200">
+        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start space-y-4 lg:space-y-0">
+          <div className="flex-1">
+            <div className="flex items-center space-x-3 mb-2">
+              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900">📄 Gestion des Documents</h2>
+            </div>
+            <p className="text-gray-600 mb-4 text-sm sm:text-base">
+              Créez et gérez facilement vos documents RH professionnels
+            </p>
+            
+            {/* Statistiques rapides - Responsive */}
+            <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-6 text-sm">
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span className="text-gray-600">
+                  Total: <span className="font-semibold text-blue-600">
+                    {Object.values(documents).reduce((total, docs) => total + docs.length, 0)}
+                  </span> documents
                 </span>
               </div>
-            )}
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-gray-600">
+                  Employés: <span className="font-semibold text-green-600">{employees.length}</span>
+                </span>
+              </div>
+            </div>
           </div>
           
-          <div className="flex space-x-3">
+          {/* Boutons - Responsive */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
             <button
               onClick={() => setShowTextCustomization(true)}
-              className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all shadow-md"
+              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all shadow-md hover:scale-105 text-sm"
             >
               <FiSettings className="h-4 w-4" />
-              <span>🎨 Personnaliser les textes</span>
+              <span className="hidden sm:inline">🎨 Personnaliser</span>
+              <span className="sm:hidden">🎨</span>
             </button>
             <button
               onClick={() => {
@@ -760,47 +850,112 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
                 setFormData(defaultValues);
                 setShowForm(true);
               }}
-              className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 sm:px-6 py-2 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:scale-105 text-sm"
             >
               <FiPlus className="h-4 w-4" />
-              <span>Nouveau document</span>
+              <span className="hidden sm:inline">✨ Nouveau Document</span>
+              <span className="sm:hidden">✨ Nouveau</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Onglets */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8 overflow-x-auto">
-          {Object.entries(documentTypes).map(([key, type]) => {
-            const Icon = type.icon;
-            const isActive = activeTab === key;
-            return (
-              <button
-                key={key}
-                onClick={() => setActiveTab(key)}
-                className={`flex items-center space-x-2 py-2 px-1 border-b-2 font-medium text-sm font-medium whitespace-nowrap ${
-                  isActive
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span>{type.title}</span>
-                <span className={`ml-2 py-0.5 px-2 rounded-full text-xs ${
-                  isActive ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
-                }`}>
-                  {documents[key]?.length || 0}
+      {/* Sélecteur d'employé amélioré - Responsive */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+          <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+            <div className="flex items-center space-x-2">
+              <FiEye className="h-5 w-5 text-blue-600" />
+              <label className="text-sm font-medium text-gray-700">
+                <span className="hidden sm:inline">Pré-remplir avec les données d'un employé:</span>
+                <span className="sm:hidden">Sélectionner un employé:</span>
+              </label>
+            </div>
+            <select
+              value={selectedEmployee?.id || ''}
+              onChange={(e) => {
+                const employee = employees.find(emp => emp.id === e.target.value);
+                setSelectedEmployee(employee || null);
+              }}
+              className="w-full sm:min-w-[250px] px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-sm"
+            >
+              <option value="">🔍 Sélectionner un employé...</option>
+              {employees.map(employee => (
+                <option key={employee.id} value={employee.id}>
+                  👤 {employee.name} - {employee.poste}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          {selectedEmployee && (
+            <div className="flex items-center justify-between sm:justify-start space-x-3 bg-green-50 px-4 py-2 rounded-lg border border-green-200">
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium text-green-700">
+                  <span className="hidden sm:inline">✅ {selectedEmployee.name} sélectionné</span>
+                  <span className="sm:hidden">✅ {selectedEmployee.name}</span>
                 </span>
+              </div>
+              <button
+                onClick={() => setSelectedEmployee(null)}
+                className="text-green-600 hover:text-green-800 p-1 hover:bg-green-100 rounded"
+              >
+                ✕
               </button>
-            );
-          })}
-        </nav>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Contenu */}
-      <div className="mt-6">
-        {renderDocumentsList()}
+      {/* Onglets modernisés - Responsive */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="border-b border-gray-200 bg-gray-50">
+          <nav className="flex space-x-0 overflow-x-auto scrollbar-hide">
+            {Object.entries(documentTypes).map(([key, type]) => {
+              const Icon = type.icon;
+              const isActive = activeTab === key;
+              const docCount = documents[key]?.length || 0;
+              
+              return (
+                <button
+                  key={key}
+                  onClick={() => setActiveTab(key)}
+                  className={`flex items-center space-x-2 sm:space-x-3 py-3 sm:py-4 px-3 sm:px-6 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap transition-all duration-200 min-w-0 ${
+                    isActive
+                      ? 'border-blue-500 text-blue-600 bg-blue-50'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <Icon className={`h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
+                  <span className="font-medium truncate">
+                    <span className="hidden sm:inline">{type.title}</span>
+                    <span className="sm:hidden">
+                      {type.title.split(' ')[0]}
+                    </span>
+                  </span>
+                  <span className={`py-1 px-2 sm:px-3 rounded-full text-xs font-semibold flex-shrink-0 ${
+                    isActive 
+                      ? 'bg-blue-100 text-blue-700' 
+                      : docCount > 0 
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {docCount}
+                  </span>
+                  {docCount > 0 && !isActive && (
+                    <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Contenu avec padding responsive */}
+        <div className="p-4 sm:p-6">
+          {renderDocumentsList()}
+        </div>
       </div>
 
       {/* Formulaire modal */}
@@ -814,7 +969,7 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
         companyId={companyId}
         onTextsUpdated={(docType, texts) => {
           console.log('Textes mis à jour pour:', docType, texts);
-          toast.success('Textes personnalisés appliqués aux documents');
+          toast.success('🎨 Textes personnalisés appliqués avec succès !');
         }}
       />
     </div>

@@ -3,6 +3,7 @@ import styled from "styled-components";
 import { FiFileText, FiX, FiFile, FiUpload } from "react-icons/fi";
 import { computeNetPay, computeEffectiveDeductions, computeRoundedDeductions, formatCFA, computeSBT, computeSBC, computeStatutoryDeductions, computeCompletePayroll } from "../utils/payrollCalculations";
 import { jsPDF } from "jspdf";
+import { exportContractPDF } from "../utils/exportContractPDF";
 
 // Fonction utilitaire pour échapper le texte
 const escapeText = (str) => (str ? String(str).replace(/[\n\r]/g, " ") : "");
@@ -362,217 +363,40 @@ const PaySlipGenerator = ({ employee, companyData, onGenerate, onClose, isContra
   };
 
   const generateContractPDF = async () => {
-    console.log(`[PaySlipGenerator] Début génération contrat PDF pour employé: ${employee.name}`);
+    console.log(`[PaySlipGenerator] Redirection vers générateur unifié pour employé: ${employee.name}`);
     try {
       const contractData = generateContractData();
       if (!contractData) return;
 
-      const {
-        employeeDOB,
-        employeeFather,
-        employeeMother,
-        employeeResidence,
-        employeeMaritalStatus,
-        employeeEmergencyContact,
-        employeeSpouse,
-        trialPeriod,
-        workLocation,
-        salaryBrut,
-        leaveDays,
-        companyRepresentative,
-        hireDate,
-        contractType,
-        employeeClassification,
-      } = contractData;
+      // Normaliser les données pour l'export unifié
+      const normalizedContract = {
+        type: contractData.contractType, // contractType -> type
+        workLocation: contractData.workLocation, // déjà correct
+        baseSalary: contractData.salaryBrut, // salaryBrut -> baseSalary
+        startDate: contractData.hireDate, // hireDate -> startDate
+        position: employee.poste || employee.position || 'Non spécifié',
+        trialPeriod: contractData.trialPeriod,
+        leaveDays: contractData.leaveDays,
+        // Données civiles de l'employé
+        employeeDOB: contractData.employeeDOB,
+        employeeFather: contractData.employeeFather,
+        employeeMother: contractData.employeeMother,
+        employeeResidence: contractData.employeeResidence,
+        employeeMaritalStatus: contractData.employeeMaritalStatus,
+        employeeEmergencyContact: contractData.employeeEmergencyContact,
+        employeeSpouse: contractData.employeeSpouse,
+        employeeClassification: contractData.employeeClassification
+      };
 
-      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-
-      const leftMargin = 20;
-      const rightMargin = 20;
-      const topMargin = 20;
-      const bottomMargin = 20;
-      let y = topMargin;
-      const lineHeight = 7;
-      const sectionSpacing = 10;
-      const majorSectionSpacing = 15;
-      const pageWidth = doc.internal.pageSize.width;
-      const textWidth = pageWidth - leftMargin - rightMargin;
-
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "bold");
-      doc.text(escapeText(companyData.name || "VIGILCAM SECURITY & SERVICES SARL"), leftMargin, y);
-      y += lineHeight;
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.text(escapeText(companyData.address || "BP 16194 Yaoundé"), leftMargin, y);
-      y += lineHeight;
-      doc.text(`Tél: ${escapeText(companyData.phone || "22214081")}`, leftMargin, y);
-      y += lineHeight;
-      doc.text(`Représenté par ${escapeText(companyRepresentative)}, Directeur Général`, leftMargin, y);
-      y += lineHeight;
-      doc.text(`N° d'immatriculation CNPS: ${escapeText(companyData.cnpsNumber || "Non spécifié")}`, leftMargin, y);
-      y += lineHeight;
-      doc.text("CI-APRÈS DÉNOMMÉ L'EMPLOYEUR", leftMargin, y);
-      y += sectionSpacing;
-
-      if (logoData) {
-        try {
-          const extension = logoData.includes("image/png") ? "PNG" : "JPEG";
-          doc.addImage(logoData, extension, pageWidth - rightMargin - 40, topMargin, 40, 40);
-        } catch (error) {
-          console.error(`[PaySlipGenerator] Erreur ajout logo: ${error.message}`);
-          doc.setFillColor(200, 200, 200);
-          doc.rect(pageWidth - rightMargin - 40, topMargin, 40, 40, "F");
-          doc.setFontSize(8);
-          doc.text("Logo non disponible", pageWidth - rightMargin - 20, topMargin + 20, { align: "center" });
-          toast.warn("Erreur lors de l'ajout du logo au contrat.");
-        }
-      } else {
-        console.warn("[PaySlipGenerator] Aucun logo disponible");
-        doc.setFillColor(200, 200, 200);
-        doc.rect(pageWidth - rightMargin - 40, topMargin, 40, 40, "F");
-        doc.setFontSize(8);
-        doc.text("Logo non disponible", pageWidth - rightMargin - 20, topMargin + 20, { align: "center" });
-        toast.warn("Aucun logo chargé.");
+      // Utiliser la fonction d'export unifiée (générateur section Documents)
+      const result = await exportContractPDF(employee, companyData, normalizedContract);
+      
+      if (result.success) {
+        // Appeler le callback original si nécessaire
+        onGenerate(contractData);
       }
-
-      y += majorSectionSpacing;
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "bold");
-      doc.text("Et", leftMargin, y);
-      y += lineHeight;
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.text(`Monsieur ${escapeText(employee.name || "TEST123")}`, leftMargin, y);
-      y += lineHeight;
-      doc.text(`Né le : ${escapeText(employeeDOB)}`, leftMargin, y);
-      y += lineHeight;
-      doc.text(`À : ${escapeText(employee.placeOfBirth || "Non spécifié")}`, leftMargin, y);
-      y += lineHeight;
-      doc.text(`Fils de : ${escapeText(employeeFather)}`, leftMargin, y);
-      y += lineHeight;
-      doc.text(`Et de : ${escapeText(employeeMother)}`, leftMargin, y);
-      y += lineHeight;
-      doc.text(`Lieu de résidence habituelle : ${escapeText(employeeResidence)}`, leftMargin, y);
-      y += lineHeight;
-      doc.text(`Situation de famille : ${escapeText(employeeMaritalStatus)}`, leftMargin, y);
-      y += lineHeight;
-      doc.text(`Nom et prénoms de l'épouse : ${escapeText(employeeSpouse || "Non applicable")}`, leftMargin, y);
-      y += lineHeight;
-      doc.text(`Personne à prévenir en cas de besoin : ${escapeText(employeeEmergencyContact)}`, leftMargin, y);
-      y += lineHeight;
-      doc.text("CI-APRÈS DÉNOMMÉ L'EMPLOYÉ", leftMargin, y);
-      y += sectionSpacing;
-
-      doc.text("Il est établi le présent contrat qui outre les articles ci-dessous sera régi par :", leftMargin, y);
-      y += lineHeight;
-      doc.text("- La Loi N° 92/007 du 14 Août 1992", leftMargin + 5, y);
-      y += lineHeight;
-      doc.text("- Les textes pris pour son application", leftMargin + 5, y);
-      y += lineHeight;
-      doc.text("- La convention collective", leftMargin + 5, y);
-      y += lineHeight;
-      doc.text("- Le règlement intérieur de l'entreprise", leftMargin + 5, y);
-      y += majorSectionSpacing;
-
-      const articles = [
-        { title: "Article 1er : Durée du contrat", content: [
-          `1/ Période d'essai : ${escapeText(trialPeriod)} renouvelable une fois. Toute rupture intervenue au cours de cette période d'essai ne donne droit à aucune indemnité et peut être faite par simple lettre.`,
-          `b) Durée : ${escapeText(contractType === "CDI" ? "Indéterminée" : "Déterminée")}.`,
-          `2/ Effet : ${escapeText(hireDate)}, sous réserve des résultats satisfaisants de l'examen médical d'embauche.`
-        ]},
-        { title: "Article 2 : Fonctions", content: [
-          `1/ Fonctions : ${escapeText(employee.poste || "DRH")}.`,
-          `2/ Classé : ${escapeText(employeeClassification || "cdd")}.`
-        ]},
-        { title: "Article 3 : Lieu de travail", content: [
-          `L'employé est recruté à ${escapeText(workLocation)}.`
-        ]},
-        { title: "Article 4 : Rémunération", content: [
-          `1/ Le paiement du salaire se fera conformément aux articles 67, 68 et 69 du Code du Travail.`,
-          `Salaire brut mensuel : ${parseInt(salaryBrut).toLocaleString("fr-FR")} FCFA.`
-        ]},
-        { title: "Article 5 : Congés", content: [
-          `1/ L'employé aura droit à un congé de ${leaveDays} jours ouvrables par mois de service effectif, sous réserve des majorations de congés prévues par les textes en vigueur.`,
-          `2/ La période ouvrant droit au congé est de 12 mois.`,
-          `3/ Le paiement de l'allocation congé se fera conformément aux dispositions du décret n° 75/28 du 10 Janvier 1975.`
-        ]},
-        { title: "Article 6 : Obligation de non-concurrence", content: [
-          `L'employé s'engage à consacrer tout son temps à l'exercice de son activité professionnelle. En conséquence, il s'interdit, pendant la durée du présent contrat et au moins un an après sa cessation, et ce, dans un rayon de cinquante kilomètres, toute activité professionnelle susceptible de concurrence ou de nuire à la bonne exécution du présent contrat.`
-        ]},
-        { title: "Article 7 : Confidentialité : Secret professionnel", content: [
-          `L'employé s'interdit de divulguer ou d'utiliser à des fins personnelles toute information à caractère scientifique, technique ou commercial mise à sa disposition dans le cadre de l'exécution du présent contrat.`
-        ]},
-        { title: "Article 8 : Protection sociale", content: [
-          `1/ L'employeur devra s'assurer à la Caisse Nationale de Prévoyance Sociale au profit de l'employé conformément à la législation en vigueur.`
-        ]},
-        { title: "Article 9 : Hygiène et sécurité", content: [
-          `L'employeur s'engage à se conformer à toutes les prescriptions légales et réglementaires en vigueur en matière d'hygiène, de sécurité et de santé des travailleurs.`
-        ]},
-        { title: "Article 10 : Résiliation du contrat", content: [
-          `1/ Le présent contrat pourra être résilié dans les conditions prévues aux articles 37, 39 et 43 du Code du Travail.`
-        ]},
-        { title: "Article 11 : Différends individuels", content: [
-          `Les différends nés à l'occasion de l'exécution ou de la rupture du présent contrat relèveront de la compétence de l'Inspecteur du Travail du lieu d'exécution du contrat (art. 139 paragraphe 2) et des tribunaux prévus aux articles 138 et 139 du Code du Travail.`
-        ]},
-        { title: "Article 12 : Dispositions finales", content: [
-          `Pour tout ce qui n'est pas précisé au présent contrat, les parties s'en remettent à la législation, à la réglementation, à la convention collective et aux usages en vigueur dans la profession au Cameroun.`
-        ]},
-      ];
-
-      articles.forEach(({ title, content }, index) => {
-        if (y + lineHeight + content.length * lineHeight + sectionSpacing > doc.internal.pageSize.height - bottomMargin) {
-          doc.addPage();
-          y = topMargin;
-        }
-        doc.setFontSize(12);
-        doc.setFont("helvetica", "bold");
-        doc.text(title, leftMargin, y);
-        y += lineHeight;
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "normal");
-        content.forEach((line) => {
-          const contentH = doc.getTextDimensions(line, { maxWidth: textWidth }).h;
-          if (y + contentH + sectionSpacing > doc.internal.pageSize.height - bottomMargin) {
-            doc.addPage();
-            y = topMargin;
-          }
-          doc.text(line, leftMargin + 5, y, { maxWidth: textWidth });
-          y += contentH + 2;
-        });
-        y += sectionSpacing;
-      });
-
-      if (y + 60 > doc.internal.pageSize.height - bottomMargin) {
-        doc.addPage();
-        y = topMargin;
-      }
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "normal");
-      doc.text(`Fait à Yaoundé, le ${escapeText(hireDate)}`, leftMargin, y);
-      y += majorSectionSpacing;
-      doc.setFont("helvetica", "bold");
-      doc.text("L'Employé", leftMargin, y);
-      doc.text("L'Employeur", pageWidth - rightMargin - 60, y);
-      y += lineHeight;
-      doc.setFont("helvetica", "normal");
-      doc.text("Lu et approuvé", leftMargin, y);
-      doc.text("Lu et approuvé", pageWidth - rightMargin - 60, y);
-
-      const pageCount = doc.internal.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.text(escapeText(companyData.name || "VIGILCAM SECURITY & SERVICES SARL"), leftMargin, doc.internal.pageSize.height - 10);
-        doc.text(`Page ${i}/${pageCount}`, pageWidth - rightMargin, doc.internal.pageSize.height - 10, { align: "right" });
-      }
-
-      doc.save(`contrat_travail_${escapeText(employee.name || "TEST123").replace(/\s+/g, "_")}.pdf`);
-      console.log("[PaySlipGenerator] Contrat PDF sauvegardé");
-      onGenerate(contractData);
-      toast.success(`Contrat généré pour ${employee.name || "TEST123"} !`);
     } catch (error) {
-      handleError(error, "Erreur génération contrat PDF");
+      handleError(error, "Erreur génération contrat PDF unifié");
     }
   };
 

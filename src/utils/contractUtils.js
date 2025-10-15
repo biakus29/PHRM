@@ -7,11 +7,7 @@ import { fr } from 'date-fns/locale/fr';
  */
 export const CONTRACT_TYPES = {
   CDI: 'Contrat à Durée Indéterminée',
-  CDD: 'Contrat à Durée Déterminée',
-  STAGE: 'Stage',
-  APPRENTISSAGE: 'Contrat d\'Apprentissage',
-  INTERIM: 'Contrat d\'Intérim',
-  FREELANCE: 'Freelance/Indépendant'
+  CDD: 'Contrat à Durée Déterminée'
 };
 
 /**
@@ -170,7 +166,8 @@ export const validateContract = (contract) => {
   if (!contract.salary || contract.salary <= 0) errors.push('Le salaire doit être supérieur à 0');
   if (!contract.startDate) errors.push('La date de début est requise');
 
-  if (contract.type === CONTRACT_TYPES.CDD && !contract.endDate) {
+  // Comparer au code de type ('CDD') plutôt qu'à l'étiquette
+  if (contract.type === 'CDD' && !contract.endDate) {
     errors.push('La date de fin est requise pour un CDD');
   }
 

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { toast } from "react-toastify";
-import ExportContrat from "../compoments/ExportContrat";
+import { exportContractPDF } from "../utils/exportContractPDF";
 
 const ContractGenerator = ({ employee, companyData, onSave, onCancel, actionLoading = false }) => {
   const [contract, setContract] = useState({
@@ -38,6 +38,17 @@ const ContractGenerator = ({ employee, companyData, onSave, onCancel, actionLoad
       ...contract,
       baseSalary: Number(contract.baseSalary),
     });
+  };
+
+  const handleExportContract = async () => {
+    // Normaliser les données pour l'export unifié
+    const normalizedContract = {
+      ...contract,
+      type: contract.contractType, // contractType -> type
+      workLocation: contract.workPlace, // workPlace -> workLocation
+      position: employee?.poste || employee?.position || 'Non spécifié'
+    };
+    await exportContractPDF(employee, companyData, normalizedContract);
   };
 
   return (
@@ -104,12 +115,16 @@ const ContractGenerator = ({ employee, companyData, onSave, onCancel, actionLoad
         </button>
       </div>
       
-      {/* Composant ExportContrat pour générer le PDF */}
-      <ExportContrat 
-        employee={employee}
-        employer={companyData}
-        contractData={contract}
-      />
+      {/* Bouton d'export unifié utilisant le générateur de la section Documents */}
+      <div className="flex justify-center mt-6">
+        <button
+          type="button"
+          onClick={handleExportContract}
+          className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+        >
+          📄 Générer le Contrat PDF
+        </button>
+      </div>
     </form>
   );
 };

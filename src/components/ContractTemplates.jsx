@@ -31,62 +31,6 @@ const CONTRACT_TEMPLATES = [
       'Indemnité de fin de contrat',
       'Clauses spécifiques CDD'
     ]
-  },
-  {
-    id: 'contract3',
-    name: 'Contrat Stage',
-    description: 'Contrat de stage professionnel',
-    preview: '/templates/contract-internship.png',
-    type: 'STAGE',
-    features: [
-      'Convention de stage',
-      'Encadrement pédagogique',
-      'Gratification',
-      'Évaluation du stagiaire',
-      'Clause de non-concurrence'
-    ]
-  },
-  {
-    id: 'contract4',
-    name: 'Contrat Prestation',
-    description: 'Contrat de prestation de services',
-    preview: '/templates/contract-service.png',
-    type: 'PRESTATION',
-    features: [
-      'Prestations définies',
-      'Tarification',
-      'Délais d\'exécution',
-      'Conditions de paiement',
-      'Clause de résiliation'
-    ]
-  },
-  {
-    id: 'contract5',
-    name: 'Contrat Manager',
-    description: 'Contrat cadre avec responsabilités',
-    preview: '/templates/contract-manager.png',
-    type: 'CDI',
-    features: [
-      'Fonctions managériales',
-      'Objectifs et KPIs',
-      'Rémunération variable',
-      'Clause de non-concurrence',
-      'Protocole de sortie'
-    ]
-  },
-  {
-    id: 'contract6',
-    name: 'Contrat Expatrié',
-    description: 'Contrat pour employé expatrié',
-    preview: '/templates/contract-expat.png',
-    type: 'CDI',
-    features: [
-      'Conditions d\'expatriation',
-      'Logement et transport',
-      'Assurance internationale',
-      'Retour au pays',
-      'Clauses fiscales'
-    ]
   }
 ];
 

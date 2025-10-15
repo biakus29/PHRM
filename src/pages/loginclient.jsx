@@ -6,8 +6,10 @@ import {
   sendPasswordResetEmail,
 } from "firebase/auth";
 import { collection, query, where, getDocs, updateDoc, doc } from "firebase/firestore";
+import { useDemo } from "../contexts/DemoContext";
 
 const ClientAdminLogin = () => {
+  const { checkDemoStatus } = useDemo();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -45,6 +47,21 @@ const ClientAdminLogin = () => {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       console.log("Utilisateur connecté, UID:", user.uid);
+
+      // Vérifier d'abord si c'est un compte démo
+      const demoQuery = query(
+        collection(db, "demo_accounts"),
+        where("uid", "==", user.uid),
+        where("isActive", "==", true)
+      );
+      const demoSnapshot = await getDocs(demoQuery);
+
+      if (!demoSnapshot.empty) {
+        console.log("Compte démo trouvé, vérification du statut...");
+        await checkDemoStatus(user);
+        navigate("/client-admin-dashboard");
+        return;
+      }
 
       // Chercher un document client où adminUid == user.uid
       const clientsQuery = query(
@@ -196,6 +213,7 @@ const ClientAdminLogin = () => {
             Mot de passe oublié ?
           </button>
         </div>
+        {/* Free trial CTA intentionally removed from login. It now lives on the site (InteractiveDemo). */}
         <p className="mt-4 text-xs text-gray-500 text-center sm:text-sm">
           En vous connectant, vous acceptez notre politique de confidentialité
           conformément au RGPD.

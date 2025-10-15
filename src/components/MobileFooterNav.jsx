@@ -1,7 +1,7 @@
 // src/components/MobileFooterNav.jsx
 // Navigation footer pour mobile/tablette style Android
 
-import React, { useState } from "react";
+import React, { useState, Fragment } from "react";
 import "../styles/sidebar.css";
 import {
   FiHome,
@@ -44,13 +44,13 @@ const MobileFooterNav = ({ activeTab, setActiveTab, notificationCount = 0, handl
     { id: "logout", label: "Déconnexion", icon: FiLogOut, isLogout: true },
   ];
   
-  // Footer avec 5 items principaux + menu Outils
+  // Footer avec 4 items principaux + déconnexion directe
   const footerItems = [
     { id: "overview", label: "Accueil", icon: FiHome },
     { id: "employees", label: "Employés", icon: FiUsers },
     { id: "payslips", label: "Paie", icon: FiFileText },
-    { id: "contracts", label: "Contrats", icon: FiFile },
     { id: "tools", label: "Plus", icon: FiMoreHorizontal, isMenu: true },
+    { id: "logout", label: "Sortir", icon: FiLogOut, isLogout: true },
   ];
   
   const handleToolsClick = () => {
@@ -78,39 +78,54 @@ const MobileFooterNav = ({ activeTab, setActiveTab, notificationCount = 0, handl
         <div className="lg:hidden fixed inset-0 bg-gray-900/50 z-50 flex items-end" onClick={() => setShowToolsMenu(false)}>
           <div className="bg-gradient-to-b from-white to-blue-50 w-full rounded-t-2xl shadow-2xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-blue-100 flex items-center justify-between bg-gradient-to-r from-blue-600 to-blue-700 rounded-t-2xl">
-              <h3 className="text-lg font-bold text-white">Menu</h3>
+              <h3 className="text-lg font-bold text-white">📱 Menu Principal</h3>
               <button onClick={() => setShowToolsMenu(false)} className="p-2 hover:bg-white hover:bg-opacity-20 rounded-full transition-colors">
                 <FiX className="w-5 h-5 text-white" />
               </button>
             </div>
             <div className="p-4 space-y-2 hide-scrollbar overflow-y-auto max-h-96">
-              {toolsItems.map((item) => {
+              {toolsItems.map((item, index) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
+                
+                // Séparateur avant la déconnexion
+                if (item.isLogout && index > 0) {
+                  return (
+                    <Fragment key={item.id}>
+                      <div className="border-t border-gray-200 my-3"></div>
+                      <button
+                        onClick={() => handleToolItemClick(item.id)}
+                        className="w-full flex items-center gap-4 p-4 rounded-xl transition-all duration-200 transform hover:scale-105 bg-gradient-to-r from-red-50 to-red-100 border-2 border-red-200 hover:from-red-100 hover:to-red-200 hover:border-red-300"
+                      >
+                        <div className="p-2 rounded-lg bg-red-200">
+                          <Icon className="w-5 h-5 text-red-700" />
+                        </div>
+                        <span className="font-bold flex-1 text-left text-red-700">🚪 {item.label}</span>
+                        <div className="text-xs bg-red-200 text-red-700 px-2 py-1 rounded-full font-medium">
+                          Sortir
+                        </div>
+                      </button>
+                    </Fragment>
+                  );
+                }
                 
                 return (
                   <button
                     key={item.id}
                     onClick={() => handleToolItemClick(item.id)}
                     className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all duration-200 transform hover:scale-105 ${
-                      item.isLogout
-                        ? "text-red-600 hover:bg-red-50"
-                        : isActive
+                      isActive
                         ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg"
                         : "text-gray-700 hover:bg-blue-50 hover:text-blue-600"
                     }`}
                   >
                     <div className={`p-2 rounded-lg ${
-                      item.isLogout 
-                        ? "bg-red-100" 
-                        : isActive 
+                      isActive 
                         ? "bg-white bg-opacity-20" 
                         : "bg-blue-100"
                     }`}>
                       <Icon className={`w-5 h-5 ${
-                        item.isLogout 
-                          ? 'text-red-600' 
-                          : isActive 
+                        isActive 
                           ? 'text-white' 
                           : 'text-blue-600'
                       }`} />
@@ -143,21 +158,37 @@ const MobileFooterNav = ({ activeTab, setActiveTab, notificationCount = 0, handl
             return (
               <button
                 key={item.id}
-                onClick={() => item.isMenu ? handleToolsClick() : setActiveTab(item.id)}
+                onClick={() => {
+                  if (item.isMenu) {
+                    handleToolsClick();
+                  } else if (item.isLogout) {
+                    if (handleLogout) handleLogout();
+                  } else {
+                    setActiveTab(item.id);
+                  }
+                }}
                 className={`flex flex-col items-center justify-center flex-1 h-full transition-all duration-200 transform hover:scale-105 ${
-                  isActive
+                  item.isLogout
+                    ? "text-red-600 hover:bg-red-50"
+                    : isActive
                     ? "text-blue-600"
                     : "text-gray-600 active:bg-blue-100"
                 }`}
               >
                 <div className="relative mb-1">
                   <div className={`p-2 rounded-xl ${
-                    isActive 
+                    item.isLogout
+                      ? "bg-gradient-to-r from-red-500 to-red-600 shadow-lg"
+                      : isActive 
                       ? "bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg" 
                       : "bg-blue-100 group-hover:bg-blue-200"
                   }`}>
                     <Icon className={`w-5 h-5 ${
-                      isActive ? "text-white" : "text-blue-600"
+                      item.isLogout 
+                        ? "text-white"
+                        : isActive 
+                        ? "text-white" 
+                        : "text-blue-600"
                     }`} />
                   </div>
                   {item.id === "tools" && notificationCount > 0 && (
@@ -167,7 +198,11 @@ const MobileFooterNav = ({ activeTab, setActiveTab, notificationCount = 0, handl
                   )}
                 </div>
                 <span className={`text-xs font-medium ${
-                  isActive ? "text-blue-600 font-bold" : "text-gray-600"
+                  item.isLogout
+                    ? "text-red-600 font-bold"
+                    : isActive 
+                    ? "text-blue-600 font-bold" 
+                    : "text-gray-600"
                 }`}>
                   {item.label}
                 </span>

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import ContractManagement from '../compoments/ContractManagement';
 import DismissalManagement from '../compoments/DismissalManagement';
+import Contract from '../components/Contract';
 import Button from '../components/Button';
 
 const ContractManagementPage = ({ employees, onEmployeeUpdate }) => {
@@ -234,12 +235,25 @@ const ContractManagementPage = ({ employees, onEmployeeUpdate }) => {
 
                   <div className="p-6">
                     {activeTab === 'contracts' ? (
-                      <ContractManagement
-                        employee={selectedEmployee}
-                        onContractUpdate={handleContractUpdate}
-                        onContractCreate={handleContractCreate}
-                        onContractTerminate={handleContractTerminate}
-                      />
+                      <div>
+                        <Contract
+                          employee={selectedEmployee}
+                          employer={{
+                            name: 'PHRM Company',
+                            address: 'Douala, Cameroun',
+                            cnpsNumber: 'A123456789',
+                            taxpayerNumber: 'M123456789012A'
+                          }}
+                          contract={selectedEmployee.contract}
+                          onContractUpdate={handleContractUpdate}
+                        />
+                        <ContractManagement
+                          employee={selectedEmployee}
+                          onContractUpdate={handleContractUpdate}
+                          onContractCreate={handleContractCreate}
+                          onContractTerminate={handleContractTerminate}
+                        />
+                      </div>
                     ) : (
                       <DismissalManagement
                         employee={selectedEmployee}

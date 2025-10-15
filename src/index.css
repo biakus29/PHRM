@@ -5,6 +5,9 @@
 /* Import des styles globaux pour masquer les barres de scroll */
 @import './styles/global.css';
 
+/* Import du fix pour le scroll */
+@import './styles/scroll-fix.css';
+
 :root {
   --background: #f9fafb;
   --text: #1f2937;
@@ -19,11 +22,18 @@
   --border: #374151;
 }
 
+html, body {
+  height: 100%;
+  overflow: auto; /* Assurer que le scroll fonctionne */
+}
+
 body {
   background-color: var(--background);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  padding: 0;
 }
 
 .card {

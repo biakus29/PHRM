@@ -1,5 +1,5 @@
 // src/components/DocumentGeneration.jsx
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { toast } from "react-toastify";
@@ -87,7 +87,7 @@ const DocumentGeneration = ({ companyData, employees, actionLoading, setActionLo
   }, [companyData, employees, setActionLoading]);
 
   return (
-    <Card title="Badges et Rapports des Employés" className="animate-scale-in">
+    <Card title="Documents, Badges et Rapports des Employés" className="animate-scale-in">
       {progress > 0 && (
         <div className="mb-4">
           <p className="text-sm text-gray-600">Génération en cours : {progress.toFixed(1)}%</p>
@@ -96,39 +96,76 @@ const DocumentGeneration = ({ companyData, employees, actionLoading, setActionLo
           </div>
         </div>
       )}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <Button
-          onClick={() => generateAllBadgesPDF(employees, companyData, setProgress, setActionLoading)}
-          icon={FiDownload}
-          aria-label="Exporter tous les badges"
-          disabled={actionLoading}
-        >
-          Exporter tous les badges
-        </Button>
-        <Button
-          onClick={() => generatePDFReport(companyData, employees, setActionLoading)}
-          icon={FiFileText}
-          aria-label="Générer rapport PDF"
-          disabled={actionLoading}
-        >
-          Rapport PDF
-        </Button>
-        <Button
-          onClick={generateExcelReport}
-          icon={FiFileText}
-          aria-label="Générer rapport Excel"
-          disabled={actionLoading}
-        >
-          Rapport Excel
-        </Button>
-        <Button
-          onClick={generateCSVReport}
-          icon={FiFileText}
-          aria-label="Générer rapport CSV"
-          disabled={actionLoading}
-        >
-          Rapport CSV
-        </Button>
+      
+      {/* Section Documents et Contrats */}
+      <div className="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
+        <h3 className="text-lg font-semibold text-blue-900 mb-3 flex items-center">
+          <FiFileText className="w-5 h-5 mr-2" />
+          Documents RH et Contrats
+        </h3>
+        <p className="text-blue-700 text-sm mb-4">
+          Gérez tous vos documents RH : offres d'emploi, attestations, certificats et contrats de travail
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <Button
+            onClick={() => window.location.href = '/documents'}
+            icon={FiFileText}
+            className="bg-blue-600 hover:bg-blue-700"
+            disabled={actionLoading}
+          >
+            Gestionnaire de Documents
+          </Button>
+          <Button
+            onClick={() => window.location.href = '/contracts'}
+            icon={FiFileText}
+            className="bg-green-600 hover:bg-green-700"
+            disabled={actionLoading}
+          >
+            Gestion des Contrats
+          </Button>
+        </div>
+      </div>
+
+      {/* Section Rapports */}
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <FiDownload className="w-5 h-5 mr-2" />
+          Rapports et Exports
+        </h3>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <Button
+            onClick={() => generateAllBadgesPDF(employees, companyData, setProgress, setActionLoading)}
+            icon={FiDownload}
+            aria-label="Exporter tous les badges"
+            disabled={actionLoading}
+          >
+            Exporter tous les badges
+          </Button>
+          <Button
+            onClick={() => generatePDFReport(companyData, employees, setActionLoading)}
+            icon={FiFileText}
+            aria-label="Générer rapport PDF"
+            disabled={actionLoading}
+          >
+            Rapport PDF
+          </Button>
+          <Button
+            onClick={generateExcelReport}
+            icon={FiFileText}
+            aria-label="Générer rapport Excel"
+            disabled={actionLoading}
+          >
+            Rapport Excel
+          </Button>
+          <Button
+            onClick={generateCSVReport}
+            icon={FiFileText}
+            aria-label="Générer rapport CSV"
+            disabled={actionLoading}
+          >
+            Rapport CSV
+          </Button>
+        </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {employees.map((employee, index) => (

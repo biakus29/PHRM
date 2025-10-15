@@ -1,14 +1,7 @@
 /* Styles globaux pour masquer les barres de scroll */
 
-/* Masquer toutes les barres de scroll par défaut */
-* {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* Internet Explorer 10+ */
-}
-
-*::-webkit-scrollbar {
-  display: none; /* Webkit (Chrome, Safari, Edge) */
-}
+/* IMPORTANT: Ne pas masquer toutes les barres de scroll - cela empêche le scroll de la page */
+/* Masquer seulement les barres de scroll pour les éléments spécifiques avec la classe .hide-scrollbar */
 
 /* Classe utilitaire pour masquer les barres de scroll */
 .hide-scrollbar {
@@ -158,8 +151,7 @@
 /* Focus effects */
 .focus-ring:focus {
   outline: none;
-  ring: 4px;
-  ring-color: rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
 }
 
 

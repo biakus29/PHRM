@@ -24,10 +24,11 @@ const ContractManagement = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [contractForm, setContractForm] = useState({
-    type: CONTRACT_TYPES.CDI,
+    type: 'CDI',
     position: '',
     department: '',
-    salary: '',
+    baseSalary: '', // salary -> baseSalary pour cohérence
+    workLocation: '', // Ajouter workLocation
     startDate: '',
     endDate: '',
     trialPeriod: '',
@@ -48,10 +49,11 @@ const ContractManagement = ({
   useEffect(() => {
     if (employee?.contract) {
       setContractForm({
-        type: employee.contract.type || CONTRACT_TYPES.CDI,
+        type: employee.contract.type || 'CDI',
         position: employee.contract.position || '',
         department: employee.contract.department || '',
-        salary: employee.contract.salary || '',
+        baseSalary: employee.contract.baseSalary || employee.contract.salary || '', // Harmoniser
+        workLocation: employee.contract.workLocation || employee.contract.workPlace || '', // Harmoniser
         startDate: employee.contract.startDate || '',
         endDate: employee.contract.endDate || '',
         trialPeriod: employee.contract.trialPeriod || '',
@@ -212,12 +214,25 @@ const ContractManagement = ({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Lieu de travail
+                </label>
+                <input
+                  type="text"
+                  value={contractForm.workLocation}
+                  onChange={(e) => setContractForm({...contractForm, workLocation: e.target.value})}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ex: Yaoundé, Douala..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Salaire de base (FCFA) *
                 </label>
                 <input
                   type="number"
-                  value={contractForm.salary}
-                  onChange={(e) => setContractForm({...contractForm, salary: e.target.value})}
+                  value={contractForm.baseSalary}
+                  onChange={(e) => setContractForm({...contractForm, baseSalary: e.target.value})}
                   className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   min="0"
                   required
@@ -329,7 +344,7 @@ const ContractManagement = ({
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Salaire:</span>
-                <span className="font-medium">{Number(employee.contract.salary || 0).toLocaleString('fr-FR')} FCFA</span>
+                <span className="font-medium">{Number(employee.contract.baseSalary || employee.contract.salary || 0).toLocaleString('fr-FR')} FCFA</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Date de début:</span>

@@ -1,0 +1,78 @@
+/* Fix pour le problème de scroll */
+
+/* S'assurer que html et body permettent le scroll */
+html, body {
+  height: auto !important;
+  min-height: 100vh;
+  overflow: auto !important;
+  overflow-x: hidden; /* Empêcher le scroll horizontal */
+  overflow-y: auto; /* Permettre le scroll vertical */
+}
+
+/* S'assurer que le conteneur principal permet le scroll */
+#root {
+  height: auto !important;
+  min-height: 100vh;
+  overflow: visible !important;
+}
+
+/* Corriger les éléments qui pourraient bloquer le scroll */
+.min-h-screen {
+  min-height: 100vh !important;
+  height: auto !important;
+}
+
+/* Permettre le scroll pour les sections longues */
+section {
+  overflow: visible !important;
+}
+
+/* Fix spécifique pour les éléments avec overflow-hidden qui ne devraient pas l'avoir */
+body * {
+  /* Ne pas appliquer overflow: hidden sur les éléments principaux */
+}
+
+/* Assurer que les éléments avec du contenu long peuvent scroller */
+.overflow-auto {
+  overflow: auto !important;
+}
+
+.overflow-y-auto {
+  overflow-y: auto !important;
+}
+
+/* Smooth scrolling pour une meilleure expérience */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Fix pour les éléments positionnés qui pourraient bloquer le scroll */
+.fixed {
+  z-index: 50;
+}
+
+/* S'assurer que les barres de scroll sont visibles quand nécessaire */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Pour Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #c1c1c1 #f1f1f1;
+}

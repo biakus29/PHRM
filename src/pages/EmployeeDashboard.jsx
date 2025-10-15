@@ -15,7 +15,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
 import ExportPaySlip from '../compoments/ExportPaySlip';
-import ExportContrat from '../compoments/ExportContrat';
+import { exportContractPDF } from '../utils/exportContractPDF';
 import { createRoot } from 'react-dom/client';
 import { displayDate, displayDateWithOptions, displayGeneratedAt, displayContractStartDate } from "../utils/displayUtils";
 import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, formatCFA, computeCompletePayroll } from "../utils/payrollCalculations";
@@ -1118,24 +1118,8 @@ const EmployeeDashboard = () => {
                         cnpsNumber: employeeData.companyCNPS || 'N/A',
                         id: employeeData.companyId || '',
                       };
-                      const tempDiv = document.createElement('div');
-                      tempDiv.style.display = 'none';
-                      document.body.appendChild(tempDiv);
-                      const root = createRoot(tempDiv);
-                      root.render(
-                        <ExportContrat
-                          employee={employeeData}
-                          employer={employerData}
-                          contractData={employeeData.contract}
-                          auto={true}
-                          onExported={() => {
-                            setTimeout(() => {
-                              root.unmount();
-                              document.body.removeChild(tempDiv);
-                            }, 500);
-                          }}
-                        />
-                      );
+                      // Utiliser la fonction d'export unifiée
+                      exportContractPDF(employeeData, employerData, employeeData.contract);
                     }}
                     variant="success"
                   >

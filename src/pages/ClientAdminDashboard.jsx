@@ -64,7 +64,7 @@ import {
 } from "chart.js";
 import { Line, Doughnut, Bar } from "react-chartjs-2";
 import { v4 as uuidv4 } from 'uuid';
-import ExportContrat from "../compoments/ExportContrat";
+import { exportContractPDF } from "../utils/exportContractPDF";
 import ExportPaySlip from "../compoments/ExportPaySlip";
 import PrimeIndemniteSelector from "../compoments/PrimeIndemniteSelector";
 import html2canvas from "html2canvas";
@@ -92,13 +92,13 @@ import EmployeeFormModal from "../components/EmployeeFormModal";
 import Modal from "../components/Modal";
 import DashboardSidebar from "../components/DashboardSidebar";
 import MobileFooterNav from "../components/MobileFooterNav";
-import generateBadgePDF from "../utils/badgePdf";
 import HRProceduresPage from "./HRProceduresPage";
 import ContractManagementPage from "./ContractManagementPage";
 import { VILLES_CAMEROUN, QUARTIERS_PAR_VILLE } from "../utils/constants";
 import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, computeGrossTotal, computeSBT, computeSBC, validateDeductions, formatCFA, computePVID, computeStatutoryDeductions, computeCompletePayroll } from "../utils/payrollCalculations";
 import ContractGenerator from "../components/ContractGenerator";
-import Contract from "../components/Contract";
+import { useDemo } from "../contexts/DemoContext";
+import DemoBanner from "../components/DemoBanner";
 import PaySlip from "../components/PaySlip";
 import Button from "../components/Button";
 import BadgeStudio from "../components/BadgeStudio";
@@ -1039,86 +1039,202 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
       <div className="flex-1 flex flex-col min-h-screen w-full">
         {/* Main - Responsive padding and spacing */}
         <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-y-auto animate-fade-in pb-20 md:pb-6">
-          {/* Mobile Page Title */}
+          {/* Demo Banner for demo accounts */}
+          <DemoBanner />
+          
+          {/* Mobile Page Title avec bouton déconnexion */}
           <div className="md:hidden mb-4 pt-2">
-            <h1 className="text-xl font-bold text-gray-900">
-              {activeTab === "overview" && "Tableau de bord"}
-              {activeTab === "employees" && "Employés"}
-              {activeTab === "leaves" && "Congés"}
-              {activeTab === "absences" && "Absences"}
-              {activeTab === "payslips" && "Paie"}
-              {activeTab === "contracts" && "Contrats"}
-              {activeTab === "documents" && "Documents"}
-              {activeTab === "hr-procedures" && "Procédures RH"}
-              {activeTab === "reports" && ""}
-              {activeTab === "notifications" && "Notifications"}
-              {activeTab === "settings" && "Paramètres"}
-            </h1>
+            <div className="flex items-center justify-between">
+              <h1 className="text-xl font-bold text-gray-900">
+                {activeTab === "overview" && "📊 Tableau de bord"}
+                {activeTab === "employees" && "👥 Employés"}
+                {activeTab === "leaves" && "🏖️ Congés"}
+                {activeTab === "absences" && "⏰ Absences"}
+                {activeTab === "payslips" && "💰 Paie"}
+                {activeTab === "contracts" && "📋 Contrats"}
+                {activeTab === "documents" && "📄 Documents"}
+                {activeTab === "hr-procedures" && "📚 Procédures RH"}
+                {activeTab === "reports" && "📈 Rapports"}
+                {activeTab === "notifications" && "🔔 Notifications"}
+                {activeTab === "settings" && "⚙️ Paramètres"}
+              </h1>
+              
+              {/* Boutons d'action mobile */}
+              <div className="flex items-center space-x-2">
+                {/* Notifications */}
+                <button
+                  onClick={() => setActiveTab("notifications")}
+                  className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Notifications"
+                >
+                  <Bell className="w-5 h-5 text-gray-600" />
+                  {notifications?.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                      {notifications.length > 9 ? "9+" : notifications.length}
+                    </span>
+                  )}
+                </button>
+                
+                {/* Bouton déconnexion */}
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center space-x-2 p-2 hover:bg-red-50 rounded-lg transition-colors group border border-red-200"
+                  title="Déconnexion"
+                >
+                  <div className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center group-hover:bg-red-200 transition-colors">
+                    <span className="text-xs font-bold text-red-600">
+                      {(companyData?.name || auth.currentUser?.email || "U").charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <span className="hidden sm:inline text-sm font-medium text-red-600 group-hover:text-red-700">
+                    Déconnexion
+                  </span>
+                </button>
+              </div>
+            </div>
+            
+            {/* Info utilisateur mobile */}
+            <div className="mt-2 text-sm text-gray-500">
+              <span className="hidden sm:inline">Connecté en tant que </span>
+              <span className="font-medium text-gray-700">
+                {auth.currentUser?.email?.split('@')[0] || 'Admin'}
+              </span>
+              <span className="mx-2">•</span>
+              <span className="text-green-600 font-medium">
+                ● En ligne
+              </span>
+            </div>
           </div>
           
           {activeTab === "overview" && (
             <div className="space-y-6">
+              {/* En-tête avec indicateur temps réel - Responsive */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">📊 Tableau de Bord</h2>
+                    <p className="text-sm sm:text-base text-gray-600">Vue d'ensemble de votre entreprise</p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                      <span className="text-xs sm:text-sm text-gray-500 font-medium">DONNÉES TEMPS RÉEL</span>
+                    </div>
+                    <span className="text-xs text-gray-400 sm:ml-2">
+                      {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Statistiques principales */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-                <Card className="bg-gradient-to-br from-blue-600 to-blue-400 text-white">
+                <Card className="bg-gradient-to-br from-blue-600 to-blue-400 text-white hover:shadow-xl transition-all duration-300 hover:scale-105">
                   <div className="p-4 sm:p-6">
-                    <Users className="w-6 h-6 sm:w-8 sm:h-8 mb-2" />
-                    <p className="text-xs sm:text-sm">Employes Actifs</p>
-                    <p className="text-xl sm:text-2xl font-bold">{employees.filter(emp => emp.status === 'Actif').length}</p>
-                    <p className="text-xs sm:text-sm mt-2">
-                      {employees.filter(emp => emp.status === 'Actif').length > 0 
-                        ? `${employees.filter(emp => emp.status === 'Actif').length} actifs`
-                        : 'Aucun employé actif'}
+                    <div className="flex items-center justify-between mb-3">
+                      <Users className="w-6 h-6 sm:w-8 sm:h-8" />
+                      <div className="text-xs bg-white/20 px-2 py-1 rounded-full">
+                        LIVE
+                      </div>
+                    </div>
+                    <p className="text-xs sm:text-sm opacity-90">Employés Actifs</p>
+                    <p className="text-xl sm:text-2xl font-bold mb-1">
+                      {employees.filter(emp => emp.status === 'Actif').length}
                     </p>
+                    <div className="flex items-center justify-between text-xs sm:text-sm">
+                      <span className="opacity-90">
+                        Total: {employees.length}
+                      </span>
+                      <span className="bg-white/20 px-2 py-1 rounded">
+                        {employees.length > 0 
+                          ? `${Math.round((employees.filter(emp => emp.status === 'Actif').length / employees.length) * 100)}%`
+                          : '0%'}
+                      </span>
+                    </div>
                   </div>
                 </Card>
-                <Card className="bg-gradient-to-br from-green-600 to-green-400 text-white">
+
+                <Card className="bg-gradient-to-br from-green-600 to-green-400 text-white hover:shadow-xl transition-all duration-300 hover:scale-105">
                   <div className="p-4 sm:p-6">
-                    <Calendar className="w-6 h-6 sm:w-8 sm:h-8 mb-2" />
-                    <p className="text-xs sm:text-sm">Demandes de Conges</p>
-                    <p className="text-xl sm:text-2xl font-bold">{leaveRequests.filter(req => req.status === 'En attente').length}</p>
-                    <p className="text-xs sm:text-sm mt-2">
-                      {leaveRequests.filter(req => req.status === 'En attente').length > 0
-                        ? `${leaveRequests.filter(req => req.status === 'En attente').length} en attente`
-                        : 'Aucune demande en attente'}
+                    <div className="flex items-center justify-between mb-3">
+                      <Calendar className="w-6 h-6 sm:w-8 sm:h-8" />
+                      <div className="text-xs bg-white/20 px-2 py-1 rounded-full">
+                        {leaveRequests.filter(req => req.status === 'En attente').length > 0 ? 'URGENT' : 'OK'}
+                      </div>
+                    </div>
+                    <p className="text-xs sm:text-sm opacity-90">Demandes de Congés</p>
+                    <p className="text-xl sm:text-2xl font-bold mb-1">
+                      {leaveRequests.filter(req => req.status === 'En attente').length}
                     </p>
+                    <div className="flex items-center justify-between text-xs sm:text-sm">
+                      <span className="opacity-90">
+                        En attente
+                      </span>
+                      <span className="bg-white/20 px-2 py-1 rounded">
+                        Total: {leaveRequests.length}
+                      </span>
+                    </div>
                   </div>
                 </Card>
-                <Card className="bg-gradient-to-br from-yellow-600 to-yellow-400 text-white">
+
+                <Card className="bg-gradient-to-br from-yellow-600 to-yellow-400 text-white hover:shadow-xl transition-all duration-300 hover:scale-105">
                   <div className="p-4 sm:p-6">
-                    <Clock className="w-6 h-6 sm:w-8 sm:h-8 mb-2" />
-                    <p className="text-xs sm:text-sm">Absences ce mois</p>
-                    <p className="text-xl sm:text-2xl font-bold">
-                      {employees.reduce((sum, emp) => {
-                        const currentMonth = new Date().getMonth();
-                        const currentYear = new Date().getFullYear();
-                        const monthAbsences = emp.absences?.filter(abs => {
-                          const absDate = new Date(abs.date);
-                          return absDate.getMonth() === currentMonth && absDate.getFullYear() === currentYear;
-                        }) || [];
-                        return sum + monthAbsences.length;
-                      }, 0)}
-                    </p>
-                    <p className="text-xs sm:text-sm mt-2">
+                    <div className="flex items-center justify-between mb-3">
+                      <Clock className="w-6 h-6 sm:w-8 sm:h-8" />
+                      <div className="text-xs bg-white/20 px-2 py-1 rounded-full">
+                        {new Date().toLocaleDateString('fr-FR', { month: 'short' }).toUpperCase()}
+                      </div>
+                    </div>
+                    <p className="text-xs sm:text-sm opacity-90">Absences ce mois</p>
+                    <p className="text-xl sm:text-2xl font-bold mb-1">
                       {(() => {
                         const currentMonth = new Date().getMonth();
                         const currentYear = new Date().getFullYear();
-                        const monthAbsences = employees.reduce((sum, emp) => {
-                          const monthAbs = emp.absences?.filter(abs => {
+                        return employees.reduce((sum, emp) => {
+                          const monthAbsences = emp.absences?.filter(abs => {
                             const absDate = new Date(abs.date);
                             return absDate.getMonth() === currentMonth && absDate.getFullYear() === currentYear;
                           }) || [];
-                          return sum + monthAbs.length;
+                          return sum + monthAbsences.length;
                         }, 0);
-                        return monthAbsences > 0 ? `${monthAbsences} ce mois` : 'Aucune absence ce mois';
                       })()}
                     </p>
+                    <div className="flex items-center justify-between text-xs sm:text-sm">
+                      <span className="opacity-90">
+                        Ce mois
+                      </span>
+                      <span className="bg-white/20 px-2 py-1 rounded">
+                        {(() => {
+                          const totalAbsences = employees.reduce((sum, emp) => sum + (emp.absences?.length || 0), 0);
+                          return `Total: ${totalAbsences}`;
+                        })()}
+                      </span>
+                    </div>
                   </div>
                 </Card>
-                <Card className="bg-gradient-to-br from-purple-600 to-purple-400 text-white">
+
+                <Card className="bg-gradient-to-br from-purple-600 to-purple-400 text-white hover:shadow-xl transition-all duration-300 hover:scale-105">
                   <div className="p-4 sm:p-6">
-                    <CreditCard className="w-6 h-6 sm:w-8 sm:h-8 mb-2" />
-                    <p className="text-xs sm:text-sm">Fiches de Paie</p>
-                    <p className="text-xl sm:text-2xl font-bold">
+                    <div className="flex items-center justify-between mb-3">
+                      <CreditCard className="w-6 h-6 sm:w-8 sm:h-8" />
+                      <div className="text-xs bg-white/20 px-2 py-1 rounded-full">
+                        {(() => {
+                          const currentMonth = new Date().getMonth();
+                          const currentYear = new Date().getFullYear();
+                          const monthPayslips = employees.reduce((sum, emp) => {
+                            const monthPays = emp.payslips?.filter(payslip => {
+                              const payslipDate = new Date(payslip.generatedAt);
+                              return payslipDate.getMonth() === currentMonth && payslipDate.getFullYear() === currentYear;
+                            }) || [];
+                            return sum + monthPays.length;
+                          }, 0);
+                          const activeEmployees = employees.filter(emp => emp.status === 'Actif').length;
+                          return activeEmployees > 0 ? `${Math.round((monthPayslips / activeEmployees) * 100)}%` : '0%';
+                        })()}
+                      </div>
+                    </div>
+                    <p className="text-xs sm:text-sm opacity-90">Fiches de Paie</p>
+                    <p className="text-xl sm:text-2xl font-bold mb-1">
                       {(() => {
                         const currentMonth = new Date().getMonth();
                         const currentYear = new Date().getFullYear();
@@ -1131,20 +1247,14 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                         }, 0);
                       })()}
                     </p>
-                    <p className="text-sm mt-2">
-                      {(() => {
-                        const currentMonth = new Date().getMonth();
-                        const currentYear = new Date().getFullYear();
-                        const monthPayslips = employees.reduce((sum, emp) => {
-                          const monthPays = emp.payslips?.filter(payslip => {
-                            const payslipDate = new Date(payslip.generatedAt);
-                            return payslipDate.getMonth() === currentMonth && payslipDate.getFullYear() === currentYear;
-                          }) || [];
-                          return sum + monthPays.length;
-                        }, 0);
-                        return monthPayslips > 0 ? `${monthPayslips} ce mois` : 'Aucune fiche ce mois';
-                      })()}
-                    </p>
+                    <div className="flex items-center justify-between text-xs sm:text-sm">
+                      <span className="opacity-90">
+                        Ce mois
+                      </span>
+                      <span className="bg-white/20 px-2 py-1 rounded">
+                        Actifs: {employees.filter(emp => emp.status === 'Actif').length}
+                      </span>
+                    </div>
                   </div>
                 </Card>
               </div>
@@ -1152,75 +1262,212 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                 <ChartsSection />
               </Suspense>
               
-              {/* Nouvelles métriques financières */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <Card className="bg-gradient-to-br from-emerald-600 to-emerald-400 text-white">
-                  <div className="p-4">
-                    <CreditCard className="w-6 h-6 mb-2" />
-                    <p className="text-xs">Masse Salariale</p>
-                    <p className="text-xl font-bold">
-                      {(() => {
-                        const totalSalary = employees.reduce((sum, emp) => {
-                          return sum + (emp.baseSalary || 0);
-                        }, 0);
-                        return totalSalary.toLocaleString();
-                      })()} FCFA
-                    </p>
-                    <p className="text-xs mt-1">Salaire de base total</p>
+              {/* Métriques financières temps réel - Responsive */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 space-y-2 sm:space-y-0">
+                  <h3 className="text-lg sm:text-xl font-semibold text-gray-900 flex items-center">
+                    <BarChart3 className="w-5 h-5 mr-2 text-blue-600" />
+                    <span className="hidden sm:inline">Indicateurs Financiers</span>
+                    <span className="sm:hidden">💰 Finances</span>
+                  </h3>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-xs text-gray-500">TEMPS RÉEL</span>
                   </div>
-                </Card>
-                <Card className="bg-gradient-to-br from-indigo-600 to-indigo-400 text-white">
-                  <div className="p-4">
-                    <BarChart3 className="w-6 h-6 mb-2" />
-                    <p className="text-xs">Moyenne Salaire</p>
-                    <p className="text-xl font-bold">
-                      {(() => {
-                        const activeEmployees = employees.filter(emp => emp.status === 'Actif');
-                        if (activeEmployees.length === 0) return '0';
-                        const totalSalary = activeEmployees.reduce((sum, emp) => {
-                          return sum + (emp.baseSalary || 0);
-                        }, 0);
-                        return Math.round(totalSalary / activeEmployees.length).toLocaleString();
-                      })()} FCFA
-                    </p>
-                    <p className="text-xs mt-1">Par employé actif</p>
-                  </div>
-                </Card>
-                <Card className="bg-gradient-to-br from-orange-600 to-orange-400 text-white">
-                  <div className="p-4">
-                    <Calendar className="w-6 h-6 mb-2" />
-                    <p className="text-xs">Fiches ce Mois</p>
-                    <p className="text-xl font-bold">
-                      {(() => {
-                        const currentMonth = new Date().getMonth();
-                        const currentYear = new Date().getFullYear();
-                        return employees.reduce((sum, emp) => {
-                          const monthPayslips = emp.payslips?.filter(payslip => {
-                            const payslipDate = new Date(payslip.generatedAt);
-                            return payslipDate.getMonth() === currentMonth && payslipDate.getFullYear() === currentYear;
-                          }) || [];
-                          return sum + monthPayslips.length;
-                        }, 0);
-                      })()}
-                    </p>
-                    <p className="text-xs mt-1">Générées ce mois</p>
-                  </div>
-                </Card>
-                <Card className="bg-gradient-to-br from-pink-600 to-pink-400 text-white">
-                  <div className="p-4">
-                    <Users className="w-6 h-6 mb-2" />
-                    <p className="text-xs">Taux d'Activité</p>
-                    <p className="text-xl font-bold">
-                      {(() => {
-                        const totalEmployees = employees.length;
-                        const activeEmployees = employees.filter(emp => emp.status === 'Actif').length;
-                        if (totalEmployees === 0) return '0%';
-                        return Math.round((activeEmployees / totalEmployees) * 100) + '%';
-                      })()}
-                    </p>
-                    <p className="text-xs mt-1">Employes actifs</p>
-                  </div>
-                </Card>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <Card className="bg-gradient-to-br from-emerald-600 to-emerald-400 text-white hover:shadow-xl transition-all duration-300 hover:scale-105">
+                    <div className="p-4 sm:p-6">
+                      <div className="flex items-center justify-between mb-3">
+                        <CreditCard className="w-6 h-6 sm:w-8 sm:h-8" />
+                        <div className="text-xs bg-white/20 px-2 py-1 rounded-full">
+                          TOTAL
+                        </div>
+                      </div>
+                      <p className="text-xs sm:text-sm opacity-90">Masse Salariale</p>
+                      <p className="text-lg sm:text-xl font-bold mb-1">
+                        {(() => {
+                          const totalSalary = employees.reduce((sum, emp) => {
+                            const salary = Number(emp.baseSalary);
+                            return sum + (isNaN(salary) || salary <= 0 ? 0 : salary);
+                          }, 0);
+                          
+                          console.log('Masse salariale totale:', totalSalary);
+                          
+                          return totalSalary >= 1000000 
+                            ? `${(totalSalary / 1000000).toFixed(1)}M` 
+                            : totalSalary.toLocaleString();
+                        })()} FCFA
+                      </p>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="opacity-90">
+                          {employees.length} employés
+                        </span>
+                        <span className="bg-white/20 px-2 py-1 rounded">
+                          Brut
+                        </span>
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card className="bg-gradient-to-br from-indigo-600 to-indigo-400 text-white hover:shadow-xl transition-all duration-300 hover:scale-105 border-2 border-indigo-300">
+                    <div className="p-4 sm:p-6">
+                      <div className="flex items-center justify-between mb-3">
+                        <BarChart3 className="w-6 h-6 sm:w-8 sm:h-8" />
+                        <div className="text-xs bg-white/30 px-2 py-1 rounded-full font-semibold">
+                          MOYENNE
+                        </div>
+                      </div>
+                      <p className="text-xs sm:text-sm opacity-90">Salaire Moyen</p>
+                      <p className="text-xl sm:text-2xl font-bold mb-1">
+                        {(() => {
+                          const activeEmployees = employees.filter(emp => emp.status === 'Actif');
+                          if (activeEmployees.length === 0) return '0';
+                          
+                          // Filtrer les employés avec des salaires valides et les convertir en nombres
+                          const validSalaries = activeEmployees
+                            .map(emp => {
+                              const salary = Number(emp.baseSalary);
+                              return isNaN(salary) || salary <= 0 ? 0 : salary;
+                            })
+                            .filter(salary => salary > 0);
+                          
+                          if (validSalaries.length === 0) return '0';
+                          
+                          const totalSalary = validSalaries.reduce((sum, salary) => sum + salary, 0);
+                          const average = Math.round(totalSalary / validSalaries.length);
+                          
+                          // Debug: afficher les valeurs pour vérifier
+                          console.log('Salaires valides:', validSalaries);
+                          console.log('Total:', totalSalary);
+                          console.log('Moyenne:', average);
+                          
+                          return average.toLocaleString();
+                        })()} FCFA
+                      </p>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="opacity-90">
+                          Par employé actif
+                        </span>
+                        <span className="bg-white/20 px-2 py-1 rounded">
+                          {(() => {
+                            const activeEmployees = employees.filter(emp => emp.status === 'Actif');
+                            const totalSalary = activeEmployees.reduce((sum, emp) => sum + (emp.baseSalary || 0), 0);
+                            const average = activeEmployees.length > 0 ? totalSalary / activeEmployees.length : 0;
+                            const minSalary = Math.min(...activeEmployees.map(emp => emp.baseSalary || 0));
+                            const maxSalary = Math.max(...activeEmployees.map(emp => emp.baseSalary || 0));
+                            
+                            if (activeEmployees.length === 0) return 'N/A';
+                            if (average > (minSalary + maxSalary) / 2) return '↗️';
+                            return '📊';
+                          })()}
+                        </span>
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card className="bg-gradient-to-br from-cyan-600 to-cyan-400 text-white hover:shadow-xl transition-all duration-300 hover:scale-105">
+                    <div className="p-4 sm:p-6">
+                      <div className="flex items-center justify-between mb-3">
+                        <BarChart3 className="w-6 h-6 sm:w-8 sm:h-8" />
+                        <div className="text-xs bg-white/20 px-2 py-1 rounded-full">
+                          MIN/MAX
+                        </div>
+                      </div>
+                      <p className="text-xs sm:text-sm opacity-90">Écart Salarial</p>
+                      <div className="mb-1">
+                        <p className="text-sm font-medium">
+                          Min: {(() => {
+                            const validSalaries = employees
+                              .filter(emp => emp.status === 'Actif')
+                              .map(emp => Number(emp.baseSalary))
+                              .filter(salary => !isNaN(salary) && salary > 0);
+                            
+                            if (validSalaries.length === 0) return '0';
+                            const minSalary = Math.min(...validSalaries);
+                            return minSalary.toLocaleString();
+                          })()} FCFA
+                        </p>
+                        <p className="text-sm font-medium">
+                          Max: {(() => {
+                            const validSalaries = employees
+                              .filter(emp => emp.status === 'Actif')
+                              .map(emp => Number(emp.baseSalary))
+                              .filter(salary => !isNaN(salary) && salary > 0);
+                            
+                            if (validSalaries.length === 0) return '0';
+                            const maxSalary = Math.max(...validSalaries);
+                            return maxSalary.toLocaleString();
+                          })()} FCFA
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="opacity-90">
+                          Fourchette
+                        </span>
+                        <span className="bg-white/20 px-2 py-1 rounded">
+                          {(() => {
+                            const validSalaries = employees
+                              .filter(emp => emp.status === 'Actif')
+                              .map(emp => Number(emp.baseSalary))
+                              .filter(salary => !isNaN(salary) && salary > 0);
+                            
+                            if (validSalaries.length === 0) return '0x';
+                            const minSalary = Math.min(...validSalaries);
+                            const maxSalary = Math.max(...validSalaries);
+                            const ratio = minSalary > 0 ? (maxSalary / minSalary).toFixed(1) : '∞';
+                            return `${ratio}x`;
+                          })()}
+                        </span>
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card className="bg-gradient-to-br from-orange-600 to-orange-400 text-white hover:shadow-xl transition-all duration-300 hover:scale-105">
+                    <div className="p-4 sm:p-6">
+                      <div className="flex items-center justify-between mb-3">
+                        <Calendar className="w-6 h-6 sm:w-8 sm:h-8" />
+                        <div className="text-xs bg-white/20 px-2 py-1 rounded-full">
+                          {new Date().toLocaleDateString('fr-FR', { month: 'short' }).toUpperCase()}
+                        </div>
+                      </div>
+                      <p className="text-xs sm:text-sm opacity-90">Fiches ce Mois</p>
+                      <p className="text-xl sm:text-2xl font-bold mb-1">
+                        {(() => {
+                          const currentMonth = new Date().getMonth();
+                          const currentYear = new Date().getFullYear();
+                          return employees.reduce((sum, emp) => {
+                            const monthPayslips = emp.payslips?.filter(payslip => {
+                              const payslipDate = new Date(payslip.generatedAt);
+                              return payslipDate.getMonth() === currentMonth && payslipDate.getFullYear() === currentYear;
+                            }) || [];
+                            return sum + monthPayslips.length;
+                          }, 0);
+                        })()}
+                      </p>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="opacity-90">
+                          Générées ce mois
+                        </span>
+                        <span className="bg-white/20 px-2 py-1 rounded">
+                          {(() => {
+                            const activeEmployees = employees.filter(emp => emp.status === 'Actif').length;
+                            const currentMonth = new Date().getMonth();
+                            const currentYear = new Date().getFullYear();
+                            const monthPayslips = employees.reduce((sum, emp) => {
+                              const monthPays = emp.payslips?.filter(payslip => {
+                                const payslipDate = new Date(payslip.generatedAt);
+                                return payslipDate.getMonth() === currentMonth && payslipDate.getFullYear() === currentYear;
+                              }) || [];
+                              return sum + monthPays.length;
+                            }, 0);
+                            return activeEmployees > 0 ? `${Math.round((monthPayslips / activeEmployees) * 100)}%` : '0%';
+                          })()}
+                        </span>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card title="Demandes de Conges Recentes">
@@ -1588,23 +1835,15 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
         </div>
         <div className="flex justify-center mt-8">
           <Button
-            onClick={() => {
-              console.log('[ExportContrat] Bouton Exporter PDF cliqué');
+            onClick={async () => {
+              console.log('[Export unifié] Bouton Exporter PDF cliqué');
               if (!selectedEmployee || !selectedEmployee.contract) {
                 alert('Aucun contrat ou employé sélectionné.');
                 return;
               }
-              // Vérification des champs essentiels du contrat
-              const missing = [];
-              if (!selectedEmployee.name) missing.push("Nom de l'employé");
-              if (!selectedEmployee.matricule) missing.push('Matricule');
-              if (!selectedEmployee.contract.salary && !selectedEmployee.baseSalary) missing.push('Salaire de base');
-              if (!selectedEmployee.contract.startDate) missing.push('Date de début');
-              if (missing.length > 0) {
-                alert('Impossible de générer le PDF du contrat. Champs manquants :\n' + missing.map(f => '- ' + f).join('\n'));
-                return;
-              }
+              
               const employerData = {
+                name: companyData?.name || companyData?.companyName || "N/A",
                 companyName: companyData?.name || companyData?.companyName || "N/A",
                 address: companyData?.address || "N/A",
                 taxpayerNumber: companyData?.taxpayerNumber || "N/A",
@@ -1612,29 +1851,9 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                 representant: companyData?.representant || "N/A",
                 id: companyData?.id || "",
               };
-              console.log('employerData:', employerData);
-              // On monte le composant ExportContrat en mode auto
-              const tempDiv = document.createElement('div');
-              tempDiv.style.display = 'none';
-              document.body.appendChild(tempDiv);
-              const root = createRoot(tempDiv);
-              root.render(
-                <ExportContrat
-                  employee={selectedEmployee}
-                  employer={employerData}
-                  contractData={selectedEmployee.contract}
-                  auto={true}
-                  onExported={() => {
-                    console.log('[ExportContrat] onExported callback déclenché');
-                    setTimeout(() => {
-                      root.unmount();
-                      document.body.removeChild(tempDiv);
-                      console.log('[ExportContrat] Composant démonté et div supprimé');
-                    }, 500);
-                  }}
-                />
-              );
-              console.log('[ExportContrat] Composant monté dans le DOM temporaire');
+              
+              // Utiliser la fonction d'export unifiée
+              await exportContractPDF(selectedEmployee, employerData, selectedEmployee.contract);
             }}
             icon={Download}
             className="bg-green-600 hover:bg-green-700 text-white"
