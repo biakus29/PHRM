@@ -2,11 +2,11 @@
 // Gestionnaire de documents RH : Offres d'emploi, Attestations, Certificats
 
 import React, { useState, useEffect } from 'react';
-import { FiFileText, FiDownload, FiPlus, FiEdit, FiTrash2, FiEye, FiSettings } from 'react-icons/fi';
-import { db } from '../firebase';
+import { FiFileText, FiDownload, FiPlus, FiEdit, FiTrash2, FiEye, FiSettings, FiSend } from 'react-icons/fi';
+import { db, auth } from '../firebase';
 import { collection, addDoc, getDocs, doc, deleteDoc, updateDoc, query, where, orderBy } from 'firebase/firestore';
 import { toast } from 'react-toastify';
-import { generateOfferPDFCameroon } from '../utils/pdfTemplates/offerTemplateCameroon';
+import { generateOfferLetterPDF } from '../utils/pdfTemplates/offerTemplateCameroon';
 import { generateAttestationPDFCameroon } from '../utils/pdfTemplates/attestationTemplateCameroon';
 import { generateCertificatePDFCameroon } from '../utils/pdfTemplates/certificateTemplateCameroon';
 import { generateContractPDFCameroon } from '../utils/pdfTemplates/contractTemplateCameroon';
@@ -23,6 +23,7 @@ import {
   DIPLOMES,
   SERVICES
 } from '../utils/constants';
+import { createJob } from '../services/jobs';
 
 const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, employees = [] }) => {
   const [activeTab, setActiveTab] = useState('offers');
@@ -47,10 +48,15 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
       icon: FiFileText,
       color: 'blue',
       fields: [
+        { key: 'candidateName', label: 'Nom du candidat', type: 'text', required: false },
+        { key: 'candidateCity', label: 'Ville du candidat', type: 'text', required: false },
+        { key: 'companyCity', label: 'Ville de l\'entreprise (en-tête date)', type: 'text', required: false },
         { key: 'title', label: 'Titre du poste', type: 'select', required: true, options: POSTES_EMPLOI },
+        { key: 'contractType', label: 'Type de contrat', type: 'select', required: false, options: ['CDI','CDD','Stage','Freelance'] },
         { key: 'category', label: 'Catégorie professionnelle', type: 'select', required: true, options: CATEGORIES_PROFESSIONNELLES },
         { key: 'echelon', label: 'Échelon CNPS', type: 'select', required: true, options: ECHELONS_CNPS },
-        { key: 'location', label: 'Lieu de travail', type: 'select', required: true, options: VILLES_CAMEROUN },
+        { key: 'location', label: 'Lieu de travail', type: 'select', required: false, options: VILLES_CAMEROUN },
+        { key: 'description', label: 'Description de l\'offre', type: 'textarea', required: false },
         { key: 'salary', label: 'Salaire total', type: 'number', required: true },
         { key: 'baseSalary', label: 'Salaire de base', type: 'number', required: true },
         { key: 'overtimeSalary', label: 'Sursalaire + heures sup', type: 'number', required: false },
@@ -62,7 +68,7 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
         { key: 'startDate', label: 'Date de début', type: 'date', required: true },
         { key: 'startTime', label: 'Heure de début', type: 'text', required: false },
         { key: 'responseDeadline', label: 'Date limite de réponse', type: 'date', required: true },
-        { key: 'city', label: 'Ville', type: 'select', required: true, options: VILLES_CAMEROUN },
+        { key: 'city', label: 'Ville (non utilisé par le PDF)', type: 'select', required: false, options: VILLES_CAMEROUN },
         { key: 'date', label: 'Date du document', type: 'date', required: true },
         { key: 'reference', label: 'Référence', type: 'text', required: false }
       ]
@@ -223,23 +229,26 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
     switch (type) {
       case 'offers':
         return {
-          city: 'Douala',
+          candidateName: '',
+          candidateCity: '',
+          companyCity: '',
+          city: '',
           date: today,
-          reference: 'RAC',
+          reference: '',
           weeklyHours: 40,
           trialPeriod: 3,
           startTime: '08:00',
-          responseDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 jours
-          location: 'Douala',
-          dailyAllowance: 5000,
-          title: 'Développeur',
-          category: 'Cadre moyen',
-          echelon: 'Échelon C',
-          salary: 150000,
-          baseSalary: 100000,
-          overtimeSalary: 20000,
-          housingAllowance: 15000,
-          transportAllowance: 10000
+          responseDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          location: '',
+          dailyAllowance: 0,
+          title: '',
+          category: '',
+          echelon: '',
+          salary: 0,
+          baseSalary: 0,
+          overtimeSalary: 0,
+          housingAllowance: 0,
+          transportAllowance: 0
         };
       
       case 'attestations':
@@ -356,9 +365,12 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
     const placeholders = {
       // Offres d'emploi
       title: 'Ex: Développeur',
+      workflowType: 'partial ou full',
+      contractType: 'Ex: CDI',
       category: 'Ex: Cadre moyen',
       echelon: 'Ex: Échelon C',
       location: 'Ex: Douala',
+      description: 'Résumé des missions et exigences',
       salary: 'Ex: 150000',
       baseSalary: 'Ex: 100000',
       overtimeSalary: 'Ex: 20000',
@@ -495,7 +507,7 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
     try {
       switch (activeTab) {
         case 'offers':
-          generateOfferPDFCameroon(documentData);
+          generateOfferLetterPDF(documentData);
           break;
         case 'attestations':
           generateAttestationPDFCameroon(documentData);
@@ -672,6 +684,39 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
       );
     }
 
+    const handleSubmitOffer = async (offerDoc) => {
+      try {
+        if (!companyId) {
+          toast.error("Entreprise introuvable");
+          return;
+        }
+        if (offerDoc.submittedJobId) {
+          toast.info("Cette offre a déjà été soumise.");
+          return;
+        }
+        const payload = {
+          workflowType: offerDoc.workflowType || 'partial',
+          title: offerDoc.title,
+          description: offerDoc.description || '',
+          location: offerDoc.location || offerDoc.city || '',
+          contractType: offerDoc.contractType || '',
+          salaryRange: offerDoc.salary ? `${offerDoc.salary} FCFA` : '',
+          skills: [],
+          experienceMin: null,
+          languages: [],
+          deadline: offerDoc.responseDeadline ? new Date(offerDoc.responseDeadline) : null,
+          contactsEntretiens: [],
+          processusEntreprise: ''
+        };
+        const jobId = await createJob(companyId, payload, auth.currentUser?.uid || null);
+        await updateDoc(doc(db, 'documents', offerDoc.id), { submittedJobId: jobId, submittedAt: new Date() });
+        toast.success('Offre soumise au SuperAdmin. Elle apparaîtra dans Offres à valider.');
+      } catch (e) {
+        console.error('submitOffer error', e);
+        toast.error("Échec de la soumission de l'offre");
+      }
+    };
+
     return (
       <div className="grid gap-4 sm:gap-6">
         {currentDocs.map((doc, index) => (
@@ -759,6 +804,17 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
                     <FiDownload className="h-3 w-3 sm:h-4 sm:w-4" />
                     <span className="font-medium">PDF</span>
                   </button>
+                  {activeTab === 'offers' && (
+                    <button
+                      onClick={() => handleSubmitOffer(doc)}
+                      className="flex-1 sm:flex-none flex items-center justify-center space-x-2 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white px-3 sm:px-4 py-2 rounded-lg hover:from-indigo-700 hover:to-indigo-800 transition-all shadow-sm hover:scale-105 text-xs sm:text-sm disabled:opacity-60"
+                      title="Soumettre au SuperAdmin"
+                      disabled={!!doc.submittedJobId}
+                    >
+                      <FiSend className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <span className="font-medium">{doc.submittedJobId ? 'Déjà soumis' : 'Soumettre'}</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       setEditingDoc(doc);

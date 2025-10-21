@@ -1,25 +1,22 @@
 // comptaOnlineTemplate.js
-// Clean payslip template with subtle colors and proper number formatting
+// Template simple avec colonnes, sans lignes, couleurs standards
 
 import autoTable from 'jspdf-autotable';
-import { COLORS, FONTS, setFont, hasValue, addLogoWithReservedSpace, getEmployerCustomItems } from './shared';
+import { addLogoWithReservedSpace } from './shared';
 
 export function renderComptaOnlineTemplate(doc, ctx) {
-  
   const { 
-    pageWidth, margin, payslipData, employerName, empName, 
-    baseSalary, totalGross, netSalary, primes, indemnites, d, formatCFA 
+    pageWidth, pageHeight, margin, payslipData, employerName, employerAddress,
+    empName, empPoste, empCNPS, baseSalary, totalGross, totalDeductions,
+    netSalary, primes, indemnites, d
   } = ctx;
   
-  // Fonction de formatage propre des nombres
   const formatNumber = (num) => {
-    if (!num || num === 0) return '0';
+    if (!num || num === 0) return '';
     const rounded = Math.round(num);
-    // Format avec espaces tous les 3 chiffres : 150 000
     return rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   };
   
-  // Fallbacks to ensure dynamic items always present
   const primesArr = (Array.isArray(primes) && primes.length > 0)
     ? primes
     : (Array.isArray(payslipData?.primes) ? payslipData.primes : []);
@@ -28,196 +25,227 @@ export function renderComptaOnlineTemplate(doc, ctx) {
     : (Array.isArray(payslipData?.indemnites) ? payslipData.indemnites : []);
   
   let currentY = margin;
+  const PW = pageWidth || doc.internal.pageSize.getWidth();
+  const PH = pageHeight || doc.internal.pageSize.getHeight();
 
-  // Add watermark with company name (filigrane) - centré parfaitement
-  const watermarkText = employerName || 'compta online';
+  // ============================================
+  // FILIGRANE ENTREPRISE (gris, 3 fois)
+  // ============================================
+  const watermarkText = employerName || 'ENTREPRISE';
   doc.saveGraphicsState();
-  doc.setGState(new doc.GState({ opacity: 0.6 }));
+  doc.setGState(new doc.GState({ opacity: 0.08 }));
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(70);
-  doc.setTextColor(180, 180, 180);
+  doc.setFontSize(60);
+  doc.setTextColor(100, 100, 100);
   
-  // Centrage parfait au milieu de la page
-  const watermarkX = pageWidth / 2;
-  const watermarkY = pageHeight / 2;
+  doc.text(watermarkText, PW / 2, PH * 0.25, { angle: 45, align: 'center', baseline: 'middle', maxWidth: PW * 0.7 });
+  doc.text(watermarkText, PW / 2, PH * 0.5, { angle: 45, align: 'center', baseline: 'middle', maxWidth: PW * 0.7 });
+  doc.text(watermarkText, PW / 2, PH * 0.75, { angle: 45, align: 'center', baseline: 'middle', maxWidth: PW * 0.7 });
   
-  // Rotation autour du centre
-  doc.text(watermarkText, watermarkX, watermarkY, {
-    angle: 45,
-    align: 'center',
-    baseline: 'middle',
-    maxWidth: pageWidth * 0.8
-  });
   doc.restoreGraphicsState();
 
-  // Logo avec espace réservé en haut à gauche
-  currentY = addLogoWithReservedSpace(doc, payslipData, pageWidth, margin, currentY, {
+  // ============================================
+  // LOGO ENTREPRISE (via util partagé, espace réservé)
+  // ============================================
+  currentY = addLogoWithReservedSpace(doc, payslipData, PW, margin, currentY, {
     logoSize: 28,
     position: 'left',
-    reserveSpace: true,
-    backgroundColor: [230, 240, 250] // Light blue background
+    reserveSpace: true
   });
 
-  currentY += 5;
+  // ============================================
+  // TITRE (centré)
+  // ============================================
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(0, 0, 0);
+  doc.text('BULLETIN DE SALAIRE', PW / 2, currentY + 5, { align: 'center' });
+  
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text(`Période : ${payslipData.payPeriod || 'Non spécifiée'}`, PW / 2, currentY + 12, { align: 'center' });
 
-  // Simple header with subtle blue
-  doc.setFillColor(230, 240, 250); // Light blue
-  doc.rect(margin, currentY, pageWidth - 2*margin, 12, 'F');
+  currentY += 20;
+
+  // ============================================
+  // INFORMATIONS EMPLOYEUR (Gauche)
+  // ============================================
+  doc.setDrawColor(80, 80, 80);
+  doc.setLineWidth(0.5);
+  doc.rect(margin, currentY, 85, 28);
+  
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(0, 0, 0);
+  doc.text(employerName || 'ENTREPRISE', margin + 3, currentY + 5);
+  
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  if (employerAddress) doc.text(employerAddress, margin + 3, currentY + 10);
+  if (payslipData.employer?.city) doc.text(payslipData.employer.city, margin + 3, currentY + 14);
+  if (payslipData.employer?.siret) doc.text(`Siret : ${payslipData.employer.siret}`, margin + 3, currentY + 19);
+  if (payslipData.employer?.naf) doc.text(`NAF : ${payslipData.employer.naf}`, margin + 3, currentY + 24);
+
+  // ============================================
+  // INFORMATIONS SALARIÉ (Droite)
+  // ============================================
+  doc.setFillColor(90, 90, 90);
+  doc.rect(PW - margin - 75, currentY, 75, 28, 'F');
   
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
-  doc.setTextColor(40, 80, 120); // Dark blue
-  doc.text('compta online', margin + 2, currentY + 7);
+  doc.setTextColor(255, 255, 255);
+  doc.text(empName || 'NOM Prénom', PW - margin - 72, currentY + 5);
   
-  doc.setFontSize(13);
-  doc.setTextColor(0, 0, 0);
-  doc.text('BULLETIN DE SALAIRE', pageWidth/2, currentY + 7, { align: 'center' });
-  currentY += 15;
-
-  // Period
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.text(`Période : ${payslipData.payPeriod || 'Non spécifiée'}`, pageWidth/2, currentY, { align: 'center' });
-  currentY += 10;
-
-  // Employee details - simple box with light gray background
-  if (empName) {
-    doc.setFillColor(245, 245, 245); // Very light gray
-    doc.rect(pageWidth - margin - 70, currentY, 65, 20, 'F');
-    doc.setDrawColor(180, 180, 180);
-    doc.setLineWidth(0.3);
-    doc.rect(pageWidth - margin - 70, currentY, 65, 20);
-    
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(0, 0, 0);
-    doc.text(empName, pageWidth - margin - 68, currentY + 5);
-    
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    if (payslipData.employee?.address) {
-      doc.text(payslipData.employee.address, pageWidth - margin - 68, currentY + 10);
-    }
-    if (payslipData.employee?.city) {
-      doc.text(payslipData.employee.city, pageWidth - margin - 68, currentY + 15);
-    }
+  doc.setFontSize(8);
+  doc.text(`Matricule : ${payslipData.employee?.matricule || ''}`, PW - margin - 72, currentY + 11);
+  doc.text(`Poste : ${empPoste || ''}`, PW - margin - 72, currentY + 17);
+  if (payslipData.employee?.department) {
+    doc.text(`Dépt : ${payslipData.employee.department}`, PW - margin - 72, currentY + 23);
   }
 
-  currentY += 25;
+  currentY += 32;
 
-  // Main payslip table
-  const payslipRows = [];
-  if (baseSalary > 0) payslipRows.push(['Salaire de base', '', '', formatNumber(baseSalary), '', '']);
+  // ============================================
+  // INFOS COMPLÉMENTAIRES
+  // ============================================
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('N° CNPS :', margin, currentY);
+  doc.setFont('helvetica', 'normal');
+  doc.text(empCNPS || '', margin + 17, currentY);
   
-  // Add custom bonuses (primes)
-  if (Array.isArray(primesArr)) {
+  currentY += 4;
+  doc.setFont('helvetica', 'bold');
+  doc.text('Jours travaillés :', margin, currentY);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${payslipData.workedDays || 30} jours`, margin + 28, currentY);
+
+  currentY += 8;
+
+  // ============================================
+  // TABLEAU PRINCIPAL - Colonnes uniquement
+  // ============================================
+  const mainTableData = [];
+  
+  mainTableData.push(['REMUNERATION', '', '', '']);
+  mainTableData.push(['Salaire de base', formatNumber(baseSalary), '', formatNumber(baseSalary)]);
+  
+  const heuresSup = payslipData.overtimeHours || 0;
+  if (heuresSup > 0) {
+    mainTableData.push(['Heures supplémentaires', '', '', formatNumber(heuresSup)]);
+  }
+  
+  if (primesArr.length > 0) {
+    mainTableData.push(['PRIMES', '', '', '']);
     primesArr.forEach(prime => {
-      const amount = Number(prime.montant ?? prime.amount ?? prime.value) || 0;
+      const label = prime.label || prime.name || 'Prime';
+      const amount = Number(prime.montant ?? prime.amount ?? 0);
       if (amount > 0) {
-        payslipRows.push([prime.label || prime.name || prime.type || 'Prime', '', '', formatNumber(amount), '', '']);
+        mainTableData.push([label, '', '', formatNumber(amount)]);
       }
     });
   }
   
-  // Add custom allowances
-  if (Array.isArray(indemArr)) {
+  if (indemArr.length > 0) {
+    mainTableData.push(['INDEMNITES', '', '', '']);
     indemArr.forEach(indemnite => {
-      const amount = Number(indemnite.montant ?? indemnite.amount ?? indemnite.value) || 0;
+      const label = indemnite.label || indemnite.name || 'Indemnité';
+      const amount = Number(indemnite.montant ?? indemnite.amount ?? 0);
       if (amount > 0) {
-        payslipRows.push([indemnite.label || indemnite.name || indemnite.type || 'Indemnité', '', '', formatNumber(amount), '', '']);
+        mainTableData.push([label, '', '', formatNumber(amount)]);
       }
     });
   }
   
-  if (totalGross > 0) payslipRows.push(['Salaire brut', '', '', formatNumber(totalGross), '', '']);
+  const sbt = payslipData.sbt || totalGross;
+  mainTableData.push(['SBT (Salaire Brut Taxable)', '', '', formatNumber(sbt)]);
   
-  // Add deductions
-  if (d?.pvid > 0) payslipRows.push(['PVID (CNPS)', formatNumber(baseSalary), '4,2%', '', formatNumber(d.pvid), '']);
-  if (d?.irpp > 0) payslipRows.push(['IRPP', formatNumber(baseSalary), '', '', formatNumber(d.irpp), '']);
-  if (d?.cac > 0) payslipRows.push(['CAC', '', '', '', formatNumber(d.cac), '']);
-  if (d?.cfc > 0) payslipRows.push(['CFC', '', '', '', formatNumber(d.cfc), '']);
-  if (d?.rav > 0) payslipRows.push(['RAV', '', '', '', formatNumber(d.rav), '']);
-  if (d?.tdl > 0) payslipRows.push(['TDL', '', '', '', formatNumber(d.tdl), '']);
-  if (d?.fne > 0) payslipRows.push(['FNE', '', '', '', formatNumber(d.fne), '']);
+  mainTableData.push(['DEDUCTIONS', '', '', '']);
+  
+  if (d?.pvid > 0) mainTableData.push(['PVID (CNPS)', formatNumber(baseSalary), '4,2%', formatNumber(d.pvid)]);
+  if (d?.irpp > 0) mainTableData.push(['IRPP', '', '', formatNumber(d.irpp)]);
+  if (d?.cac > 0) mainTableData.push(['CAC', '', '', formatNumber(d.cac)]);
+  if (d?.cfc > 0) mainTableData.push(['CFC', '', '', formatNumber(d.cfc)]);
+  if (d?.rav > 0) mainTableData.push(['RAV', '', '', formatNumber(d.rav)]);
+  if (d?.tdl > 0) mainTableData.push(['TDL', '', '', formatNumber(d.tdl)]);
+  if (d?.fne > 0) mainTableData.push(['FNE', '', '', formatNumber(d.fne)]);
+  
+  mainTableData.push(['TOTAL DEDUCTIONS', '', '', formatNumber(totalDeductions)]);
 
   autoTable(doc, {
     startY: currentY,
-    head: [['Désignation', 'Base', 'Taux', 'Gains', 'Retenues', 'Montant']],
-    body: payslipRows,
+    head: [['Libellé', 'Base', 'Taux', 'Montant (XAF)']],
+    body: mainTableData,
     theme: 'plain',
-    styles: { 
-      font: 'helvetica', 
+    styles: {
+      font: 'helvetica',
       fontSize: 8,
-      cellPadding: 3,
+      cellPadding: 2.5,
       textColor: [0, 0, 0],
-      lineWidth: 0,
-      overflow: 'linebreak'
+      lineWidth: 0 // Pas de lignes horizontales
     },
-    headStyles: { 
-      fillColor: [220, 230, 240], // Subtle blue-gray
-      textColor: [30, 60, 90],
-      fontSize: 8, 
+    headStyles: {
+      fillColor: [100, 100, 100], // Gris foncé
+      textColor: [255, 255, 255],
+      fontSize: 9,
       fontStyle: 'bold',
       halign: 'center',
-      cellPadding: 3,
       lineWidth: 0
     },
     columnStyles: {
-      0: { cellWidth: 60, fontStyle: 'normal', halign: 'left', fontSize: 8 },
-      1: { cellWidth: 25, halign: 'right', fontStyle: 'normal', fontSize: 7 },
-      2: { cellWidth: 12, halign: 'center', fontStyle: 'normal', fontSize: 7 },
-      3: { cellWidth: 25, halign: 'right', fontStyle: 'bold', fontSize: 8 },
-      4: { cellWidth: 25, halign: 'right', fontStyle: 'bold', fontSize: 8 },
-      5: { cellWidth: 25, halign: 'right', fontStyle: 'normal', fontSize: 7 }
+      0: { cellWidth: 90, halign: 'left' },
+      1: { cellWidth: 30, halign: 'right' },
+      2: { cellWidth: 25, halign: 'center' },
+      3: { cellWidth: 35, halign: 'right', fontStyle: 'bold' }
     },
     didDrawPage: function(data) {
-      // Draw only vertical lines between columns
-      doc.setDrawColor(200, 200, 200); // Light gray lines
+      // SEULEMENT des lignes verticales entre colonnes
+      doc.setDrawColor(150, 150, 150);
       doc.setLineWidth(0.3);
       
       const tableStartY = data.table.head[0].cells[0].y;
       const tableEndY = data.cursor.y;
       
-      // Get X positions for vertical lines
       let currentX = data.settings.margin.left;
       data.table.columns.forEach((col, index) => {
         currentX += col.width;
         if (index < data.table.columns.length - 1) {
+          // Lignes verticales uniquement
           doc.line(currentX, tableStartY, currentX, tableEndY);
         }
       });
       
-      // Draw outer border
-      doc.setDrawColor(150, 150, 150);
-      doc.setLineWidth(0.5);
+      // Bordure extérieure du tableau
       const leftX = data.settings.margin.left;
       const rightX = currentX;
-      doc.rect(leftX, tableStartY, rightX - leftX, tableEndY - tableStartY);
-      
-      // Draw header bottom border
-      const headerEndY = data.table.head[0].cells[0].y + data.table.head[0].cells[0].height;
-      doc.setDrawColor(150, 150, 150);
       doc.setLineWidth(0.5);
-      doc.line(leftX, headerEndY, rightX, headerEndY);
+      doc.rect(leftX, tableStartY, rightX - leftX, tableEndY - tableStartY);
     }
   });
 
   currentY = doc.lastAutoTable.finalY + 10;
 
-  // Net pay - with subtle green background
-  doc.setFillColor(230, 245, 235); // Light green
-  doc.rect(margin, currentY, pageWidth - 2 * margin, 12, 'F');
-  doc.setDrawColor(100, 150, 120);
-  doc.setLineWidth(0.5);
-  doc.rect(margin, currentY, pageWidth - 2 * margin, 12);
-  
+  // ============================================
+  // NET À PAYER (gris)
+  // ============================================
+  doc.setFillColor(220, 220, 220);
+  doc.rect(margin, currentY, PW - 2 * margin, 14, 'F');
+  doc.setDrawColor(80, 80, 80);
+  doc.setLineWidth(0.8);
+  doc.rect(margin, currentY, PW - 2 * margin, 14);
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
-  doc.setTextColor(20, 80, 40); // Dark green
-  doc.text(`Net à payer : ${formatNumber(netSalary)} FCFA`, pageWidth/2, currentY + 8, { align: 'center' });
+  doc.setTextColor(0, 0, 0);
+  doc.text('NET À PAYER', margin + 3, currentY + 9);
+  doc.text(`${formatNumber(netSalary)} XAF`, PW - margin - 3, currentY + 9, { align: 'right' });
 
   const safe = (s) => String(s || '').replace(/[^a-zA-Z0-9]/g, '_');
   const fileName = `Bulletin_ComptaOnline_${safe(empName)}_${safe(payslipData.payPeriod)}.pdf`;
   doc.save(fileName);
+  
   return { completed: true };
 }

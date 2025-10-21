@@ -2,14 +2,41 @@ import React from "react";
 import { v4 as uuidv4 } from 'uuid';
 import { ToastContainer, toast } from "react-toastify";
 import { computeNetPay, computeEffectiveDeductions, computeRoundedDeductions, formatCFA, computeSBT, computeSBC, computeStatutoryDeductions, computeTDL } from "../utils/payrollCalculations";
+import { calculateSeniorityPrime, createSeniorityPrimeObject, formatSeniority } from "../utils/seniorityUtils";
 import PrimeIndemniteSelector from "../compoments/PrimeIndemniteSelector";
 import Button from "../compoments/Button";
 
 const PaySlipGenerator = ({ employee, company, initialData, selectedTemplate = "eneo", onSave, onCancel, actionLoading, updateEmployee, setSelectedEmployee }) => {
   const [formData, setFormData] = React.useState(() => {
+    const now = new Date();
+    const currYear = now.getFullYear();
+    const currMonth = String(now.getMonth() + 1).padStart(2, '0');
+    const defaultPeriod = `${currYear}-${currMonth}`;
     const baseSalaryInit = initialData?.salaryDetails?.baseSalary || employee?.baseSalary || 0;
-    const primesInit = initialData?.primes || [];
-    const indemnitesInit = initialData?.indemnites || [];
+    let primesInit = initialData?.primes || [];
+    let indemnitesInit = initialData?.indemnites || [];
+    // Pré-remplir à partir des données employé (aligné avec la création)
+    const transport = Number(employee?.transportAllowance || 0);
+    if (transport > 0 && !primesInit.some(p => (p.label || '').toLowerCase() === 'prime de transport')) {
+      primesInit = [...primesInit, { label: 'Prime de transport', montant: transport }];
+    }
+    const housing = Number(employee?.housingAllowance || 0);
+    if (housing > 0 && !indemnitesInit.some(i => (i.label || '').toLowerCase() === 'indemnité logement')) {
+      indemnitesInit = [...indemnitesInit, { label: 'Indemnité logement', montant: housing }];
+    }
+    // Pré-remplir la prime d'ancienneté si applicable
+    const seniorityYears = Number(employee?.seniority || employee?.seniorityYears || 0);
+    const seniorityPercent = seniorityYears >= 2 ? 2 : 0;
+    const seniorityAmount = Math.round((baseSalaryInit || 0) * (seniorityPercent / 100));
+    if (seniorityAmount > 0 && !primesInit.some(p => (p.label || '').toLowerCase() === "prime d'ancienneté")) {
+      primesInit = [...primesInit, { 
+        label: "Prime d'ancienneté", 
+        montant: seniorityAmount,
+        type: "seniority",
+        auto: true,
+        readonly: true
+      }];
+    }
     
     // Calculer toutes les déductions statutaires dès l'initialisation
     const statutoryDeductions = computeStatutoryDeductions(
@@ -27,7 +54,7 @@ const PaySlipGenerator = ({ employee, company, initialData, selectedTemplate = "
     };
     
     return {
-      payPeriod: initialData?.payPeriod || '',
+      payPeriod: initialData?.payPeriod || defaultPeriod,
       salaryDetails: {
         baseSalary: baseSalaryInit,
         dailyRate: initialData?.salaryDetails?.dailyRate || baseSalaryInit / 30,
@@ -46,9 +73,28 @@ const PaySlipGenerator = ({ employee, company, initialData, selectedTemplate = "
       primes: primesInit,
       indemnites: indemnitesInit,
       generatedAt: initialData?.generatedAt || new Date().toISOString(),
-      month: initialData?.month || '',
-      year: initialData?.year || '',
+      month: initialData?.month || currMonth,
+      year: initialData?.year || String(currYear),
       id: initialData?.id || uuidv4(),
+      seniority: (() => {
+        const seniorityYears = Number(employee?.seniority || employee?.seniorityYears || 0);
+        const seniorityPercent = seniorityYears >= 2 ? 2 : 0;
+        const seniorityAmount = Math.round((baseSalaryInit || 0) * (seniorityPercent / 100));
+        console.log('[PaySlipGenerator] Initial seniority calculation:', {
+          employee: employee?.name,
+          employeeSeniority: employee?.seniority,
+          employeeSeniorityYears: employee?.seniorityYears,
+          seniorityYears,
+          seniorityPercent,
+          baseSalaryInit,
+          seniorityAmount
+        });
+        return {
+          years: seniorityYears,
+          percent: seniorityPercent,
+          amount: seniorityAmount,
+        };
+      })(),
     };
   });
 
@@ -133,6 +179,56 @@ const PaySlipGenerator = ({ employee, company, initialData, selectedTemplate = "
     }));
   };
 
+
+  // Recalcule et synchronise la prime d'ancienneté lorsque salaire change (basé sur l'expérience totale)
+  React.useEffect(() => {
+    const baseSalary = formData.salaryDetails.baseSalary;
+    const seniorityYears = Number(employee?.seniority || employee?.seniorityYears || 0);
+    const seniorityPercent = seniorityYears >= 2 ? 2 : 0;
+    const seniorityAmount = Math.round(baseSalary * (seniorityPercent / 100));
+    
+    console.log('[PaySlipGenerator] Seniority calculation:', {
+      employeeSeniority: employee?.seniority,
+      seniorityYears,
+      seniorityPercent,
+      baseSalary,
+      seniorityAmount
+    });
+    
+    setFormData(prev => {
+      // Met à jour montant auto et synchronise dans primes (non éditable)
+      const primes = [...prev.primes];
+      const idx = primes.findIndex(p => (p.label || '').toLowerCase() === "prime d'ancienneté".toLowerCase());
+      
+      // Supprimer l'ancienne prime d'ancienneté
+      if (idx >= 0) {
+        primes.splice(idx, 1);
+      }
+      
+      // Ajouter la nouvelle prime si montant > 0
+      if (seniorityAmount > 0) {
+        primes.push({
+          label: "Prime d'ancienneté",
+          montant: seniorityAmount,
+          type: "seniority",
+          auto: true,
+          readonly: true
+        });
+      }
+      
+      return { 
+        ...prev, 
+        primes, 
+        seniority: { 
+          years: seniorityYears, 
+          percent: seniorityPercent, 
+          amount: seniorityAmount 
+        } 
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.salaryDetails.baseSalary, employee?.seniority, employee?.seniorityYears]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const missing = {};
@@ -210,13 +306,54 @@ const PaySlipGenerator = ({ employee, company, initialData, selectedTemplate = "
           required
         />
       </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Ancienneté (années)</label>
+          <input
+            type="number"
+            value={formData.seniority.years}
+            readOnly
+            title={formatSeniority(formData.seniority.years)}
+            className="mt-1 block w-full rounded-md border-gray-200 bg-gray-50 shadow-sm text-center"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Pourcentage ancienneté (%)</label>
+          <input
+            type="number"
+            value={formData.seniority.percent}
+            readOnly
+            className="mt-1 block w-full rounded-md border-gray-200 bg-gray-50 shadow-sm text-center"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Prime d'ancienneté (auto)</label>
+          <input
+            type="number"
+            min="0"
+            value={formData.seniority.amount}
+            readOnly
+            className="mt-1 block w-full rounded-md border-gray-200 bg-gray-50 shadow-sm text-center"
+          />
+        </div>
+      </div>
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Primes et Indemnités</label>
-        <PrimeIndemniteSelector
-          primes={formData.primes}
-          indemnites={formData.indemnites}
-          onChange={(primes, indemnites) => setFormData(f => ({ ...f, primes, indemnites }))}
-        />
+        {(() => {
+          const primesEditable = (formData.primes || []).filter(p => (p.label || '').toLowerCase() !== "prime d'ancienneté".toLowerCase());
+          const seniorityPrime = (formData.primes || []).find(p => (p.label || '').toLowerCase() === "prime d'ancienneté".toLowerCase());
+          return (
+            <PrimeIndemniteSelector
+              primes={primesEditable}
+              indemnites={formData.indemnites}
+              onChange={(primes, indemnites) => setFormData(f => ({
+                ...f,
+                primes: seniorityPrime ? [...primes, seniorityPrime] : primes,
+                indemnites
+              }))}
+            />
+          );
+        })()}
       </div>
       <div className="flex justify-end space-x-2">
         <button

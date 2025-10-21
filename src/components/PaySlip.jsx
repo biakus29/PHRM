@@ -14,6 +14,7 @@ import {
   computePVID, 
   computeStatutoryDeductions 
 } from "../utils/payrollCalculations";
+import { calculateSeniorityPercent, formatSeniority } from "../utils/seniorityUtils";
 import ExportPaySlip from "../compoments/ExportPaySlip";
 import TemplateSelector from "../compoments/TemplateSelector";
 import Modal from "./Modal";
@@ -129,6 +130,11 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
       setIsModalOpen(true);
     }
   }, [employee, deductions]);
+
+  // Ancienneté: utiliser l'expérience totale renseignée manuellement
+  const seniorityYears = Number(employee?.seniority || employee?.seniorityYears || 0);
+  const seniorityPercent = seniorityYears >= 2 ? 2 : 0;
+  const seniorityInfo = { years: seniorityYears, percent: seniorityPercent, isAnniversaryMonth: false };
 
   // Calculs
   // Fallback: si remuneration.total est absent ou nul, on recalcule le brut à partir des montants connus
@@ -257,9 +263,21 @@ const PaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, 
             <p><span className="font-medium">Nom:</span> {employee?.name || "N/A"}</p>
             <p><span className="font-medium">Matricule:</span> {employee?.matricule || "N/A"}</p>
             <p><span className="font-medium">Poste:</span> {employee?.poste || "N/A"}</p>
+            <p><span className="font-medium">Département:</span> {employee?.department || "Non spécifié"}</p>
+            <p><span className="font-medium">Date d'embauche:</span> {employee?.hireDate ? new Date(employee.hireDate).toLocaleDateString('fr-FR') : "Non renseignée"}</p>
+            <p><span className="font-medium">Statut:</span> {employee?.status || "Non renseigné"}</p>
             <p><span className="font-medium">Catégorie:</span> {employee?.professionalCategory || "N/A"}</p>
+            <p><span className="font-medium">Diplômes:</span> {employee?.diplomas || "Non renseignés"}</p>
+            <p><span className="font-medium">Échelon:</span> {employee?.echelon || "Non renseigné"}</p>
+            <p><span className="font-medium">Service:</span> {employee?.service || "Non renseigné"}</p>
+            <p><span className="font-medium">Superviseur:</span> {employee?.supervisor || "Non renseigné"}</p>
+            <p><span className="font-medium">Date de naissance:</span> {employee?.dateOfBirth ? new Date(employee.dateOfBirth).toLocaleDateString('fr-FR') : "Non renseignée"}</p>
+            <p><span className="font-medium">Lieu de naissance:</span> {employee?.lieuNaissance || employee?.placeOfBirth || "Non renseigné"}</p>
+            <p><span className="font-medium">Période d'essai:</span> {employee?.hasTrialPeriod ? (employee?.trialPeriodDuration || "Oui") : "Non"}</p>
             <p><span className="font-medium">Numéro CNPS:</span> {employee?.cnpsNumber || "N/A"}</p>
             <p className="truncate"><span className="font-medium">Email:</span> {employee?.email || "N/A"}</p>
+            <p><span className="font-medium">Ancienneté:</span> {formatSeniority(seniorityInfo.years)} (expérience totale)</p>
+            <p><span className="font-medium">Taux ancienneté:</span> {seniorityInfo.percent}%</p>
           </div>
         </div>
         <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">

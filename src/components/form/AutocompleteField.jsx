@@ -17,11 +17,11 @@ const AutocompleteField = ({
     <div>
       <label className="block text-sm font-medium text-gray-600">{label}</label>
       <Autocomplete
-        value={value}
-        onChange={(event, newValue) => onChange(newValue || "")}
-        inputValue={inputValue}
-        onInputChange={(event, newInputValue) => onInputChange(newInputValue)}
-        options={options}
+        value={value ?? ""}
+        onChange={(event, newValue) => (onChange || (() => {}))(newValue ?? "")}
+        inputValue={inputValue ?? ""}
+        onInputChange={(event, newInputValue) => (onInputChange || (() => {}))(newInputValue ?? "")}
+        options={(options ?? []).map((o) => (o ?? ""))}
         freeSolo
         renderInput={(params) => (
           <TextField
@@ -32,15 +32,17 @@ const AutocompleteField = ({
             size="small"
           />
         )}
-        renderOption={(props, option) => (
-          <li {...props}>
+        renderOption={(props, option) => {
+          const { key, ...liProps } = props;
+          return (
+          <li key={key} {...liProps}>
             <div className="flex items-center">
               <span className="text-sm">{option}</span>
             </div>
           </li>
-        )}
+        )}}
         filterOptions={(opts, { inputValue }) =>
-          opts.filter((opt) => opt.toLowerCase().includes(inputValue.toLowerCase()))
+          (opts || []).filter((opt) => (opt || "").toLowerCase().includes((inputValue || "").toLowerCase()))
         }
       />
     </div>

@@ -14,6 +14,7 @@ import {
   SERVICES,
   SITUATIONS_FAMILLE,
 } from "../utils/constants";
+import { calculateSeniorityYears, formatSeniority } from "../utils/seniorityUtils";
 
 const EmployeeFormModal = ({
   newEmployee,
@@ -87,6 +88,25 @@ const EmployeeFormModal = ({
         required
       />
 
+      <SelectField
+        label="Type de contrat"
+        value={newEmployee.contractType || "CDI"}
+        onChange={(e) => setNewEmployee({ ...newEmployee, contractType: e.target.value })}
+        options={["CDI", "CDD"]}
+        required
+      />
+
+      {newEmployee.contractType === 'CDD' && (
+        <InputField
+          label="Durée du contrat"
+          type="text"
+          value={newEmployee.contractDuration || ''}
+          onChange={(e) => setNewEmployee({ ...newEmployee, contractDuration: e.target.value })}
+          placeholder="Ex: 12 mois"
+          required
+        />
+      )}
+
       <InputField
         label="Téléphone"
         type="tel"
@@ -106,12 +126,28 @@ const EmployeeFormModal = ({
       />
 
       <InputField
+        label="Ville de travail"
+        type="text"
+        value={newEmployee.workCity || ''}
+        onChange={(e) => setNewEmployee({ ...newEmployee, workCity: e.target.value })}
+        placeholder="Ville principale d'exercice (ex: Douala)"
+      />
+
+      <InputField
         label="Date d'embauche"
         type="date"
         value={newEmployee.hireDate}
         onChange={(e) => setNewEmployee({ ...newEmployee, hireDate: e.target.value })}
         placeholder="Date d'embauche"
         required
+      />
+
+      <InputField
+        label="Heure de début"
+        type="time"
+        value={newEmployee.startTime || '08:00'}
+        onChange={(e) => setNewEmployee({ ...newEmployee, startTime: e.target.value })}
+        placeholder="Heure de début (ex: 08:00)"
       />
 
       <SelectField
@@ -170,6 +206,24 @@ const EmployeeFormModal = ({
         placeholder="Salaire de base (FCFA)"
         min="0"
         required
+      />
+
+      <InputField
+        label="Prime de transport (FCFA)"
+        type="number"
+        value={newEmployee.transportAllowance || 0}
+        onChange={(e) => setNewEmployee({ ...newEmployee, transportAllowance: Number(e.target.value) || 0 })}
+        placeholder="Prime de transport (FCFA)"
+        min="0"
+      />
+
+      <InputField
+        label="Indemnité de logement (FCFA)"
+        type="number"
+        value={newEmployee.housingAllowance || 0}
+        onChange={(e) => setNewEmployee({ ...newEmployee, housingAllowance: Number(e.target.value) || 0 })}
+        placeholder="Indemnité de logement (FCFA)"
+        min="0"
       />
 
       <SelectField
@@ -336,12 +390,13 @@ const EmployeeFormModal = ({
           />
 
           <InputField
-            label="Ancienneté (années)"
+            label="Ancienneté (années d'expérience)"
             type="number"
-            value={newEmployee.seniority}
+            value={newEmployee.seniority || 0}
             onChange={(e) => setNewEmployee({ ...newEmployee, seniority: parseInt(e.target.value) || 0 })}
-            placeholder="Années d'ancienneté"
+            placeholder="Années d'expérience professionnelle totale"
             min="0"
+            helperText="Expérience professionnelle totale (utilisée pour la prime d'ancienneté)"
           />
 
           <InputField

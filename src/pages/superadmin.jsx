@@ -42,6 +42,8 @@ import {
   FiSettings,
 } from "react-icons/fi";
 import { buildCommonOptions } from "../utils/chartConfig";
+import SuperadminJobsPanel from "../components/SuperadminJobsPanel";
+import SuperadminApplicationsPanel from "../components/SuperadminApplicationsPanel";
 import FiscalSettings from "../components/FiscalSettings";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -481,6 +483,8 @@ const SuperAdminDashboard = () => {
               { id: "dashboard", label: "Tableau de bord", icon: FiHome },
               { id: "licenses", label: "Licences", icon: FiShield },
               { id: "clients", label: "Clients", icon: FiUsers },
+              { id: "jobs", label: "Offres à valider", icon: FiEdit },
+              { id: "applications", label: "Candidatures", icon: FiUsers },
               { id: "stats", label: "Statistiques", icon: FiBarChart2 },
               { id: "settings", label: "Paramètres Fiscaux", icon: FiSettings },
             ].map((section) => (
@@ -533,6 +537,8 @@ const SuperAdminDashboard = () => {
               {activeSection === "licenses" && "Gestion des licences"}
               {activeSection === "clients" && "Gestion des clients"}
               {activeSection === "stats" && "Statistiques"}
+              {activeSection === "jobs" && "Offres à valider"}
+              {activeSection === "applications" && "Candidatures"}
               {activeSection === "settings" && "Paramètres Fiscaux & CNPS"}
             </h1>
             <p className="text-gray-600 text-sm animate-scale-in">
@@ -540,6 +546,8 @@ const SuperAdminDashboard = () => {
               {activeSection === "licenses" && "Gérez les licences de vos clients"}
               {activeSection === "clients" && "Liste complète de vos clients"}
               {activeSection === "stats" && "Analyse des données d'utilisation"}
+              {activeSection === "jobs" && "Validez et publiez les offres soumises par les clients"}
+              {activeSection === "applications" && "Consultez les candidatures et répondez par email"}
               {activeSection === "settings" && "Configuration des taux CNPS, fiscaux et barèmes"}
             </p>
           </div>
@@ -795,6 +803,14 @@ const SuperAdminDashboard = () => {
               </div>
             </form>
           </Card>
+        )}
+
+        {activeSection === "jobs" && (
+          <SuperadminJobsPanel />
+        )}
+
+        {activeSection === "applications" && (
+          <SuperadminApplicationsPanel />
         )}
 
         {activeSection === "clients" && (

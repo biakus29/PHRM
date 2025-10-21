@@ -18,12 +18,15 @@ export function generateAttestationPDFCameroon(attestationData) {
     return yPos + (options.lineHeight || 6);
   };
 
-  // En-tête avec ville et date
-  y = addText(`${attestationData.city || 'Douala'}, le ${attestationData.date || new Date().toLocaleDateString('fr-FR')}`, pageWidth - 50, y, { fontSize: 10 });
+  // En-tête avec ville (entreprise) et date
+  const headerDate = attestationData.date ? new Date(attestationData.date).toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR');
+  const headerCity = attestationData.companyCity || attestationData.city || 'Yaoundé';
+  const headerText = headerCity ? `${headerCity}, le ${headerDate}` : `le ${headerDate}`;
+  y = addText(headerText, pageWidth - 20, y, { fontSize: 10, align: 'right' });
   y += 10;
 
   // Référence
-  y = addText(`Réf. : ${attestationData.reference || 'RAC'}`, margin, y, { fontSize: 10 });
+  y = addText(`Réf. : ${attestationData.reference || ''}`.trim(), margin, y, { fontSize: 10 });
   y += 20;
 
   // Texte principal de l'attestation
@@ -38,7 +41,7 @@ Cet accord ne pourra être modifié ou suspendu qu'après accord donné par la $
   y += 20;
 
   // Signature
-  y = addText('Fait à ________________, le ________________', margin, y);
+  y = addText('Fait à ________________, le ________________ pour servir et valoir ce que de droit', margin, y);
   y += 20;
   y = addText('Signature et cachet de l\'employeur', margin, y);
   y = addText('________________', margin, y);

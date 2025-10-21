@@ -2,6 +2,7 @@
 // Template PDF pour les avenants au contrat de travail au format Cameroun
 
 import jsPDF from 'jspdf';
+import { addLogoWithReservedSpace } from './shared';
 
 export function generateContractAmendmentPDFCameroon(amendmentData) {
   const doc = new jsPDF();
@@ -10,6 +11,20 @@ export function generateContractAmendmentPDFCameroon(amendmentData) {
   const margin = 20;
   const contentWidth = pageWidth - (2 * margin);
   let y = 20;
+
+  // Logo en haut du document (gauche)
+  try {
+    const employerId = amendmentData.employerId || amendmentData.employerEmail || amendmentData.employerName || 'default';
+    y = addLogoWithReservedSpace(
+      doc,
+      { employer: { id: employerId } },
+      pageWidth,
+      margin,
+      y,
+      { position: 'left', logoSize: 28, reserveSpace: true }
+    );
+    y += 4;
+  } catch (e) { /* ignore logo errors */ }
 
   // Fonction pour formater les montants en XAF
   const formatAmount = (amount) => {
@@ -20,6 +35,18 @@ export function generateContractAmendmentPDFCameroon(amendmentData) {
     
     // Formater avec des espaces comme séparateurs de milliers
     return numAmount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  };
+
+  // Déterminer la civilité (Monsieur/Madame/Mademoiselle)
+  const computeCivility = (data) => {
+    const gender = String(data.gender || data.employeeGender || '').toLowerCase();
+    const marital = String(data.employeeMaritalStatus || data.maritalStatus || '').toLowerCase();
+    if (gender.startsWith('f')) {
+      if (marital.includes('célib') || marital.includes('single') || marital.includes('demois')) return 'Mademoiselle';
+      return 'Madame';
+    }
+    if (gender.startsWith('m')) return 'Monsieur';
+    return data.civility || 'Monsieur/Madame';
   };
 
   // Fonction pour ajouter du texte avec gestion de la position Y
@@ -44,7 +71,7 @@ export function generateContractAmendmentPDFCameroon(amendmentData) {
   // Fonction pour ajouter une ligne de rémunération avec alignement en colonnes
   const addSalaryLine = (label, amount, englishLabel, yPos) => {
     // Label français
-    y = addText(`-        ${label}`, margin, yPos, { fontSize: 11, lineHeight: 5 });
+    y = addText(`- ${label}`, margin, yPos, { fontSize: 11, lineHeight: 5 });
     
     // Montant aligné à droite - utiliser align: 'right' pour un alignement parfait
     const formattedAmount = formatAmount(amount);
@@ -138,7 +165,7 @@ export function generateContractAmendmentPDFCameroon(amendmentData) {
   // INFORMATIONS EMPLOYEUR
   // ============================================
   y = checkPageBreak(60);
-  y = addText(amendmentData.employerName || 'SUBSAHARA SERVICES inc (TCHAD CAMEROUN CONSTRUCTORS)', 
+  y = addText(amendmentData.employerName || '', 
     margin, y, { fontSize: 11, lineHeight: 5 });
   y = addText('(Nom et Prénoms ou Raison Sociale)', margin, y, { 
     fontSize: 9, 
@@ -151,7 +178,7 @@ export function generateContractAmendmentPDFCameroon(amendmentData) {
     lineHeight: 6
   });
 
-  const addressLine = `Adresse Complète : BP ${amendmentData.employerBP || '................'} Tél : ${amendmentData.employerPhone || '...................'} E-mail : ${amendmentData.employerEmail || '.......................'}`;
+  const addressLine = `Adresse Complète :  ${amendmentData.employerBP || '................'} Tél : ${amendmentData.employerPhone || '...................'} E-mail : ${amendmentData.employerEmail || '.......................'}`;
   y = addText(addressLine, margin, y, { fontSize: 11, lineHeight: 5 });
   y = addText('Full Address', margin, y, { 
     fontSize: 9, 
@@ -206,7 +233,7 @@ export function generateContractAmendmentPDFCameroon(amendmentData) {
   // INFORMATIONS EMPLOYÉ
   // ============================================
   y = checkPageBreak(80);
-  y = addText(`Monsieur ${amendmentData.employeeName || '.......................................................'}`, 
+  y = addText(`${computeCivility(amendmentData)} ${amendmentData.employeeName || '.......................................................'}`, 
     margin, y, { fontSize: 11, lineHeight: 5 });
   y = addText('(Nom et Prénoms)', margin, y, { 
     fontSize: 9, 
@@ -574,6 +601,23 @@ export function generateContractAmendmentPDFCameroon(amendmentData) {
   });
 
   // Sauvegarde
+  // S'assurer d'au moins 4 pages en comblant avec des annexes (contenu structuré)
+  try {
+    const minPages = 4;
+    let currentPages = typeof doc.getNumberOfPages === 'function' ? doc.getNumberOfPages() : 1;
+    while (currentPages < minPages) {
+      doc.addPage();
+      let yFill = margin;
+      yFill = addText('ANNEXES', margin, yFill, { fontSize: 12, style: 'bold', lineHeight: 8 });
+      yFill = addText('Informations complémentaires', margin, yFill, { fontSize: 10, style: 'italic', lineHeight: 8 });
+      for (let i = 1; i <= 28; i++) {
+        yFill = addText(`${i}. ........................................................................................................`, margin, yFill, { fontSize: 10, lineHeight: 6 });
+        if (yFill > pageHeight - margin - 10) break;
+      }
+      currentPages++;
+    }
+  } catch (e) { /* ignore */ }
+
   const fileName = `Avenant_Contrat_${(amendmentData.employeeName || 'Employe').replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
   doc.save(fileName);
 

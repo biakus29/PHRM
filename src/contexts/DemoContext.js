@@ -96,8 +96,8 @@ export const DemoProvider = ({ children }) => {
           });
           setIsExpired(true);
           setIsDemoAccount(false);
-          // Déconnecter automatiquement
-          await auth.signOut();
+          // Rediriger vers la page d'abonnement au lieu de déconnecter
+          window.location.href = '/subscription';
         } else {
           // Compte actif
           setIsDemoAccount(true);
@@ -136,8 +136,8 @@ export const DemoProvider = ({ children }) => {
         setIsExpired(true);
         setTimeRemaining(0);
         clearInterval(interval);
-        // Déconnecter automatiquement
-        auth.signOut();
+        // Rediriger vers la page d'abonnement
+        window.location.href = '/subscription';
       } else if (expiresAt) {
         setTimeRemaining(expiresAt - now);
       }

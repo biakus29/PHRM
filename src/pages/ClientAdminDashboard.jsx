@@ -64,7 +64,7 @@ import {
 } from "chart.js";
 import { Line, Doughnut, Bar } from "react-chartjs-2";
 import { v4 as uuidv4 } from 'uuid';
-import { exportContractPDF } from "../utils/exportContractPDF";
+import { exportContractPDF, exportDocumentContract } from "../utils/exportContractPDF";
 import ExportPaySlip from "../compoments/ExportPaySlip";
 import PrimeIndemniteSelector from "../compoments/PrimeIndemniteSelector";
 import html2canvas from "html2canvas";
@@ -82,6 +82,8 @@ import { INDEMNITIES, BONUSES } from "../utils/payrollLabels";
  
 import { removeUndefined } from "../utils/objectUtils";
 import PaySlipGenerator from "../components/PaySlipGenerator";
+import { calculateSeniorityPrime } from "../utils/seniorityUtils";
+import { generateOfferLetterPDF } from "../utils/pdfTemplates/offerTemplateCameroon";
 import { subscribeEmployees, addEmployee as svcAddEmployee, updateEmployee as svcUpdateEmployee, updateEmployeeContract as svcUpdateEmployeeContract, updateEmployeePayslips as svcUpdateEmployeePayslips, updateEmployeeBaseSalary as svcUpdateEmployeeBaseSalary, deleteEmployee as svcDeleteEmployee, updateEmployeeBadge as svcUpdateEmployeeBadge } from "../services/employees";
 import { updateCompany as svcUpdateCompany, setCompanyUserCount as svcSetCompanyUserCount } from "../services/companies";
 import ExportsBar from "../components/ExportsBar";
@@ -92,6 +94,7 @@ import EmployeeFormModal from "../components/EmployeeFormModal";
 import Modal from "../components/Modal";
 import DashboardSidebar from "../components/DashboardSidebar";
 import MobileFooterNav from "../components/MobileFooterNav";
+import DemoExpirationBanner from "../components/DemoExpirationBanner";
 import HRProceduresPage from "./HRProceduresPage";
 import ContractManagementPage from "./ContractManagementPage";
 import { VILLES_CAMEROUN, QUARTIERS_PAR_VILLE } from "../utils/constants";
@@ -130,6 +133,9 @@ ChartJS.register(
 
 // Composant principal
 const CompanyAdminDashboard = () => {
+  // Hook pour les données démo
+  const { isDemoAccount, demoData, isExpired } = useDemo();
+  
   const [activeTab, setActiveTab] = useState("overview");
   // Sidebar state supports: "fullyOpen" | "minimized" | "hidden"
   const [sidebarState, setSidebarState] = useState("fullyOpen");
@@ -152,6 +158,8 @@ const CompanyAdminDashboard = () => {
   professionalCategory: "",
   category: "",
   baseSalary: 0, // Changàde "" Ã  0 pour garantir un type nombre
+  transportAllowance: 0,
+  housingAllowance: 0,
   contract: null,
   contractFile: null,
   hoursPerMonth: 160,
@@ -190,6 +198,7 @@ const CompanyAdminDashboard = () => {
   const [showPaySlipDetails, setShowPaySlipDetails] = useState(false);
   const [selectedPaySlip, setSelectedPaySlip] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [showPostCreateModal, setShowPostCreateModal] = useState(false);
   const [showBadgeForm, setShowBadgeForm] = useState(false);
   const [employeeForBadge, setEmployeeForBadge] = useState(null);
   
@@ -434,6 +443,28 @@ const deletePaySlip = async (employeeId, payslipId) => {
         navigate("/client-admin-login");
         return;
       }
+      
+      // Vérifier si c'est un compte démo
+      if (isDemoAccount && demoData) {
+        console.log("Chargement des données démo...");
+        setCompanyData({
+          id: "demo_company",
+          name: "Entreprise Démo PHRM",
+          address: "123 Avenue de la Démo, Yaoundé",
+          phone: "+237 6XX XXX XXX",
+          email: "demo@phrm.com",
+          sector: "Démonstration",
+          adminUid: user.uid,
+          createdAt: new Date(),
+          licenseExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
+          isActive: true
+        });
+        setEmployees(demoData.employees || []);
+        setLoading(false);
+        toast.success("🎯 Données démo chargées avec succès !");
+        return;
+      }
+      
       try {
         setLoading(true);
         const clientsQuery = query(collection(db, "clients"), where("adminUid", "==", user.uid));
@@ -505,16 +536,34 @@ const deletePaySlip = async (employeeId, payslipId) => {
         unsubscribe();
       }
     };
-  }, [navigate]);
+  }, [navigate, isDemoAccount, isExpired]);
+
+  // Rediriger vers la page d'abonnement si le compte démo est expiré
+  useEffect(() => {
+    if (isDemoAccount && isExpired) {
+      navigate('/subscription');
+    }
+  }, [isDemoAccount, isExpired, navigate]);
 
 // Mettre Ã  jour un employé (via service)
 const updateEmployee = useCallback(async (id, updatedData) => {
   try {
     setActionLoading(true);
 
-    // Vérifier companyData.id
+    // Vérifier companyData.id (ou compte démo)
     if (!companyData?.id) {
       throw new Error("ID de l'entreprise manquant.");
+    }
+    
+    // Si c'est un compte démo, simuler la mise à jour
+    if (isDemoAccount) {
+      const updatedEmployees = employees.map(emp => 
+        emp.id === id ? { ...emp, ...updatedData } : emp
+      );
+      setEmployees(updatedEmployees);
+      toast.success("✅ Employé mis à jour (mode démo)");
+      setActionLoading(false);
+      return;
     }
 
     // Vérifier l'ID de l'employé
@@ -563,6 +612,43 @@ const addEmployee = async (e) => {
       console.error('[DEBUG] addEmployee: companyData.id manquant', companyData);
       throw new Error("ID de l'entreprise manquant.");
     }
+    
+    // Si c'est un compte démo, simuler l'ajout
+    if (isDemoAccount) {
+      const seniorityData = calculateSeniorityPrime(
+        { seniority: newEmployee.seniority || 0 },
+        Number(newEmployee.baseSalary) || 0
+      );
+      const newEmp = {
+        id: `demo_${Date.now()}`,
+        ...newEmployee,
+        seniorityYears: seniorityData.years,
+        seniorityPercent: seniorityData.percent,
+        seniorityAllowance: seniorityData.amount,
+        createdAt: new Date().toISOString()
+      };
+      setEmployees([...employees, newEmp]);
+      setNewEmployee({
+        name: '',
+        email: '',
+        poste: '',
+        department: '',
+        hireDate: '',
+        status: 'Actif',
+        baseSalary: 0,
+        transportAllowance: 0,
+        housingAllowance: 0,
+        cnpsNumber: '',
+        professionalCategory: '',
+        matricule: ''
+      });
+      setShowAddForm(false);
+      toast.success("✅ Employé ajouté (mode démo)");
+      setSelectedEmployee(newEmp);
+      setShowPostCreateModal(true);
+      setActionLoading(false);
+      return;
+    }
     if (!newEmployee.name) throw new Error("Le nom est requis.");
     if (!newEmployee.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmployee.email)) {
       throw new Error("Email invalide.");
@@ -607,8 +693,15 @@ const addEmployee = async (e) => {
     } else {
       console.log('[DEBUG] addEmployee: add new employee', newEmployee);
       // Convertir la date de naissance du format français vers ISO
+      const seniorityData = calculateSeniorityPrime(
+        { seniority: newEmployee.seniority || 0 },
+        Number(newEmployee.baseSalary) || 0
+      );
       const employeeData = {
         ...newEmployee,
+        seniorityYears: seniorityData.years,
+        seniorityPercent: seniorityData.percent,
+        seniorityAllowance: seniorityData.amount,
         dateOfBirth: convertFrenchDateToISO(newEmployee.dateOfBirth),
         contract: contractData,
         contractFile: null,
@@ -620,7 +713,92 @@ const addEmployee = async (e) => {
       employeeId = await svcAddEmployee(db, companyData.id, employeeData);
       toast.success("Employé ajouté avec succès !");
     }
-    // Génère automatiquement le PDF du contrat avec uniquement les champs utiles
+    // Créer et enregistrer aussi les documents dans la collection 'documents' (contrats et offres)
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const base = {
+        companyId: companyData.id,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      // Document contrat (aligné avec DocumentsManager)
+      const contractDoc = {
+        ...base,
+        type: 'contracts',
+        city: companyData.address || 'Douala',
+        date: today,
+        employerName: companyData.name || 'Entreprise',
+        employerId: companyData.id || companyData.uid || companyData.email || companyData.name || 'default',
+        employerBP: companyData.bp || 'BP 12345',
+        employerPhone: companyData.phone || '+237',
+        employerFax: companyData.fax || '',
+        employerEmail: companyData.email || 'contact@entreprise.cm',
+        employerRepresentative: companyData.representant || 'Directeur Général',
+        employerRepresentativeTitle: 'Directeur Général',
+        employerCNPS: companyData.cnpsNumber || '',
+        employeeName: newEmployee.name,
+        employeeBirthDate: convertFrenchDateToISO(newEmployee.dateOfBirth) || '1990-01-01',
+        employeeBirthPlace: newEmployee.lieuNaissance || 'Douala',
+        employeeFatherName: newEmployee.pere || '',
+        employeeMotherName: newEmployee.mere || '',
+        employeeAddress: newEmployee.residence || companyData.address || 'Douala',
+        employeeMaritalStatus: newEmployee.situation || '',
+        employeeSpouseName: newEmployee.epouse || '',
+        employeeChildrenCount: newEmployee.childrenCount || 0,
+        employeeEmergencyContact: newEmployee.personneAPrevenir || '',
+        employeePosition: newEmployee.poste,
+        employeeCategory: newEmployee.professionalCategory || newEmployee.category || '',
+        employeeEchelon: newEmployee.echelon || '',
+        workplace: newEmployee.workPlace || newEmployee.workplace || newEmployee.lieuTravail || companyData.city || 'Douala',
+        totalSalary: Number(newEmployee.baseSalary || 0) + Number(newEmployee.transportAllowance || 0) + Number(newEmployee.housingAllowance || 0),
+        baseSalary: Number(newEmployee.baseSalary) || 0,
+        overtimeSalary: Number(newEmployee.overtimeHours?.regular) || 0,
+        housingAllowance: Number(newEmployee.housingAllowance) || 0,
+        transportAllowance: Number(newEmployee.transportAllowance) || 0,
+        trialPeriod: newEmployee.hasTrialPeriod ? (newEmployee.trialPeriodDuration || 3) : 0,
+        contractDuration: newEmployee.contractDuration || '12 mois',
+        startDate: newEmployee.hireDate || today,
+        weeklyHours: newEmployee.hoursPerMonth ? Math.round((Number(newEmployee.hoursPerMonth) || 160)/4) : 40,
+      };
+      await addDoc(collection(db, 'documents'), contractDoc);
+      exportDocumentContract(contractDoc);
+
+      // Document offre (aligné avec DocumentsManager)
+      const offerDoc = {
+        ...base,
+        type: 'offers',
+        city: companyData.city || '',
+        date: today,
+        title: newEmployee.poste,
+        contractType: newEmployee.contractType || 'CDI',
+        category: newEmployee.professionalCategory || newEmployee.category || '',
+        echelon: newEmployee.echelon || '',
+        location: newEmployee.department || '',
+        workCity: companyData.city || '',
+        description: '',
+        salary: Number(newEmployee.baseSalary || 0) + Number(newEmployee.transportAllowance || 0) + Number(newEmployee.housingAllowance || 0),
+        baseSalary: Number(newEmployee.baseSalary) || 0,
+        overtimeSalary: Number(newEmployee.overtimeHours?.regular) || 0,
+        housingAllowance: Number(newEmployee.housingAllowance) || 0,
+        transportAllowance: Number(newEmployee.transportAllowance) || 0,
+        weeklyHours: newEmployee.hoursPerMonth ? Math.round((Number(newEmployee.hoursPerMonth) || 160)/4) : 40,
+        dailyAllowance: 0,
+        trialPeriod: newEmployee.hasTrialPeriod ? (newEmployee.trialPeriodDuration || 3) : 3,
+        startDate: newEmployee.hireDate || today,
+        startTime: '08:00',
+        responseDeadline: today,
+        candidateName: newEmployee.name,
+        candidateCity: newEmployee.residence || '',
+        companyCity: companyData.city || '',
+        workplace: newEmployee.department || '',
+      };
+      await addDoc(collection(db, 'documents'), offerDoc);
+      generateOfferLetterPDF(offerDoc);
+    } catch (docErr) {
+      console.warn('[addEmployee] Documents creation error:', docErr);
+    }
+
+    // Génère automatiquement le PDF du contrat avec uniquement les champs utiles (historique existant)
     setTimeout(() => {
       if (window.generateContractPDF) {
         window.generateContractPDF({
@@ -631,6 +809,8 @@ const addEmployee = async (e) => {
       }
     }, 500);
     setShowEmployeeModal(false);
+    setSelectedEmployee({ ...newEmployee, id: employeeId });
+    setShowPostCreateModal(true);
     setNewEmployee({
       name: "",
       email: "",
@@ -644,6 +824,8 @@ const addEmployee = async (e) => {
       professionalCategory: "",
       category: "",
       baseSalary: 0,
+      transportAllowance: 0,
+      housingAllowance: 0,
       contract: null,
       contractFile: null,
       hoursPerMonth: 160,
@@ -700,6 +882,16 @@ const saveContract = async (contractData) => {
     if (!window.confirm("Supprimer cet employé ?")) return;
     try {
       setActionLoading(true);
+      
+      // Si c'est un compte démo, simuler la suppression
+      if (isDemoAccount) {
+        const updatedEmployees = employees.filter(emp => emp.id !== id);
+        setEmployees(updatedEmployees);
+        toast.success("✅ Employé supprimé (mode démo)");
+        setActionLoading(false);
+        return;
+      }
+      
       await svcDeleteEmployee(db, companyData.id, id);
       await svcSetCompanyUserCount(db, companyData.id, employees.length - 1);
       toast.success("Employé supprimé !");
@@ -709,7 +901,7 @@ const saveContract = async (contractData) => {
     } finally {
       setActionLoading(false);
     }
-  }, [companyData, employees]);
+  }, [companyData, employees, isDemoAccount]);
 
   // Gérer les demandes de congé
   const handleLeaveRequest = useCallback(async (employeeId, requestIndex, action) => {
@@ -1041,6 +1233,9 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
         <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-y-auto animate-fade-in pb-20 md:pb-6">
           {/* Demo Banner for demo accounts */}
           <DemoBanner />
+          
+          {/* Bannière d'expiration pour les comptes démo */}
+          <DemoExpirationBanner />
           
           {/* Mobile Page Title avec bouton déconnexion */}
           <div className="md:hidden mb-4 pt-2">
@@ -2671,8 +2866,8 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                         className="p-2 border border-blue-200 rounded-lg w-full"
                         placeholder="PXXXXXXXXXXXXA ou MXXXXXXXXXXXXB"
                       />
-                      {companyData.taxpayerNumber && !/^[PM][0-9]{12}[A-Za-z]$/.test(companyData.taxpayerNumber) && (
-                        <div className="text-red-600 text-xs mt-1">Format invalide. Doit commencer par P ou M, contenir 12 chiffres, et se terminer par une lettre.</div>
+                      {companyData.taxpayerNumber && !/^[PM][A-Za-z0-9]{11,12}[A-Za-z]$/.test((companyData.taxpayerNumber || '').replace(/\s+/g, '')) && (
+                        <div className="text-red-600 text-xs mt-1">Format invalide. Doit commencer par P ou M, contenir 11 à 12 caractères alphanumériques, et se terminer par une lettre (ex: M0A060000123K).</div>
                       )}
 
                       <label className="block text-sm font-medium text-gray-600 mt-4">Numéro d'immatriculation CNPS</label>

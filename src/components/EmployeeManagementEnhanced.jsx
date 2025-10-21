@@ -1,6 +1,11 @@
 // src/components/EmployeeManagementEnhanced.jsx
 import React, { useState, useCallback, useMemo } from "react";
 import { addEmployee, updateEmployee, deleteEmployee, updateCompanyUsers, savePaySlip, saveContractData } from "../utils/firebaseUtils";
+import { calculateSeniorityPrime } from "../utils/seniorityUtils";
+import { db } from "../firebase";
+import { addDoc, collection } from "firebase/firestore";
+import { exportDocumentContract } from "../utils/exportContractPDF";
+import { generateOfferLetterPDF } from "../utils/pdfTemplates/offerTemplateCameroon";
 import { validateEmployeeData, validateAbsenceData, validateNotification } from "../utils/validationUtils";
 import { toast } from "react-toastify";
 import { FiSearch, FiPlus, FiBell, FiEdit, FiFileText, FiUserX } from "react-icons/fi";
@@ -22,6 +27,7 @@ const EmployeeManagementEnhanced = ({ companyData, employees, setEmployees, acti
     matricule: "",
     role: "Employé",
     poste: "",
+    contractType: "CDI",
     phone: "",
     department: "",
     hireDate: "",
@@ -29,6 +35,9 @@ const EmployeeManagementEnhanced = ({ companyData, employees, setEmployees, acti
     cnpsNumber: "",
     professionalCategory: "",
     baseSalary: "",
+    transportAllowance: "",
+    housingAllowance: "",
+    seniority: 0,
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("name");
@@ -39,7 +48,105 @@ const EmployeeManagementEnhanced = ({ companyData, employees, setEmployees, acti
   const [showContractModal, setShowContractModal] = useState(false);
   const [showDismissalModal, setShowDismissalModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [showOfferLetterModal, setShowOfferLetterModal] = useState(false);
+  const [showPostCreateModal, setShowPostCreateModal] = useState(false);
   const debouncedSetSearchQuery = useMemo(() => debounce((value) => setSearchQuery(value), 300), []);
+
+  // Génération des documents (après validation utilisateur)
+  const generateContractForSelected = useCallback(async () => {
+    if (!selectedEmployee) return;
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const contractDoc = {
+        companyId: companyData.id,
+        type: 'contracts',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        city: companyData.address || 'Douala',
+        date: today,
+        employerName: companyData.name || 'Entreprise',
+        employerBP: companyData.bp || 'BP 12345',
+        employerPhone: companyData.phone || '+237',
+        employerFax: companyData.fax || '',
+        employerEmail: companyData.email || 'contact@entreprise.cm',
+        employerRepresentative: companyData.representant || 'Directeur Général',
+        employerRepresentativeTitle: 'Directeur Général',
+        employerCNPS: companyData.cnpsNumber || '',
+        employeeName: selectedEmployee.name,
+        employeeBirthDate: selectedEmployee.dateOfBirth || '1990-01-01',
+        employeeBirthPlace: selectedEmployee.lieuNaissance || 'Douala',
+        employeeFatherName: selectedEmployee.pere || '',
+        employeeMotherName: selectedEmployee.mere || '',
+        employeeAddress: selectedEmployee.residence || companyData.address || 'Douala',
+        employeeMaritalStatus: selectedEmployee.situation || '',
+        employeeSpouseName: selectedEmployee.epouse || '',
+        employeeChildrenCount: selectedEmployee.childrenCount || 0,
+        employeeEmergencyContact: selectedEmployee.personneAPrevenir || '',
+        employeePosition: selectedEmployee.poste,
+        employeeCategory: selectedEmployee.professionalCategory || selectedEmployee.category || '',
+        employeeEchelon: selectedEmployee.echelon || '',
+        workplace: selectedEmployee.workPlace || selectedEmployee.department || 'Douala',
+        totalSalary: Number(selectedEmployee.baseSalary || 0) + Number(selectedEmployee.transportAllowance || 0) + Number(selectedEmployee.housingAllowance || 0),
+        baseSalary: Number(selectedEmployee.baseSalary) || 0,
+        overtimeSalary: 0,
+        housingAllowance: Number(selectedEmployee.housingAllowance) || 0,
+        transportAllowance: Number(selectedEmployee.transportAllowance) || 0,
+        trialPeriod: selectedEmployee.hasTrialPeriod ? (selectedEmployee.trialPeriodDuration || 3) : 0,
+        contractDuration: selectedEmployee.contractDuration || '12 mois',
+        startDate: selectedEmployee.hireDate || today,
+        weeklyHours: selectedEmployee.hoursPerMonth ? Math.round((Number(selectedEmployee.hoursPerMonth) || 160)/4) : 40,
+      };
+      await addDoc(collection(db, 'documents'), contractDoc);
+      exportDocumentContract(contractDoc);
+      toast.success('Contrat généré');
+    } catch (e) {
+      console.warn('[generateContractForSelected] ', e);
+      toast.error("Erreur génération contrat");
+    }
+  }, [selectedEmployee, companyData]);
+
+  const generateOfferForSelected = useCallback(async () => {
+    if (!selectedEmployee) return;
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const offerDoc = {
+        companyId: companyData.id,
+        type: 'offers',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        city: '',
+        date: today,
+        title: selectedEmployee.poste,
+        contractType: selectedEmployee.contractType || 'CDI',
+        category: selectedEmployee.professionalCategory || selectedEmployee.category || '',
+        echelon: selectedEmployee.echelon || '',
+        location: selectedEmployee.department || '',
+        workCity: selectedEmployee.workCity || companyData.city || '',
+        description: '',
+        salary: Number(selectedEmployee.baseSalary || 0) + Number(selectedEmployee.transportAllowance || 0) + Number(selectedEmployee.housingAllowance || 0),
+        baseSalary: Number(selectedEmployee.baseSalary) || 0,
+        overtimeSalary: 0,
+        housingAllowance: Number(selectedEmployee.housingAllowance) || 0,
+        transportAllowance: Number(selectedEmployee.transportAllowance) || 0,
+        weeklyHours: selectedEmployee.hoursPerMonth ? Math.round((Number(selectedEmployee.hoursPerMonth) || 160)/4) : 40,
+        dailyAllowance: 0,
+        trialPeriod: selectedEmployee.hasTrialPeriod ? (selectedEmployee.trialPeriodDuration || 3) : 3,
+        startDate: selectedEmployee.hireDate || today,
+        startTime: '08:00',
+        responseDeadline: today,
+        candidateName: selectedEmployee.name,
+        candidateCity: selectedEmployee.residence || '',
+        companyCity: companyData.city || '',
+        workplace: selectedEmployee.department || '',
+      };
+      await addDoc(collection(db, 'documents'), offerDoc);
+      generateOfferLetterPDF(offerDoc);
+      toast.success("Lettre d'offre générée");
+    } catch (e) {
+      console.warn('[generateOfferForSelected] ', e);
+      toast.error("Erreur génération lettre d'offre");
+    }
+  }, [selectedEmployee, companyData]);
 
   // Gestionnaire d'ajout d'employé
   const addEmployeeHandler = useCallback(
@@ -54,12 +161,17 @@ const EmployeeManagementEnhanced = ({ companyData, employees, setEmployees, acti
       }
       try {
         setActionLoading(true);
+        const seniorityData = calculateSeniorityPrime(
+          { seniority: newEmployee.seniority || 0 },
+          Number(newEmployee.baseSalary) || 0
+        );
         const employeeData = {
           name: newEmployee.name,
           email: newEmployee.email,
           matricule: newEmployee.matricule,
           role: newEmployee.role,
           poste: newEmployee.poste,
+          contractType: newEmployee.contractType,
           phone: newEmployee.phone || "",
           department: newEmployee.department || "",
           hireDate: newEmployee.hireDate,
@@ -67,6 +179,12 @@ const EmployeeManagementEnhanced = ({ companyData, employees, setEmployees, acti
           cnpsNumber: newEmployee.cnpsNumber,
           professionalCategory: newEmployee.professionalCategory,
           baseSalary: Number(newEmployee.baseSalary),
+          transportAllowance: Number(newEmployee.transportAllowance) || 0,
+          housingAllowance: Number(newEmployee.housingAllowance) || 0,
+          seniority: Number(newEmployee.seniority) || 0,
+          seniorityYears: seniorityData.years,
+          seniorityPercent: seniorityData.percent,
+          seniorityAllowance: seniorityData.amount,
           createdAt: new Date().toISOString(),
           leaves: { balance: 25, requests: [], history: [] },
           absences: [],
@@ -82,6 +200,7 @@ const EmployeeManagementEnhanced = ({ companyData, employees, setEmployees, acti
           matricule: "",
           role: "Employé",
           poste: "",
+          contractType: "CDI",
           phone: "",
           department: "",
           hireDate: "",
@@ -89,10 +208,14 @@ const EmployeeManagementEnhanced = ({ companyData, employees, setEmployees, acti
           cnpsNumber: "",
           professionalCategory: "",
           baseSalary: "",
+          transportAllowance: "",
+          housingAllowance: "",
+          seniority: 0,
         });
         await updateCompanyUsers(companyData.id, employees.length + 1);
         setSelectedEmployee(newEmployeeData);
         toast.success("Employé ajouté avec succès !");
+        setShowPostCreateModal(true);
       } catch (error) {
         console.error("Erreur lors de l'ajout:", error);
         toast.error("Erreur lors de l'ajout de l'employé");
@@ -408,7 +531,7 @@ const EmployeeManagementEnhanced = ({ companyData, employees, setEmployees, acti
             monthlyRate: selectedEmployee.baseSalary || 0,
             dailyRate: ((selectedEmployee.baseSalary || 0) / 30).toFixed(2),
             hourlyRate: ((selectedEmployee.baseSalary || 0) / 30 / 8).toFixed(2),
-            transportAllowance: 0,
+            transportAllowance: selectedEmployee.transportAllowance || 0,
           },
           remuneration: generatedPaySlip.remuneration || {
             workedDays: 30,
@@ -416,6 +539,9 @@ const EmployeeManagementEnhanced = ({ companyData, employees, setEmployees, acti
             total: selectedEmployee.baseSalary || 0,
           },
           deductions: generatedPaySlip.deductions || { pvid: 0, irpp: 0, cac: 0, cfc: 0, rav: 0, tdl: 0, total: 0 },
+          // Inclure les tableaux calculés par le générateur (prime d'ancienneté, transport, logement, etc.)
+          primes: generatedPaySlip.primes || [],
+          indemnites: generatedPaySlip.indemnites || [],
           payPeriod: generatedPaySlip.payPeriod || `${new Date().toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}`,
           generatedAt: new Date().toISOString(),
         };
@@ -520,6 +646,16 @@ const EmployeeManagementEnhanced = ({ companyData, employees, setEmployees, acti
           <option value="Manager">Manager</option>
           <option value="Directeur">Directeur</option>
         </select>
+        <select
+          value={newEmployee.contractType}
+          onChange={(e) => setNewEmployee({ ...newEmployee, contractType: e.target.value })}
+          className="col-span-1 p-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          disabled={actionLoading}
+          aria-label="Type de contrat"
+        >
+          <option value="CDI">CDI</option>
+          <option value="CDD">CDD</option>
+        </select>
         <input
           type="text"
           placeholder="Poste"
@@ -599,6 +735,26 @@ const EmployeeManagementEnhanced = ({ companyData, employees, setEmployees, acti
           min="0"
           disabled={actionLoading}
           aria-label="Salaire de base de l'employé"
+        />
+        <input
+          type="number"
+          placeholder="Prime de transport (FCFA)"
+          value={newEmployee.transportAllowance}
+          onChange={(e) => setNewEmployee({ ...newEmployee, transportAllowance: e.target.value })}
+          className="col-span-1 p-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          min="0"
+          disabled={actionLoading}
+          aria-label="Prime de transport de l'employé"
+        />
+        <input
+          type="number"
+          placeholder="Indemnité de logement (FCFA)"
+          value={newEmployee.housingAllowance}
+          onChange={(e) => setNewEmployee({ ...newEmployee, housingAllowance: e.target.value })}
+          className="col-span-1 p-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          min="0"
+          disabled={actionLoading}
+          aria-label="Indemnité de logement de l'employé"
         />
         <Button
           type="submit"
@@ -753,6 +909,38 @@ const EmployeeManagementEnhanced = ({ companyData, employees, setEmployees, acti
       </div>
 
       {/* Modals */}
+      {showPostCreateModal && selectedEmployee && (
+        <Modal
+          isOpen={showPostCreateModal}
+          onClose={() => setShowPostCreateModal(false)}
+          title={`Employé ajouté - ${selectedEmployee.name}`}
+          size="medium"
+        >
+          <div className="flex flex-col gap-3">
+            <p>Souhaitez-vous consulter son contrat ou sa lettre d'offre ?</p>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => {
+                  setShowPostCreateModal(false);
+                  openContractModal(selectedEmployee);
+                }}
+                icon={FiFileText}
+              >
+                Voir le contrat
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowPostCreateModal(false);
+                  setShowOfferLetterModal(true);
+                }}
+                icon={FiFileText}
+              >
+                Voir la lettre d'offre
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
       {showContractModal && selectedEmployee && (
         <Modal
           isOpen={showContractModal}
@@ -766,6 +954,31 @@ const EmployeeManagementEnhanced = ({ companyData, employees, setEmployees, acti
             onContractCreate={handleContractCreate}
             onContractTerminate={handleContractTerminate}
           />
+        </Modal>
+      )}
+
+      {showOfferLetterModal && selectedEmployee && (
+        <Modal
+          isOpen={showOfferLetterModal}
+          onClose={() => setShowOfferLetterModal(false)}
+          title={`Lettre d'offre - ${selectedEmployee.name}`}
+          size="large"
+        >
+          <div className="space-y-3 text-sm">
+            <div className="border p-4 rounded-md bg-white">
+              <h3 className="text-lg font-semibold mb-2">Lettre d'offre</h3>
+              <p><strong>Poste:</strong> {selectedEmployee.poste}</p>
+              <p><strong>Département:</strong> {selectedEmployee.department || ""}</p>
+              <p><strong>Date d'embauche:</strong> {selectedEmployee.hireDate}</p>
+              <p><strong>Salaire de base:</strong> {selectedEmployee.baseSalary} FCFA</p>
+              <p><strong>Prime de transport:</strong> {selectedEmployee.transportAllowance || 0} FCFA</p>
+              <p><strong>Indemnité de logement:</strong> {selectedEmployee.housingAllowance || 0} FCFA</p>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={() => window.print()} icon={FiFileText}>Imprimer</Button>
+              <Button onClick={() => setShowOfferLetterModal(false)}>Fermer</Button>
+            </div>
+          </div>
         </Modal>
       )}
 

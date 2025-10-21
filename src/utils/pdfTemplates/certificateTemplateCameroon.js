@@ -38,12 +38,14 @@ export function generateCertificatePDFCameroon(certificateData) {
     return yPos;
   };
 
-  // En-tête avec ville et date
-  const cityDate = `${certificateData.city || 'Douala'}, le ${certificateData.date ? new Date(certificateData.date).toLocaleDateString('fr-FR') : '___________'}`;
+  // En-tête avec ville (entreprise) et date
+  const headerDate = certificateData.date ? new Date(certificateData.date).toLocaleDateString('fr-FR') : '___________';
+  const headerCity = certificateData.companyCity || certificateData.city || '';
+  const cityDate = headerCity ? `${headerCity}, le ${headerDate}` : `le ${headerDate}`;
   y = addText(cityDate, pageWidth - margin, y, { fontSize: 11, align: 'right', lineHeight: 6 });
   
-  // Référence
-  y = addText(`Réf. : ${certificateData.reference || 'RAC'}`, margin, y, { fontSize: 11, lineHeight: 15 });
+  // Référence (optionnelle)
+  y = addText(`Réf. : ${certificateData.reference || ''}`.trim(), margin, y, { fontSize: 11, lineHeight: 15 });
 
   // Titre principal
   y = addText('CERTIFICAT DE TRAVAIL', pageWidth / 2, y, { 

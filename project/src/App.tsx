@@ -94,22 +94,6 @@ function App() {
             <a href="https://phrmapp.com/demo-signup" className="hidden md:inline-flex bg-phrm-dark text-white px-4 md:px-6 py-2 rounded-lg hover:brightness-90 transition-colors">
               Essai gratuit 24h
             </a>
-            
-            {/* Bouton de déconnexion pour tablette (visible sur md et lg) */}
-            <button
-              onClick={() => {
-                // Logique de déconnexion ici
-                console.log('Déconnexion...');
-                // Exemple: localStorage.removeItem('authToken');
-                // window.location.href = '/login';
-              }}
-              className="hidden md:inline-flex lg:inline-flex items-center space-x-2 text-red-600 hover:text-red-800 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors border border-red-200 hover:border-red-300"
-              aria-label="Se déconnecter"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden lg:inline">Se déconnecter</span>
-            </button>
-            
             <button
               className="lg:hidden text-gray-700 hover:text-phrm-dark transition-colors"
               aria-label="Ouvrir le menu"
@@ -187,11 +171,11 @@ function App() {
             Gestion automatisée des <span className="text-phrm-dark animate-pulse">RH</span> 
               </h1>
             <p className="text-xl text-gray-600 mb-8 animate-fade-in-up animation-delay-200">
-                Solution complète RH : conformité Paie-pays; Recrutement, Background check, Conseil, Self-service Employés.
+                Solution complète RH : conformité Paie-pays; Recrutement, Background check, Conseil, Libre-service Employés.
               </p>
             <div className="flex flex-col sm:flex-row gap-4 animate-fade-in-up animation-delay-400">
               <a href="https://phrmapp.com/demo-signup" className="bg-phrm-dark text-white px-8 py-4 rounded-lg hover:brightness-90 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl inline-block text-center">
-                  Commencer
+                  Démarrer
                 </a>
               <a href="https://phrmapp.com/demo" className="border-2 border-phrm-dark text-phrm-dark px-8 py-4 rounded-lg hover:bg-phrm-light transition-all transform hover:scale-105">
                   Voir la démo
@@ -306,8 +290,9 @@ function App() {
               className="w-20 h-20 md:w-24 md:h-24  object-cover ring-4 ring-phrm-dark/10 shadow-md"
             />
             <div className="text-center md:text-left">
+              <p className="text-gray-700">Paul Valentin Ndoko</p>
               <h3 className="text-2xl font-bold text-phrm-dark">Directeur Exécutif</h3>
-              <p className="text-gray-700">Vision, leadership et excellence au service de l'emploi et des entreprises.</p>
+              
             </div>
           </div>
 
@@ -768,7 +753,7 @@ function App() {
                     <Users className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-white">Employee Self-Service</h3>
+                    <h3 className="text-xl font-bold text-white"> Libre-service Employés</h3>
                     <p className="text-blue-200">Portail employé autonome</p>
                   </div>
                 </div>
@@ -1113,10 +1098,10 @@ function App() {
             </div>
           </div>
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900 text-center mb-6">
-            Qu'est-ce que l'Employee Self-Service ?
+            Qu'est-ce que le libre-service employés ?
           </h2>
           <p className="text-xl text-gray-600 text-center mb-8 leading-relaxed">
-            L'<span className="font-semibold text-phrm-dark">Employee Self-Service (ESS)</span> donne aux employés l'accès à leurs informations RH personnelles, en toute autonomie et à tout moment.
+          <span className="font-semibold text-phrm-dark">Libre-service employés </span> donne aux employés l'accès à leurs informations RH personnelles, en toute autonomie et à tout moment.
           </p>
           <div className="grid md:grid-cols-2 gap-8 mt-8">
             <div className="bg-blue-50 rounded-xl p-6">
