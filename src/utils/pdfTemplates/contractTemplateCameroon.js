@@ -785,6 +785,18 @@ export function generateContractPDFCameroon(contractData) {
     // ignore if not supported
   }
 
+  // Pied de page: copyright sur chaque page
+  try {
+    const pages = typeof doc.getNumberOfPages === 'function' ? doc.getNumberOfPages() : 1;
+    const footerText = `© ${new Date().getFullYear()} ${contractData.employerName || 'Entreprise'}. Tous droits réservés.`;
+    for (let i = 1; i <= pages; i++) {
+      if (typeof doc.setPage === 'function') doc.setPage(i);
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(8);
+      doc.text(footerText, pageWidth - margin, pageHeight - 8, { align: 'right' });
+    }
+  } catch (e) { /* ignore */ }
+
   const fileName = `Contrat_Travail_${(contractData.employeeName || 'Employe').replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
   doc.save(fileName);
 

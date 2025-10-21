@@ -767,6 +767,11 @@ const addEmployee = async (e) => {
       const offerDoc = {
         ...base,
         type: 'offers',
+        employerId: companyData.id || companyData.uid || companyData.email || companyData.name || 'default',
+        companyName: companyData.name || 'Entreprise',
+        companyAddress: companyData.address || '',
+        companyPhone: companyData.phone || '',
+        companyEmail: companyData.email || '',
         city: companyData.city || '',
         date: today,
         title: newEmployee.poste,
