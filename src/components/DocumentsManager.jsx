@@ -40,6 +40,9 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
   const [formData, setFormData] = useState({});
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [showTextCustomization, setShowTextCustomization] = useState(false);
+  const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewData, setPreviewData] = useState(null);
 
   // Types de documents
   const documentTypes = {
@@ -48,6 +51,10 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
       icon: FiFileText,
       color: 'blue',
       fields: [
+        { key: 'templateVersion', label: 'Version du modèle', type: 'select', required: true, options: [
+          { value: 'v2', label: 'Version 2 - Sursalaire conditionnel (avec ou sans)' },
+          { value: 'v1', label: 'Version 1 - Sursalaire toujours affiché (ancien modèle)' }
+        ]},
         { key: 'candidateName', label: 'Nom du candidat', type: 'text', required: false },
         { key: 'candidateCity', label: 'Ville du candidat', type: 'text', required: false },
         { key: 'companyCity', label: 'Ville de l\'entreprise (en-tête date)', type: 'text', required: false },
@@ -179,6 +186,17 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
     }
   };
 
+  // Déterminer le département d'un document
+  const getDocDepartment = (doc) => {
+    const direct = doc.department || doc.departement || doc.service || doc.services;
+    if (direct) return direct;
+    const empName = doc.employeeName || doc.nomEmploye || doc.employee?.name;
+    if (!empName) return '';
+    const emp = employees.find(e => (e.name || e.nom || '').toLowerCase() === String(empName).toLowerCase());
+    if (!emp) return '';
+    return emp.department || emp.departement || emp.service || emp.services || '';
+  };
+
   // Remplir les données de l'employé sélectionné
   const fillEmployeeData = (employee) => {
     if (!employee) return {};
@@ -229,6 +247,7 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
     switch (type) {
       case 'offers':
         return {
+          templateVersion: 'v2', // Version 2 par défaut (sursalaire conditionnel)
           candidateName: '',
           candidateCity: '',
           companyCity: '',
@@ -507,7 +526,11 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
     try {
       switch (activeTab) {
         case 'offers':
-          generateOfferLetterPDF(documentData);
+          // Passer les options pour la version du modèle
+          const offerOptions = {
+            version: documentData.templateVersion || 'v2'
+          };
+          generateOfferLetterPDF(documentData, offerOptions);
           break;
         case 'attestations':
           generateAttestationPDFCameroon(documentData);
@@ -590,9 +613,14 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
                       required={field.required}
                     >
                       <option value="">Sélectionner...</option>
-                      {field.options?.map(option => (
-                        <option key={option} value={option}>{option}</option>
-                      ))}
+                      {field.options?.map(option => {
+                        // Support des options avec valeur et label
+                        if (typeof option === 'object' && option.value && option.label) {
+                          return <option key={option.value} value={option.value}>{option.label}</option>;
+                        }
+                        // Support des options simples (string)
+                        return <option key={option} value={option}>{option}</option>;
+                      })}
                     </select>
                   ) : field.type === 'checkbox' ? (
                     <label className="flex items-center">
@@ -647,6 +675,10 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
   // Rendu de la liste des documents
   const renderDocumentsList = () => {
     const currentDocs = documents[activeTab] || [];
+    const filteredDocs = currentDocs.filter(d => {
+      if (departmentFilter === 'all') return true;
+      return String(getDocDepartment(d) || '').toLowerCase() === String(departmentFilter).toLowerCase();
+    });
     const currentType = documentTypes[activeTab];
 
     if (loading) {
@@ -658,7 +690,7 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
       );
     }
 
-    if (currentDocs.length === 0) {
+    if (filteredDocs.length === 0) {
       return (
         <div className="text-center py-16">
           <div className="bg-gray-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
@@ -719,7 +751,7 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
 
     return (
       <div className="grid gap-4 sm:gap-6">
-        {currentDocs.map((doc, index) => (
+        {filteredDocs.map((doc, index) => (
           <div key={doc.id} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 hover:scale-[1.01] sm:hover:scale-[1.02] overflow-hidden">
             <div className="p-4 sm:p-6">
               <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start space-y-4 lg:space-y-0">
@@ -771,6 +803,12 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
                         <span className="text-xs sm:text-sm text-gray-700 truncate">{doc.category}</span>
                       </div>
                     )}
+                    {getDocDepartment(doc) && (
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <span className="text-xs font-medium text-gray-500 flex-shrink-0">🏢</span>
+                        <span className="text-xs sm:text-sm text-gray-700 truncate">{getDocDepartment(doc)}</span>
+                      </div>
+                    )}
                     {doc.salary && (
                       <div className="flex items-center space-x-2 min-w-0">
                         <span className="text-xs font-medium text-gray-500 flex-shrink-0">💰</span>
@@ -796,6 +834,17 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
                 
                 {/* Actions - Responsive */}
                 <div className="flex flex-row sm:flex-col lg:flex-col space-x-2 sm:space-x-0 sm:space-y-2 lg:ml-6">
+                  <button
+                    onClick={() => {
+                      setPreviewData(doc);
+                      setShowPreview(true);
+                    }}
+                    className="flex-1 sm:flex-none flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-3 sm:px-4 py-2 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm hover:scale-105 text-xs sm:text-sm"
+                    title="Prévisualiser"
+                  >
+                    <FiEye className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="font-medium">Aperçu</span>
+                  </button>
                   <button
                     onClick={() => generatePDF(doc)}
                     className="flex-1 sm:flex-none flex items-center justify-center space-x-2 bg-gradient-to-r from-green-600 to-green-700 text-white px-3 sm:px-4 py-2 rounded-lg hover:from-green-700 hover:to-green-800 transition-all shadow-sm hover:scale-105 text-xs sm:text-sm"
@@ -858,46 +907,69 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
 
   return (
     <div className="space-y-6">
-      {/* En-tête moderne avec indicateur temps réel - Responsive */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 sm:p-6 border border-blue-200">
-        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start space-y-4 lg:space-y-0">
-          <div className="flex-1">
-            <div className="flex items-center space-x-3 mb-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900">📄 Gestion des Documents</h2>
+      {/* En-tête moderne simplifié */}
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg shadow-sm p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+          <div className="text-white">
+            <h3 className="text-lg font-semibold mb-1">Documents RH</h3>
+            <p className="text-blue-100 text-sm">Gestion complète des documents employés</p>
+          </div>
+          
+          {/* Actions rapides */}
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(documentTypes).map(([type, config]) => (
+              <button
+                key={type}
+                onClick={() => {
+                  setActiveTab(type);
+                  setEditingDoc(null);
+                  const defaultValues = getDefaultValues(type);
+                  setFormData(defaultValues);
+                  setShowForm(true);
+                }}
+                className="flex items-center space-x-2 px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-all text-white text-sm"
+              >
+                <config.icon className="w-4 h-4" />
+                <span className="hidden sm:inline">
+                  {type === 'offers' ? 'Offre' :
+                   type === 'attestations' ? 'Attestation' :
+                   type === 'certificates' ? 'Certificat' :
+                   type === 'contracts' ? 'Contrat' :
+                   'Avenant'}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Statistiques et actions */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+          <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <span className="text-sm text-gray-600">
+                Total: <span className="font-semibold text-blue-600">
+                  {Object.values(documents).reduce((total, docs) => total + docs.length, 0)}
+                </span>
+              </span>
             </div>
-            <p className="text-gray-600 mb-4 text-sm sm:text-base">
-              Créez et gérez facilement vos documents RH professionnels
-            </p>
-            
-            {/* Statistiques rapides - Responsive */}
-            <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-6 text-sm">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <span className="text-gray-600">
-                  Total: <span className="font-semibold text-blue-600">
-                    {Object.values(documents).reduce((total, docs) => total + docs.length, 0)}
-                  </span> documents
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-gray-600">
-                  Employés: <span className="font-semibold text-green-600">{employees.length}</span>
-                </span>
-              </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-sm text-gray-600">
+                Employés: <span className="font-semibold text-green-600">{employees.length}</span>
+              </span>
             </div>
           </div>
           
-          {/* Boutons - Responsive */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+          <div className="flex items-center space-x-3">
             <button
               onClick={() => setShowTextCustomization(true)}
-              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all shadow-md hover:scale-105 text-sm"
+              className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all text-sm"
             >
               <FiSettings className="h-4 w-4" />
-              <span className="hidden sm:inline">🎨 Personnaliser</span>
-              <span className="sm:hidden">🎨</span>
+              <span>Personnaliser</span>
             </button>
             <button
               onClick={() => {
@@ -906,61 +978,47 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
                 setFormData(defaultValues);
                 setShowForm(true);
               }}
-              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 sm:px-6 py-2 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:scale-105 text-sm"
+              className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-all text-sm"
             >
               <FiPlus className="h-4 w-4" />
-              <span className="hidden sm:inline">✨ Nouveau Document</span>
-              <span className="sm:hidden">✨ Nouveau</span>
+              <span>Nouveau</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Sélecteur d'employé amélioré - Responsive */}
+      {/* Sélecteur d'employé simplifié */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
-          <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
-            <div className="flex items-center space-x-2">
-              <FiEye className="h-5 w-5 text-blue-600" />
-              <label className="text-sm font-medium text-gray-700">
-                <span className="hidden sm:inline">Pré-remplir avec les données d'un employé:</span>
-                <span className="sm:hidden">Sélectionner un employé:</span>
-              </label>
-            </div>
+        <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+          <label className="text-sm font-medium text-gray-700 flex items-center space-x-2">
+            <FiEye className="h-4 w-4 text-blue-600" />
+            <span>Pré-remplir avec un employé :</span>
+          </label>
+          <div className="flex-1 flex items-center space-x-3">
             <select
               value={selectedEmployee?.id || ''}
               onChange={(e) => {
                 const employee = employees.find(emp => emp.id === e.target.value);
                 setSelectedEmployee(employee || null);
               }}
-              className="w-full sm:min-w-[250px] px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-sm"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             >
-              <option value="">🔍 Sélectionner un employé...</option>
+              <option value="">Sélectionner un employé...</option>
               {employees.map(employee => (
                 <option key={employee.id} value={employee.id}>
-                  👤 {employee.name} - {employee.poste}
+                  {employee.name} - {employee.poste}
                 </option>
               ))}
             </select>
-          </div>
-          
-          {selectedEmployee && (
-            <div className="flex items-center justify-between sm:justify-start space-x-3 bg-green-50 px-4 py-2 rounded-lg border border-green-200">
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium text-green-700">
-                  <span className="hidden sm:inline">✅ {selectedEmployee.name} sélectionné</span>
-                  <span className="sm:hidden">✅ {selectedEmployee.name}</span>
-                </span>
-              </div>
+            {selectedEmployee && (
               <button
                 onClick={() => setSelectedEmployee(null)}
-                className="text-green-600 hover:text-green-800 p-1 hover:bg-green-100 rounded"
+                className="px-3 py-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-all text-sm"
               >
-                ✕
+                ✕ Effacer
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
@@ -1008,8 +1066,46 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
           </nav>
         </div>
 
-        {/* Contenu avec padding responsive */}
-        <div className="p-4 sm:p-6">
+        {/* Contenu avec padding responsive et scroll fixé */}
+        <div className="p-4 sm:p-6 max-h-[70vh] overflow-y-auto">
+          {/* Filtres simples */}
+          {(() => {
+            const allDocs = Object.values(documents).flat();
+            const departments = Array.from(new Set([
+              ...employees.map(e => e.department || e.departement || e.service || e.services || '').filter(Boolean),
+              ...allDocs.map(d => d.department || d.departement || d.service || d.services || '').filter(Boolean)
+            ])).sort();
+            return (
+              <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600 font-medium">Département:</span>
+                  <select
+                    value={departmentFilter}
+                    onChange={(e) => setDepartmentFilter(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">Tous</option>
+                    {departments.map(dep => (
+                      <option key={dep} value={dep}>{dep}</option>
+                    ))}
+                  </select>
+                  {departmentFilter !== 'all' && (
+                    <button
+                      onClick={() => setDepartmentFilter('all')}
+                      className="text-sm px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                    >
+                      Réinitialiser
+                    </button>
+                  )}
+                </div>
+                {departmentFilter !== 'all' && (
+                  <div className="text-sm text-gray-600">
+                    Filtre actif: <span className="font-semibold text-blue-700">{departmentFilter}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           {renderDocumentsList()}
         </div>
       </div>
@@ -1028,6 +1124,106 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
           toast.success('🎨 Textes personnalisés appliqués avec succès !');
         }}
       />
+
+      {/* Modal de prévisualisation */}
+      {showPreview && previewData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Aperçu du document</h3>
+                <p className="text-sm text-gray-600">
+                  {documentTypes[activeTab]?.title} - {previewData.title || previewData.employeeName || 'Document'}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowPreview(false);
+                  setPreviewData(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-all"
+              >
+                <FiX className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-[70vh]">
+              {/* Aperçu des données du document */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <h4 className="font-medium text-gray-800 mb-3">Données du document :</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  {Object.entries(previewData).map(([key, value]) => {
+                    if (key === 'id' || key === 'createdAt' || key === 'updatedAt' || key === 'companyId' || key === 'type') return null;
+                    return (
+                      <div key={key} className="flex justify-between">
+                        <span className="font-medium text-gray-600 capitalize">
+                          {key.replace(/([A-Z])/g, ' $1').toLowerCase()}:
+                        </span>
+                        <span className="text-gray-800">
+                          {typeof value === 'object' ? JSON.stringify(value) : String(value || '-')}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Message d'information */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <div className="flex items-start space-x-3">
+                  <FiEye className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <h4 className="font-medium text-blue-800">Aperçu des données</h4>
+                    <p className="text-sm text-blue-700 mt-1">
+                      Vérifiez que toutes les informations sont correctes avant de générer le PDF final.
+                      Vous pouvez modifier le document en cliquant sur "Modifier" ou générer directement le PDF.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => {
+                  setShowPreview(false);
+                  setPreviewData(null);
+                  setEditingDoc(previewData);
+                  setFormData(previewData);
+                  setShowForm(true);
+                }}
+                className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-lg transition-all"
+              >
+                <FiEdit className="h-4 w-4" />
+                <span>Modifier</span>
+              </button>
+              
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => {
+                    setShowPreview(false);
+                    setPreviewData(null);
+                  }}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-lg transition-all"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={() => {
+                    generatePDF(previewData);
+                    setShowPreview(false);
+                    setPreviewData(null);
+                  }}
+                  className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition-all"
+                >
+                  <FiDownload className="h-4 w-4" />
+                  <span>Générer PDF</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

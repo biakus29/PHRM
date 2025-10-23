@@ -72,7 +72,8 @@ import { toPng } from "html-to-image";
 import ExportBadgePDF from "../compoments/ExportBadgePDF";
 import CotisationCNPS from "../compoments/CotisationCNPS";
 import { displayDepartment, displayMatricule, displayPhone, displayCNPSNumber, displayProfessionalCategory, displaySalary, displayDate, displayDiplomas, displayEchelon, displayService, displaySupervisor, displayPlaceOfBirth, displayDateOfBirth, displayDateWithOptions, displayGeneratedAt, displayHireDate, displayContractStartDate, displayContractEndDate, displayLicenseExpiry, normalizeEmployeeData } from "../utils/displayUtils";
-import { generatePaySlipData, PAYSLIP_TEMPLATE_CONFIGS } from "../utils/paySlipTemplates";
+// Templates PDF (registre et renderers)
+import { getPayslipRenderer } from "../utils/pdfTemplates";
 import { generatePDFReport as generatePDFReportUtil } from "../utils/pdfUtils";
 import { buildLeaveTypeDoughnut, buildDepartmentBar, buildMonthlyTrendsLine } from "../utils/dashboardData";
 import { generateQRCodeUrl, generateUserInfoQRCode, generateVCardQRCode } from "../utils/qrCodeUtils";
@@ -215,12 +216,30 @@ const CompanyAdminDashboard = () => {
   const [selectedBadgeModel, setSelectedBadgeModel] = useState("BadgeModel1");
   const [selectedQRType, setSelectedQRType] = useState("userInfo");
   const [showQRScanner, setShowQRScanner] = useState(false);
+  const [showQuickActions, setShowQuickActions] = useState(false);
   
   // Etats pour les modeles de templates
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   // Align default with implemented PDF renderer keys: 'eneo', 'classic', 'bulletin_paie', 'compta_online', 'enterprise'
   const [selectedPaySlipTemplate, setSelectedPaySlipTemplate] = useState("eneo");
   const [selectedContractTemplate, setSelectedContractTemplate] = useState("contract1");
+
+  // États pour l'import d'employés avec mapping et génération de contrats
+  const [showImportWizard, setShowImportWizard] = useState(false);
+  const [importStep, setImportStep] = useState(1); // 1: Upload, 2: Mapping, 3: Validation, 4: Création, 5: Contrats
+  const [importFile, setImportFile] = useState(null);
+  const [importData, setImportData] = useState([]);
+  const [importHeaders, setImportHeaders] = useState([]);
+  const [columnMapping, setColumnMapping] = useState({});
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0, step: '' });
+  const [importResults, setImportResults] = useState({ success: [], errors: [] });
+  const [generateContracts, setGenerateContracts] = useState(true);
+  const [contractTemplateForImport, setContractTemplateForImport] = useState("contract1");
+  
+  // États pour le modal de choix de documents après création/modification d'employé
+  const [preparedDocuments, setPreparedDocuments] = useState(null);
+  const [selectedDocumentType, setSelectedDocumentType] = useState('contract');
+  const [showDocumentPreview, setShowDocumentPreview] = useState(false);
 
   function formatDateOfBirthInput(value) {
     // Si l'utilisateur tape 8 chiffres d'affilée, on formate automatiquement
@@ -367,18 +386,38 @@ useEffect(() => {
     }
     return total / 1024 / 1024; // Taille en Mo
   }, []);
-const deletePaySlip = async (employeeId, payslipId) => {
+const deletePaySlip = async (employeeId, payslipId, fallback) => {
     setActionLoading(true);
     try {
       const employee = employees.find((emp) => emp.id === employeeId);
       if (!employee) {
         throw new Error("Employé non trouvé.");
       }
-    const updatedPayslips = (employee.payslips || []).filter((ps) => ps.id !== payslipId);
+    const currentPayslips = Array.isArray(employee.payslips) ? employee.payslips : [];
+    let updatedPayslips = currentPayslips;
+
+    if (payslipId) {
+      updatedPayslips = currentPayslips.filter((ps) => ps.id !== payslipId);
+    } else if (typeof fallback === 'number') {
+      // Fallback: remove by index when id is missing
+      updatedPayslips = currentPayslips.filter((_, idx) => idx !== fallback);
+    } else if (fallback && typeof fallback === 'object') {
+      // Fallback: try to match by generatedAt or payPeriod if available
+      const genAt = fallback.generatedAt;
+      const period = fallback.payPeriod || (fallback.year && fallback.month ? `${fallback.year}-${String(fallback.month).padStart(2,'0')}` : undefined);
+      updatedPayslips = currentPayslips.filter((ps) => {
+        if (ps.id && !payslipId) return true; // keep all with id when no id provided
+        const sameGenAt = genAt && ps.generatedAt === genAt;
+        const samePeriod = period && (ps.payPeriod === period || (ps.year && ps.month && `${ps.year}-${String(ps.month).padStart(2,'0')}` === period));
+        return !(sameGenAt || samePeriod);
+      });
+    } else {
+      throw new Error("Impossible d'identifier la fiche de paie à supprimer (ID manquant).");
+    }
     await svcUpdateEmployeePayslips(db, companyData.id, employeeId, removeUndefined(updatedPayslips));
     setEmployees((prev) => prev.map((emp) => emp.id === employeeId ? { ...emp, payslips: updatedPayslips } : emp));
     setFilteredEmployees((prev) => prev.map((emp) => emp.id === employeeId ? { ...emp, payslips: updatedPayslips } : emp));
-    // Mettre Ã  jour selectedEmployee si c'est le meme employé
+    // Mettre à jour selectedEmployee si c'est le meme employé
     setSelectedEmployee(prev => prev && prev.id === employeeId ? { ...prev, payslips: updatedPayslips } : prev);
       toast.success("Fiche de paie supprimée avec succès !");
     } catch (error) {
@@ -713,106 +752,86 @@ const addEmployee = async (e) => {
       employeeId = await svcAddEmployee(db, companyData.id, employeeData);
       toast.success("Employé ajouté avec succès !");
     }
-    // Créer et enregistrer aussi les documents dans la collection 'documents' (contrats et offres)
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const base = {
-        companyId: companyData.id,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      // Document contrat (aligné avec DocumentsManager)
-      const contractDoc = {
-        ...base,
-        type: 'contracts',
-        city: companyData.address || 'Douala',
-        date: today,
-        employerName: companyData.name || 'Entreprise',
-        employerId: companyData.id || companyData.uid || companyData.email || companyData.name || 'default',
-        employerBP: companyData.bp || 'BP 12345',
-        employerPhone: companyData.phone || '+237',
-        employerFax: companyData.fax || '',
-        employerEmail: companyData.email || 'contact@entreprise.cm',
-        employerRepresentative: companyData.representant || 'Directeur Général',
-        employerRepresentativeTitle: 'Directeur Général',
-        employerCNPS: companyData.cnpsNumber || '',
-        employeeName: newEmployee.name,
-        employeeBirthDate: convertFrenchDateToISO(newEmployee.dateOfBirth) || '1990-01-01',
-        employeeBirthPlace: newEmployee.lieuNaissance || 'Douala',
-        employeeFatherName: newEmployee.pere || '',
-        employeeMotherName: newEmployee.mere || '',
-        employeeAddress: newEmployee.residence || companyData.address || 'Douala',
-        employeeMaritalStatus: newEmployee.situation || '',
-        employeeSpouseName: newEmployee.epouse || '',
-        employeeChildrenCount: newEmployee.childrenCount || 0,
-        employeeEmergencyContact: newEmployee.personneAPrevenir || '',
-        employeePosition: newEmployee.poste,
-        employeeCategory: newEmployee.professionalCategory || newEmployee.category || '',
-        employeeEchelon: newEmployee.echelon || '',
-        workplace: newEmployee.workPlace || newEmployee.workplace || newEmployee.lieuTravail || companyData.city || 'Douala',
-        totalSalary: Number(newEmployee.baseSalary || 0) + Number(newEmployee.transportAllowance || 0) + Number(newEmployee.housingAllowance || 0),
-        baseSalary: Number(newEmployee.baseSalary) || 0,
-        overtimeSalary: Number(newEmployee.overtimeHours?.regular) || 0,
-        housingAllowance: Number(newEmployee.housingAllowance) || 0,
-        transportAllowance: Number(newEmployee.transportAllowance) || 0,
-        trialPeriod: newEmployee.hasTrialPeriod ? (newEmployee.trialPeriodDuration || 3) : 0,
-        contractDuration: newEmployee.contractDuration || '12 mois',
-        startDate: newEmployee.hireDate || today,
-        weeklyHours: newEmployee.hoursPerMonth ? Math.round((Number(newEmployee.hoursPerMonth) || 160)/4) : 40,
-      };
-      await addDoc(collection(db, 'documents'), contractDoc);
-      exportDocumentContract(contractDoc);
+    // Préparer les données pour le modal de choix de documents
+    const today = new Date().toISOString().split('T')[0];
+    const preparedContractDoc = {
+      type: 'contracts',
+      city: companyData.address || 'Douala',
+      date: today,
+      employerName: companyData.name || 'Entreprise',
+      employerId: companyData.id || companyData.uid || companyData.email || companyData.name || 'default',
+      employerBP: companyData.bp || 'BP 12345',
+      employerPhone: companyData.phone || '+237',
+      employerFax: companyData.fax || '',
+      employerEmail: companyData.email || 'contact@entreprise.cm',
+      employerRepresentative: companyData.representant || 'Directeur Général',
+      employerRepresentativeTitle: 'Directeur Général',
+      employerCNPS: companyData.cnpsNumber || '',
+      employeeName: newEmployee.name,
+      employeeBirthDate: convertFrenchDateToISO(newEmployee.dateOfBirth) || '1990-01-01',
+      employeeBirthPlace: newEmployee.lieuNaissance || 'Douala',
+      employeeFatherName: newEmployee.pere || '',
+      employeeMotherName: newEmployee.mere || '',
+      employeeAddress: newEmployee.residence || companyData.address || 'Douala',
+      employeeMaritalStatus: newEmployee.situation || '',
+      employeeSpouseName: newEmployee.epouse || '',
+      employeeChildrenCount: newEmployee.childrenCount || 0,
+      employeeEmergencyContact: newEmployee.personneAPrevenir || '',
+      employeePosition: newEmployee.poste,
+      employeeCategory: newEmployee.professionalCategory || newEmployee.category || '',
+      employeeEchelon: newEmployee.echelon || '',
+      workplace: newEmployee.workPlace || newEmployee.workplace || newEmployee.lieuTravail || companyData.city || 'Douala',
+      totalSalary: Number(newEmployee.baseSalary || 0) + Number(newEmployee.transportAllowance || 0) + Number(newEmployee.housingAllowance || 0),
+      baseSalary: Number(newEmployee.baseSalary) || 0,
+      overtimeSalary: Number(newEmployee.overtimeHours?.regular) || 0,
+      housingAllowance: Number(newEmployee.housingAllowance) || 0,
+      transportAllowance: Number(newEmployee.transportAllowance) || 0,
+      trialPeriod: newEmployee.hasTrialPeriod ? (newEmployee.trialPeriodDuration || 3) : 0,
+      contractDuration: newEmployee.contractDuration || '12 mois',
+      startDate: newEmployee.hireDate || today,
+      weeklyHours: newEmployee.hoursPerMonth ? Math.round((Number(newEmployee.hoursPerMonth) || 160)/4) : 40,
+    };
 
-      // Document offre (aligné avec DocumentsManager)
-      const offerDoc = {
-        ...base,
-        type: 'offers',
-        employerId: companyData.id || companyData.uid || companyData.email || companyData.name || 'default',
-        companyName: companyData.name || 'Entreprise',
-        companyAddress: companyData.address || '',
-        companyPhone: companyData.phone || '',
-        companyEmail: companyData.email || '',
-        city: companyData.city || '',
-        date: today,
-        title: newEmployee.poste,
-        contractType: newEmployee.contractType || 'CDI',
-        category: newEmployee.professionalCategory || newEmployee.category || '',
-        echelon: newEmployee.echelon || '',
-        location: newEmployee.department || '',
-        workCity: companyData.city || '',
-        description: '',
-        salary: Number(newEmployee.baseSalary || 0) + Number(newEmployee.transportAllowance || 0) + Number(newEmployee.housingAllowance || 0),
-        baseSalary: Number(newEmployee.baseSalary) || 0,
-        overtimeSalary: Number(newEmployee.overtimeHours?.regular) || 0,
-        housingAllowance: Number(newEmployee.housingAllowance) || 0,
-        transportAllowance: Number(newEmployee.transportAllowance) || 0,
-        weeklyHours: newEmployee.hoursPerMonth ? Math.round((Number(newEmployee.hoursPerMonth) || 160)/4) : 40,
-        dailyAllowance: 0,
-        trialPeriod: newEmployee.hasTrialPeriod ? (newEmployee.trialPeriodDuration || 3) : 3,
-        startDate: newEmployee.hireDate || today,
-        startTime: '08:00',
-        responseDeadline: today,
-        candidateName: newEmployee.name,
-        candidateCity: newEmployee.residence || '',
-        companyCity: companyData.city || '',
-        workplace: newEmployee.department || '',
-      };
-      await addDoc(collection(db, 'documents'), offerDoc);
-      generateOfferLetterPDF(offerDoc);
-    } catch (docErr) {
-      console.warn('[addEmployee] Documents creation error:', docErr);
-    }
+    const preparedOfferDoc = {
+      type: 'offers',
+      templateVersion: 'v2', // Version 2 par défaut (sursalaire conditionnel)
+      employerId: companyData.id || companyData.uid || companyData.email || companyData.name || 'default',
+      companyName: companyData.name || 'Entreprise',
+      companyAddress: companyData.address || '',
+      companyPhone: companyData.phone || '',
+      companyEmail: companyData.email || '',
+      city: companyData.city || '',
+      date: today,
+      title: newEmployee.poste,
+      contractType: newEmployee.contractType || 'CDI',
+      category: newEmployee.professionalCategory || newEmployee.category || '',
+      echelon: newEmployee.echelon || '',
+      location: newEmployee.department || '',
+      workCity: companyData.city || '',
+      description: '',
+      salary: Number(newEmployee.baseSalary || 0) + Number(newEmployee.transportAllowance || 0) + Number(newEmployee.housingAllowance || 0),
+      baseSalary: Number(newEmployee.baseSalary) || 0,
+      overtimeSalary: Number(newEmployee.overtimeHours?.regular) || 0,
+      housingAllowance: Number(newEmployee.housingAllowance) || 0,
+      transportAllowance: Number(newEmployee.transportAllowance) || 0,
+      weeklyHours: newEmployee.hoursPerMonth ? Math.round((Number(newEmployee.hoursPerMonth) || 160)/4) : 40,
+      dailyAllowance: 0,
+      trialPeriod: newEmployee.hasTrialPeriod ? (newEmployee.trialPeriodDuration || 3) : 3,
+      startDate: newEmployee.hireDate || today,
+      startTime: '08:00',
+      responseDeadline: today,
+      candidateName: newEmployee.name,
+      candidateCity: newEmployee.residence || '',
+      companyCity: companyData.city || '',
+      workplace: newEmployee.department || '',
+    };
 
-    // Génère automatiquement le PDF du contrat avec uniquement les champs utiles (historique existant)
-    setTimeout(() => {
-      if (window.generateContractPDF) {
-        window.generateContractPDF({
-          employee: { ...newEmployee, id: employeeId },
-          contract: contractData,
-          company: companyData,
-        });
-      }
-    }, 500);
+    // Stocker les données pour le modal de choix
+    setPreparedDocuments({
+      contract: preparedContractDoc,
+      offer: preparedOfferDoc,
+      employee: { ...newEmployee, id: employeeId }
+    });
     setShowEmployeeModal(false);
     setSelectedEmployee({ ...newEmployee, id: employeeId });
     setShowPostCreateModal(true);
@@ -1144,6 +1163,584 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
     setActionLoading(false);
   }
 };
+
+// ⚡ OPTIMISATION PAIE - TRAITEMENT EN PARALLÈLE ET BATCH FIRESTORE
+// ===============================================================================
+
+/**
+ * Lance le traitement de paie optimisé pour tous les employés actifs
+ */
+const launchMonthlyPayroll = useCallback(async () => {
+  if (!companyData?.id) {
+    toast.error("Données entreprise manquantes");
+    return;
+  }
+
+  const activeEmployees = employees.filter(emp => emp.status === 'Actif');
+  
+  if (activeEmployees.length === 0) {
+    toast.warning("Aucun employé actif trouvé");
+    return;
+  }
+
+  // Confirmation utilisateur
+  const confirmed = window.confirm(
+    `Lancer la paie du mois pour ${activeEmployees.length} employé(s) ?\n\n` +
+    `Cette opération va :\n` +
+    `• Calculer automatiquement toutes les fiches de paie\n` +
+    `• Détecter les anomalies éventuelles\n` +
+    `• Sauvegarder en base de données\n` +
+    `• Générer les PDF automatiquement`
+  );
+
+  if (!confirmed) return;
+
+  setActionLoading(true);
+
+  try {
+    // Import des fonctions optimisées
+    const { 
+      processPayrollBatch, 
+      prepareFirestoreBatches 
+    } = await import('../utils/payrollCalculations');
+
+    const { writeBatch, doc } = await import('firebase/firestore');
+
+    toast.info(`🚀 Lancement de la paie pour ${activeEmployees.length} employés...`);
+
+    // Options de traitement
+    const options = {
+      month: new Date().getMonth() + 1,
+      year: new Date().getFullYear(),
+      chunkSize: 8, // Traiter 8 employés en parallèle
+      ignoreAnomalies: false // Arrêter sur anomalies par défaut
+    };
+
+    // Callback de progression
+    const onProgress = (progress) => {
+      // Toast de progression tous les 25%
+      if (progress.percentage % 25 === 0 && progress.percentage > 0) {
+        toast.info(`⚡ Progression: ${progress.percentage}% (${progress.processed}/${progress.total})`);
+      }
+    };
+
+    // Traitement en parallèle
+    const results = await processPayrollBatch(activeEmployees, options, onProgress);
+
+    // Affichage des résultats
+    console.log('📊 Résultats traitement paie:', results);
+
+    if (results.summary.failed > 0) {
+      toast.error(
+        `❌ ${results.summary.failed} erreur(s) détectée(s)\n` +
+        `✅ ${results.summary.successful} succès\n` +
+        `⚠️ ${results.summary.withAnomalies} anomalie(s)`
+      );
+
+      // Afficher les erreurs en détail
+      results.errors.forEach(error => {
+        console.error(`Erreur ${error.employeeName}:`, error.error);
+      });
+
+      // Les erreurs sont déjà loggées dans la console
+
+      return;
+    }
+
+    // Préparation des batches Firestore
+    const successfulResults = results.success;
+    const firestoreBatches = prepareFirestoreBatches(successfulResults, companyData.id);
+
+    toast.info(`💾 Sauvegarde de ${successfulResults.length} fiches en ${firestoreBatches.length} batch(es)...`);
+
+    // Écriture batch Firestore
+    let savedCount = 0;
+    for (const batchInfo of firestoreBatches) {
+      const batch = writeBatch(db);
+
+      for (const operation of batchInfo.operations) {
+        const employeeRef = doc(db, 'clients', companyData.id, 'employees', operation.docPath.split('/').pop());
+        
+        // Récupérer les payslips existants et ajouter le nouveau
+        const employee = employees.find(emp => emp.id === operation.docPath.split('/').pop());
+        const existingPayslips = employee?.payslips || [];
+        const newPayslip = successfulResults.find(r => r.employeeId === employee?.id)?.payslipData;
+        
+        if (newPayslip) {
+          const updatedPayslips = [...existingPayslips, newPayslip];
+          batch.update(employeeRef, {
+            payslips: updatedPayslips,
+            lastPayrollUpdate: new Date().toISOString(),
+            payrollStatus: 'completed'
+          });
+        }
+      }
+
+      await batch.commit();
+      savedCount += batchInfo.size;
+      
+      toast.info(`💾 Batch ${batchInfo.batchIndex + 1}/${firestoreBatches.length} sauvegardé (${savedCount}/${successfulResults.length})`);
+    }
+
+    // Mise à jour de l'état local
+    const updatedEmployees = employees.map(emp => {
+      const result = successfulResults.find(r => r.employeeId === emp.id);
+      if (result?.payslipData) {
+        return {
+          ...emp,
+          payslips: [...(emp.payslips || []), result.payslipData],
+          lastPayrollUpdate: new Date().toISOString(),
+          payrollStatus: 'completed'
+        };
+      }
+      return emp;
+    });
+
+    setEmployees(updatedEmployees);
+    setFilteredEmployees(updatedEmployees);
+
+    // Résumé final
+    const processingTime = (results.summary.processingTime / 1000).toFixed(2);
+    
+    toast.success(
+      `🎉 Paie terminée avec succès !\n\n` +
+      `✅ ${results.summary.successful} fiches générées\n` +
+      `⚠️ ${results.summary.withAnomalies} anomalie(s) détectée(s)\n` +
+      `⏱️ Temps de traitement: ${processingTime}s\n` +
+      `💾 Sauvegarde: ${savedCount} fiches`
+    );
+
+    // Afficher les anomalies si présentes
+    if (results.summary.withAnomalies > 0) {
+      console.warn('⚠️ Anomalies détectées:', results.anomalies);
+      
+      const anomaliesText = results.anomalies
+        .map(a => `${a.employeeName}: ${a.anomalies.join(', ')}`)
+        .join('\n');
+      
+      setTimeout(() => {
+        toast.warning(
+          `⚠️ Anomalies détectées:\n${anomaliesText}`,
+          { autoClose: 10000 }
+        );
+      }, 2000);
+    }
+
+  } catch (error) {
+    console.error('❌ Erreur traitement paie:', error);
+    toast.error(`Erreur lors du traitement de la paie: ${error.message}`);
+  } finally {
+    setActionLoading(false);
+  }
+}, [employees, companyData, db]);
+
+/**
+ * Génère les PDF de toutes les fiches de paie en parallèle
+ */
+const generateAllPayslipsPDF = useCallback(async () => {
+  if (!companyData?.id) {
+    toast.error("Données entreprise manquantes");
+    return;
+  }
+
+  const employeesWithPayslips = employees.filter(emp => 
+    emp.status === 'Actif' && emp.payslips && emp.payslips.length > 0
+  );
+
+  if (employeesWithPayslips.length === 0) {
+    toast.warning("Aucune fiche de paie à générer");
+    return;
+  }
+
+  setActionLoading(true);
+
+  try {
+    toast.info(`📄 Génération de ${employeesWithPayslips.length} PDF en parallèle...`);
+
+    // Génération en parallèle par chunks
+    const chunkSize = 5; // 5 PDF en parallèle max
+    const chunks = [];
+    
+    for (let i = 0; i < employeesWithPayslips.length; i += chunkSize) {
+      chunks.push(employeesWithPayslips.slice(i, i + chunkSize));
+    }
+
+    let generatedCount = 0;
+
+    for (const chunk of chunks) {
+      const pdfPromises = chunk.map(async (employee) => {
+        try {
+          const latestPayslip = employee.payslips[employee.payslips.length - 1];
+          // Calculs consolidés pour le template
+          const calc = computeCompletePayroll(latestPayslip || {});
+
+          // Renderer du template sélectionné
+          const renderer = getPayslipRenderer(selectedPaySlipTemplate || 'eneo');
+          const { default: jsPDF } = await import('jspdf');
+          const doc = new jsPDF();
+
+          const ctx = {
+            pageWidth: doc.internal.pageSize.getWidth(),
+            pageHeight: doc.internal.pageSize.getHeight(),
+            margin: 12,
+            payslipData: latestPayslip || {},
+            employerName: companyData?.name || companyData?.companyName || 'ENTREPRISE',
+            employerAddress: companyData?.address || '',
+            empName: employee?.name || latestPayslip?.employeeName || 'Employé',
+            empPoste: employee?.poste || employee?.professionalCategory || latestPayslip?.employee?.poste || '',
+            empCNPS: employee?.cnpsNumber || latestPayslip?.cnpsNumber || '',
+            baseSalary: calc.baseSalary || Number(latestPayslip?.salaryDetails?.baseSalary || 0),
+            totalGross: calc.grossTotal || Number(latestPayslip?.remuneration?.total || 0),
+            totalDeductions: calc.deductions?.total || 0,
+            netSalary: calc.netPay || Number(latestPayslip?.netPay || 0),
+            primes: latestPayslip?.primes || [],
+            indemnites: latestPayslip?.indemnites || [],
+            d: {
+              pvid: calc.deductions?.pvid || 0,
+              irpp: calc.deductions?.irpp || 0,
+              cac: calc.deductions?.cac || 0,
+              cfc: calc.deductions?.cfc || 0,
+              rav: calc.deductions?.rav || 0,
+              tdl: calc.deductions?.tdl || 0,
+              fne: calc.deductions?.fne || 0,
+            }
+          };
+
+          // Rendu PDF (les templates sauvegardent généralement le fichier)
+          renderer(doc, ctx);
+
+          return {
+            success: true,
+            employeeName: employee.name,
+            pdfData: true
+          };
+        } catch (error) {
+          return {
+            success: false,
+            employeeName: employee.name,
+            error: error.message
+          };
+        }
+      });
+
+      const chunkResults = await Promise.all(pdfPromises);
+      
+      chunkResults.forEach(result => {
+        if (result.success) {
+          generatedCount++;
+          // Le PDF est automatiquement téléchargé par generatePaySlipData
+        } else {
+          console.error(`Erreur PDF ${result.employeeName}:`, result.error);
+        }
+      });
+
+      toast.info(`📄 ${generatedCount}/${employeesWithPayslips.length} PDF générés`);
+    }
+
+    toast.success(`🎉 ${generatedCount} PDF générés avec succès !`);
+
+  } catch (error) {
+    console.error('❌ Erreur génération PDF:', error);
+    toast.error(`Erreur génération PDF: ${error.message}`);
+  } finally {
+    setActionLoading(false);
+  }
+}, [employees, companyData, selectedPaySlipTemplate]);
+
+/**
+ * Vérifie les anomalies sur tous les employés actifs
+ */
+const checkPayrollAnomalies = useCallback(async () => {
+  const activeEmployees = employees.filter(emp => emp.status === 'Actif');
+  
+  if (activeEmployees.length === 0) {
+    toast.info("Aucun employé actif à vérifier");
+    return;
+  }
+
+  try {
+    // Import de la fonction de détection
+    const { detectPayrollAnomalies } = await import('../utils/payrollCalculations');
+
+    const allAnomalies = [];
+
+    activeEmployees.forEach(employee => {
+      const anomalyCheck = detectPayrollAnomalies(employee);
+      if (anomalyCheck.hasAnomalies) {
+        allAnomalies.push({
+          employeeName: employee.name,
+          anomalies: anomalyCheck.anomalies
+        });
+      }
+    });
+
+    if (allAnomalies.length === 0) {
+      toast.success(`✅ Aucune anomalie détectée sur ${activeEmployees.length} employés`);
+    } else {
+      const anomaliesText = allAnomalies
+        .map(a => `${a.employeeName}: ${a.anomalies.join(', ')}`)
+        .join('\n');
+      
+      toast.warning(
+        `⚠️ ${allAnomalies.length} employé(s) avec anomalies:\n${anomaliesText}`,
+        { autoClose: 15000 }
+      );
+      
+      console.warn('Anomalies détectées:', allAnomalies);
+    }
+
+  } catch (error) {
+    console.error('Erreur vérification anomalies:', error);
+    toast.error(`Erreur vérification: ${error.message}`);
+  }
+}, [employees]);
+
+// FONCTIONS D'IMPORT D'EMPLOYÉS AVEC MAPPING ET GÉNÉRATION DE CONTRATS
+// ==================================================================================
+
+/**
+ * Parse un fichier CSV et extrait les données avec les en-têtes
+ */
+const parseCSVFile = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result;
+        const lines = text.split('\n').filter(line => line.trim());
+        
+        if (lines.length < 2) {
+          reject(new Error('Le fichier doit contenir au moins une ligne d\'en-têtes et une ligne de données'));
+          return;
+        }
+
+        // Parse headers (première ligne)
+        const headers = lines[0].split(',').map(h => h.trim().replace(/['"]/g, ''));
+        
+        // Parse data (lignes suivantes)
+        const data = lines.slice(1).map((line, index) => {
+          const values = line.split(',').map(v => v.trim().replace(/['"]/g, ''));
+          const row = { _rowIndex: index + 2 }; // +2 car ligne 1 = headers, ligne 2 = première data
+          
+          headers.forEach((header, i) => {
+            row[header] = values[i] || '';
+          });
+          
+          return row;
+        });
+
+        resolve({ headers, data });
+      } catch (error) {
+        reject(new Error(`Erreur parsing CSV: ${error.message}`));
+      }
+    };
+    reader.onerror = () => reject(new Error('Erreur lecture fichier'));
+    reader.readAsText(file, 'UTF-8');
+  });
+};
+
+/**
+ * Mapping automatique des colonnes basé sur des mots-clés
+ */
+const getAutoMapping = (headers) => {
+  const mapping = {};
+  const mappingRules = {
+    name: ['nom', 'name', 'prenom', 'prénom', 'fullname', 'nom_complet'],
+    matricule: ['matricule', 'id', 'employee_id', 'emp_id', 'numero'],
+    cnpsNumber: ['cnps', 'cnps_number', 'numero_cnps', 'social_security'],
+    baseSalary: ['salaire', 'salary', 'salaire_base', 'base_salary', 'remuneration'],
+    poste: ['poste', 'position', 'job', 'fonction', 'title', 'job_title'],
+    department: ['departement', 'department', 'service', 'division'],
+    hireDate: ['embauche', 'hire_date', 'date_embauche', 'start_date', 'debut'],
+    phone: ['telephone', 'phone', 'tel', 'mobile', 'contact'],
+    email: ['email', 'mail', 'e_mail', 'courriel'],
+    dateOfBirth: ['naissance', 'birth_date', 'date_naissance', 'birthday'],
+    lieuNaissance: ['lieu_naissance', 'birth_place', 'place_of_birth', 'ville_naissance']
+  };
+
+  headers.forEach(header => {
+    const lowerHeader = header.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    
+    for (const [field, keywords] of Object.entries(mappingRules)) {
+      if (keywords.some(keyword => lowerHeader.includes(keyword))) {
+        mapping[field] = header;
+        break;
+      }
+    }
+  });
+
+  return mapping;
+};
+
+/**
+ * Valide les données d'un employé avant création
+ */
+const validateEmployeeData = (rowData, mapping) => {
+  const errors = [];
+  
+  // Nom obligatoire
+  const name = rowData[mapping.name]?.trim();
+  if (!name) {
+    errors.push('Nom manquant');
+  }
+
+  // Salaire obligatoire et >= SMIG
+  const salary = Number(rowData[mapping.baseSalary]?.replace(/[^0-9.]/g, '') || 0);
+  if (!salary || salary <= 0) {
+    errors.push('Salaire manquant ou invalide');
+  } else if (salary < 36270) {
+    errors.push(`Salaire < SMIG (${salary} < 36,270 FCFA)`);
+  }
+
+  // CNPS obligatoire
+  const cnps = rowData[mapping.cnpsNumber]?.trim();
+  if (!cnps) {
+    errors.push('Numéro CNPS manquant');
+  }
+
+  // Matricule obligatoire
+  const matricule = rowData[mapping.matricule]?.trim();
+  if (!matricule) {
+    errors.push('Matricule manquant');
+  }
+
+  return errors;
+};
+
+/**
+ * Transforme une ligne CSV en objet employé
+ */
+const transformRowToEmployee = (rowData, mapping) => {
+  const parseDate = (dateStr) => {
+    if (!dateStr) return '';
+    // Essayer plusieurs formats de date
+    const formats = [
+      /(\d{1,2})\/(\d{1,2})\/(\d{4})/, // DD/MM/YYYY
+      /(\d{4})-(\d{1,2})-(\d{1,2})/, // YYYY-MM-DD
+      /(\d{1,2})-(\d{1,2})-(\d{4})/, // DD-MM-YYYY
+    ];
+    
+    for (const format of formats) {
+      const match = dateStr.match(format);
+      if (match) {
+        if (format === formats[1]) { // YYYY-MM-DD
+          return `${match[3]}/${match[2]}/${match[1]}`;
+        } else { // DD/MM/YYYY ou DD-MM-YYYY
+          return `${match[1]}/${match[2]}/${match[3]}`;
+        }
+      }
+    }
+    return dateStr; // Retourner tel quel si pas de format reconnu
+  };
+
+  return {
+    name: rowData[mapping.name]?.trim() || '',
+    matricule: rowData[mapping.matricule]?.trim() || `AUTO_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+    cnpsNumber: rowData[mapping.cnpsNumber]?.trim() || '',
+    baseSalary: Number(rowData[mapping.baseSalary]?.replace(/[^0-9.]/g, '') || 0),
+    poste: rowData[mapping.poste]?.trim() || 'Employé',
+    professionalCategory: rowData[mapping.poste]?.trim() || 'Employé',
+    department: rowData[mapping.department]?.trim() || '',
+    hireDate: parseDate(rowData[mapping.hireDate]?.trim()) || new Date().toLocaleDateString('fr-FR'),
+    phone: rowData[mapping.phone]?.trim() || '',
+    email: rowData[mapping.email]?.trim() || '',
+    dateOfBirth: parseDate(rowData[mapping.dateOfBirth]?.trim()) || '',
+    lieuNaissance: rowData[mapping.lieuNaissance]?.trim() || '',
+    status: 'Actif',
+    transportAllowance: 0,
+    housingAllowance: 0,
+    contractType: 'CDI'
+  };
+};
+
+/**
+ * Crée les employés en masse avec gestion d'erreurs
+ */
+const createEmployeesFromImport = async (validatedData, onProgress) => {
+  const results = { success: [], errors: [] };
+  
+  for (let i = 0; i < validatedData.length; i++) {
+    const employeeData = validatedData[i];
+    
+    try {
+      onProgress({
+        current: i + 1,
+        total: validatedData.length,
+        step: `Création de ${employeeData.name}...`
+      });
+
+      // Utiliser la fonction addEmployee existante
+      await addEmployee(employeeData);
+      
+      results.success.push({
+        name: employeeData.name,
+        matricule: employeeData.matricule,
+        data: employeeData
+      });
+
+    } catch (error) {
+      results.errors.push({
+        name: employeeData.name || 'Inconnu',
+        matricule: employeeData.matricule || 'N/A',
+        error: error.message,
+        data: employeeData
+      });
+    }
+
+    // Petite pause pour éviter de surcharger Firestore
+    if (i % 5 === 0) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+
+  return results;
+};
+
+/**
+ * Génère les contrats pour les employés créés
+ */
+const generateContractsForImportedEmployees = async (successfulEmployees, templateId, onProgress) => {
+  const results = { success: [], errors: [] };
+  
+  // Import dynamique du générateur de contrat
+  const { generateContractPDFCameroon } = await import('../utils/pdfTemplates/contractTemplateCameroon');
+  
+  for (let i = 0; i < successfulEmployees.length; i++) {
+    const empData = successfulEmployees[i];
+    
+    try {
+      onProgress({
+        current: i + 1,
+        total: successfulEmployees.length,
+        step: `Contrat de ${empData.name}...`
+      });
+
+      // Générer le PDF du contrat
+      await generateContractPDFCameroon(empData.data, companyData, {
+        template: templateId,
+        autoDownload: true
+      });
+
+      results.success.push({
+        name: empData.name,
+        matricule: empData.matricule
+      });
+
+    } catch (error) {
+      results.errors.push({
+        name: empData.name,
+        matricule: empData.matricule,
+        error: error.message
+      });
+    }
+
+    // Pause entre générations
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+
+  return results;
+};
+
   // Déconnexion
   const handleLogout = useCallback(async () => {
     try {
@@ -1251,7 +1848,6 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                 {activeTab === "leaves" && "🏖️ Congés"}
                 {activeTab === "absences" && "⏰ Absences"}
                 {activeTab === "payslips" && "💰 Paie"}
-                {activeTab === "contracts" && "📋 Contrats"}
                 {activeTab === "documents" && "📄 Documents"}
                 {activeTab === "hr-procedures" && "📚 Procédures RH"}
                 {activeTab === "reports" && "📈 Rapports"}
@@ -1308,8 +1904,61 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
           
           {activeTab === "overview" && (
             <div className="space-y-6">
+              {/* Actions Rapides - Nouveau */}
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-lg p-4 sm:p-6 mb-6">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+                  <div className="text-white">
+                    <h3 className="text-lg sm:text-xl font-bold mb-1">⚡ Actions Rapides</h3>
+                    <p className="text-blue-100 text-sm">Effectuez vos tâches courantes en 1-2 clics</p>
+                  </div>
+                  
+                  {/* Boutons d'actions rapides */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
+                    <button
+                      onClick={() => setShowEmployeeModal(true)}
+                      className="flex flex-col items-center p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 hover:scale-105 backdrop-blur-sm"
+                    >
+                      <Plus className="w-5 h-5 text-white mb-1" />
+                      <span className="text-xs text-white font-medium">Employé</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => setShowPaySlipForm(true)}
+                      className="flex flex-col items-center p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 hover:scale-105 backdrop-blur-sm"
+                    >
+                      <CreditCard className="w-5 h-5 text-white mb-1" />
+                      <span className="text-xs text-white font-medium">Fiche Paie</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => setActiveTab("documents")}
+                      className="flex flex-col items-center p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 hover:scale-105 backdrop-blur-sm"
+                    >
+                      <FileText className="w-5 h-5 text-white mb-1" />
+                      <span className="text-xs text-white font-medium">Document</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => setActiveTab("documents")}
+                      className="flex flex-col items-center p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 hover:scale-105 backdrop-blur-sm"
+                    >
+                      <Edit className="w-5 h-5 text-white mb-1" />
+                      <span className="text-xs text-white font-medium">Contrat</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => setActiveTab("reports")}
+                      className="flex flex-col items-center p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 hover:scale-105 backdrop-blur-sm"
+                    >
+                      <Download className="w-5 h-5 text-white mb-1" />
+                      <span className="text-xs text-white font-medium">Export</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               {/* En-tête avec indicateur temps réel - Responsive */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
                   <div>
                     <h2 className="text-xl sm:text-2xl font-bold text-gray-900">📊 Tableau de Bord</h2>
@@ -1329,7 +1978,10 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
 
               {/* Statistiques principales */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-                <Card className="bg-gradient-to-br from-blue-600 to-blue-400 text-white hover:shadow-xl transition-all duration-300 hover:scale-105">
+                <Card 
+                  className="bg-gradient-to-br from-blue-600 to-blue-400 text-white hover:shadow-xl transition-all duration-300 hover:scale-105 cursor-pointer"
+                  onClick={() => setActiveTab("employees")}
+                >
                   <div className="p-4 sm:p-6">
                     <div className="flex items-center justify-between mb-3">
                       <Users className="w-6 h-6 sm:w-8 sm:h-8" />
@@ -1351,10 +2003,17 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                           : '0%'}
                       </span>
                     </div>
+                    <div className="mt-2 text-xs opacity-75 flex items-center">
+                      <Eye className="w-3 h-3 mr-1" />
+                      Cliquez pour voir la liste
+                    </div>
                   </div>
                 </Card>
 
-                <Card className="bg-gradient-to-br from-green-600 to-green-400 text-white hover:shadow-xl transition-all duration-300 hover:scale-105">
+                <Card 
+                  className="bg-gradient-to-br from-green-600 to-green-400 text-white hover:shadow-xl transition-all duration-300 hover:scale-105 cursor-pointer"
+                  onClick={() => setActiveTab("leaves")}
+                >
                   <div className="p-4 sm:p-6">
                     <div className="flex items-center justify-between mb-3">
                       <Calendar className="w-6 h-6 sm:w-8 sm:h-8" />
@@ -1373,6 +2032,10 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                       <span className="bg-white/20 px-2 py-1 rounded">
                         Total: {leaveRequests.length}
                       </span>
+                    </div>
+                    <div className="mt-2 text-xs opacity-75 flex items-center">
+                      <Eye className="w-3 h-3 mr-1" />
+                      Gérer les congés
                     </div>
                   </div>
                 </Card>
@@ -1767,35 +2430,115 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
           )}
 {activeTab === "employees" && (
   <div className="space-y-6">
-    <div className="flex items-center justify-between">
-      <h1 className="text-3xl font-bold text-gray-900">Gestion des Employes</h1>
-      <Button onClick={() => setShowEmployeeModal(true)} icon={Plus} className="bg-blue-600 hover:bg-blue-700 text-white">
-        Ajouter Employe
-      </Button>
+    {/* En-tête amélioré avec actions rapides */}
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">👥 Gestion des Employés</h1>
+          <p className="text-gray-600">Gérez votre équipe efficacement</p>
+        </div>
+        
+        {/* Actions rapides pour employés */}
+        <div className="flex flex-wrap gap-2">
+          <Button 
+            onClick={() => setShowEmployeeModal(true)} 
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all hover:scale-105"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Nouvel Employé</span>
+            <span className="sm:hidden">Nouveau</span>
+          </Button>
+          
+          <Button 
+            onClick={() => setShowPaySlipForm(true)} 
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all hover:scale-105"
+          >
+            <CreditCard className="w-4 h-4" />
+            <span className="hidden sm:inline">Fiche de Paie</span>
+            <span className="sm:hidden">Paie</span>
+          </Button>
+          
+          <Button 
+            onClick={() => setActiveTab("reports")} 
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all hover:scale-105"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">Exporter</span>
+            <span className="sm:hidden">Export</span>
+          </Button>
+        </div>
+      </div>
+      
+      {/* Statistiques rapides */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
+        <div className="bg-blue-50 rounded-lg p-3 text-center">
+          <p className="text-2xl font-bold text-blue-600">{employees.length}</p>
+          <p className="text-xs text-blue-600">Total</p>
+        </div>
+        <div className="bg-green-50 rounded-lg p-3 text-center">
+          <p className="text-2xl font-bold text-green-600">{employees.filter(emp => emp.status === 'Actif').length}</p>
+          <p className="text-xs text-green-600">Actifs</p>
+        </div>
+        <div className="bg-yellow-50 rounded-lg p-3 text-center">
+          <p className="text-2xl font-bold text-yellow-600">{employees.filter(emp => emp.status === 'Inactif').length}</p>
+          <p className="text-xs text-yellow-600">Inactifs</p>
+        </div>
+        <div className="bg-purple-50 rounded-lg p-3 text-center">
+          <p className="text-2xl font-bold text-purple-600">{new Set(employees.map(emp => emp.department).filter(Boolean)).size}</p>
+          <p className="text-xs text-purple-600">Départements</p>
+        </div>
+      </div>
     </div>
     <Card>
-      <div className="p-6">
-        <div className="flex flex-col sm:flex-row gap-4 mb-4">
-          <div className="flex items-center gap-2 flex-1">
-            <Search className="w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Rechercher un employé..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="p-2 border border-blue-200 rounded-lg w-full"
-            />
+      <div className="p-4 sm:p-6">
+        {/* Barre de recherche et filtres améliorée */}
+        <div className="bg-gray-50 rounded-xl p-4 mb-6">
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Recherche */}
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Rechercher par nom, email, poste..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            {/* Filtres */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-gray-500" />
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                >
+                  <option value="name">Trier par Nom</option>
+                  <option value="role">Trier par Rôle</option>
+                  <option value="poste">Trier par Poste</option>
+                  <option value="hireDate">Trier par Date</option>
+                </select>
+              </div>
+              
+              {/* Indicateur de résultats */}
+              <div className="flex items-center px-3 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm">
+                <span className="font-medium">{filteredEmployees.length}</span>
+                <span className="ml-1">résultat{filteredEmployees.length > 1 ? 's' : ''}</span>
+              </div>
+            </div>
           </div>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="p-2 border border-blue-200 rounded-lg"
-          >
-            <option value="name">Nom</option>
-            <option value="role">Role</option>
-            <option value="poste">Poste</option>
-            <option value="hireDate">Date d'embauche</option>
-          </select>
         </div>
         {filteredEmployees.length === 0 ? (
           <p className="text-center text-gray-500">Aucun employé trouvé.</p>
@@ -2253,28 +2996,141 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
           )}
            {activeTab === "payslips" && (
   <div className="space-y-6">
-    <h1 className="text-3xl font-bold text-gray-900">Gestion de la Paie</h1>
+    {/* ⚡ EN-TÊTE OPTIMISÉ AVEC ACTIONS RAPIDES */}
+    <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl shadow-lg p-4 sm:p-6">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+        <div className="text-white">
+          <h1 className="text-2xl sm:text-3xl font-bold mb-2">💰 Gestion de la Paie Optimisée</h1>
+          <p className="text-green-100 text-sm sm:text-base">
+            Traitement automatique et parallèle • Détection d'anomalies • Batch Firestore
+          </p>
+        </div>
+        
+        {/* Statistiques temps réel */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-white">
+          <div className="bg-white/10 rounded-lg p-3 text-center backdrop-blur-sm">
+            <p className="text-lg sm:text-xl font-bold">{employees.filter(emp => emp.status === 'Actif').length}</p>
+            <p className="text-xs text-green-100">Employés Actifs</p>
+          </div>
+          <div className="bg-white/10 rounded-lg p-3 text-center backdrop-blur-sm">
+            <p className="text-lg sm:text-xl font-bold">
+              {employees.reduce((sum, emp) => sum + (emp.payslips?.length || 0), 0)}
+            </p>
+            <p className="text-xs text-green-100">Fiches Générées</p>
+          </div>
+          <div className="bg-white/10 rounded-lg p-3 text-center backdrop-blur-sm col-span-2 sm:col-span-1">
+            <p className="text-lg sm:text-xl font-bold">
+              {new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+            </p>
+            <p className="text-xs text-green-100">Période Courante</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* ⚡ ACTIONS RAPIDES OPTIMISÉES */}
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">🚀 Actions Rapides</h3>
+      
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Lancer Paie Mensuelle */}
+        <button
+          onClick={launchMonthlyPayroll}
+          disabled={actionLoading || employees.filter(emp => emp.status === 'Actif').length === 0}
+          className="flex flex-col items-center p-4 bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+        >
+          <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-3">
+            <CreditCard className="w-6 h-6" />
+          </div>
+          <span className="font-semibold text-sm text-center">Lancer Paie du Mois</span>
+          <span className="text-xs text-blue-100 mt-1">
+            {employees.filter(emp => emp.status === 'Actif').length} employés
+          </span>
+        </button>
+
+        {/* Vérifier Anomalies */}
+        <button
+          onClick={checkPayrollAnomalies}
+          disabled={actionLoading}
+          className="flex flex-col items-center p-4 bg-gradient-to-br from-yellow-600 to-orange-600 text-white rounded-lg hover:from-yellow-700 hover:to-orange-700 transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+        >
+          <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-3">
+            <Search className="w-6 h-6" />
+          </div>
+          <span className="font-semibold text-sm text-center">Vérifier Anomalies</span>
+          <span className="text-xs text-yellow-100 mt-1">Contrôle qualité</span>
+        </button>
+
+        {/* Générer tous les PDF */}
+        <button
+          onClick={generateAllPayslipsPDF}
+          disabled={actionLoading || employees.filter(emp => emp.payslips?.length > 0).length === 0}
+          className="flex flex-col items-center p-4 bg-gradient-to-br from-purple-600 to-purple-700 text-white rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+        >
+          <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-3">
+            <Download className="w-6 h-6" />
+          </div>
+          <span className="font-semibold text-sm text-center">Générer tous PDF</span>
+          <span className="text-xs text-purple-100 mt-1">Traitement parallèle</span>
+        </button>
+
+        {/* Fiche Individuelle */}
+        <button
+          onClick={() => {
+            setSelectedEmployee(null);
+            setShowPaySlipForm(true);
+            setPaySlipData(null);
+          }}
+          disabled={actionLoading}
+          className="flex flex-col items-center p-4 bg-gradient-to-br from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+        >
+          <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-3">
+            <Plus className="w-6 h-6" />
+          </div>
+          <span className="font-semibold text-sm text-center">Fiche Individuelle</span>
+          <span className="text-xs text-green-100 mt-1">Mode classique</span>
+        </button>
+      </div>
+
+      {/* Barre de progression si traitement en cours */}
+      {actionLoading && (
+        <div className="mt-6 bg-blue-50 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-blue-900">Traitement en cours...</span>
+            <span className="text-sm text-blue-600">⚡ Mode parallèle</span>
+          </div>
+          <div className="w-full bg-blue-200 rounded-full h-2">
+            <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: '60%' }}></div>
+          </div>
+          <p className="text-xs text-blue-700 mt-2">
+            Calculs automatiques • Détection anomalies • Sauvegarde batch
+          </p>
+        </div>
+      )}
+    </div>
+
+    {/* ⚡ TABLEAU OPTIMISÉ DES FICHES */}
     <Card>
-      <div className="p-6">
-        <div className="flex items-center gap-4 mb-4">
-          <Button
-            onClick={() => {
-              setSelectedEmployee(null);
-              setShowPaySlipForm(true);
-              setPaySlipData(null); // Réinitialiser pour nouvelle fiche
-            }}
-            icon={Plus}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            Generer Fiche
-          </Button>
-          <Button
-            onClick={() => setShowTemplateSelector(true)}
-            icon={FileText}
-            className="bg-green-600 hover:bg-green-700 text-white"
-          >
-            Modèles
-          </Button>
+      <div className="p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">📋 Fiches de Paie</h3>
+            <p className="text-sm text-gray-600">
+              {employees.reduce((sum, emp) => sum + (emp.payslips?.length || 0), 0)} fiche(s) • 
+              Template: <span className="font-medium text-blue-600">{selectedPaySlipTemplate}</span>
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setShowTemplateSelector(true)}
+              icon={Settings}
+              className="bg-gray-600 hover:bg-gray-700 text-white"
+              size="sm"
+            >
+              Modèles
+            </Button>
+          </div>
         </div>
         {filteredEmployees.every(emp => !emp.payslips || emp.payslips.length === 0) ? (
           <p className="text-center text-gray-500">Aucune fiche de paie disponible.</p>
@@ -2293,16 +3149,21 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
               </thead>
               <tbody>
                 {filteredEmployees.flatMap((emp) =>
-                  (emp.payslips || []).map((payslip) => (
-                    <tr key={payslip.id} className="border-b border-blue-100 hover:bg-blue-50">
-                      <td className="py-4 px-4">{payslip.employee?.name || "N/A"}</td>
-                      <td className="py-4 px-4">{payslip.employee?.matricule || "N/A"}</td>
-                      <td className="py-4 px-4">{payslip.employee?.poste || "N/A"}</td>
-                      <td className="py-4 px-4">{payslip.payPeriod || "N/A"}</td>
+                  (emp.payslips || []).map((payslip, index) => (
+                    <tr key={payslip.id || `${emp.id}_${index}`} className="border-b border-blue-100 hover:bg-blue-50">
+                      <td className="py-4 px-4">{payslip.employee?.name || payslip.employeeName || emp.name || "N/A"}</td>
+                      <td className="py-4 px-4">{payslip.employee?.matricule || payslip.matricule || emp.matricule || "N/A"}</td>
+                      <td className="py-4 px-4">{payslip.employee?.poste || emp.poste || emp.professionalCategory || "N/A"}</td>
+                      <td className="py-4 px-4">{payslip.payPeriod || (payslip.year && payslip.month ? `${payslip.year}-${String(payslip.month).padStart(2,'0')}` : "N/A")}</td>
                         <td className="py-4 px-4">
                         {(() => {
-                          const calc = computeCompletePayroll(payslip);
-                          return formatCFA(calc.netPay);
+                          try {
+                            const calc = computeCompletePayroll(payslip || {});
+                            return formatCFA(calc.netPay || 0);
+                          } catch {
+                            const fallbackNet = payslip?.netPay ?? payslip?.net ?? 0;
+                            return formatCFA(Number(fallbackNet) || 0);
+                          }
                         })()}
                       </td>
                         <td className="py-4 px-4 flex gap-2">
@@ -2312,7 +3173,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                             onClick={() => {
                               showPaySlipDetailsModal(payslip, payslip.employee || emp);
                             }}
-                          disabled={!payslip.employee || typeof payslip.remuneration?.total !== 'number'}
+                          disabled={false}
                           >
                             Voir
                           </Button>
@@ -2325,7 +3186,7 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                               setShowPaySlipForm(true);
                             }}
                             className="bg-yellow-600 hover:bg-yellow-700 text-white"
-                          disabled={!payslip.employee || typeof payslip.remuneration?.total !== 'number'}
+                          disabled={false}
                           >
                             Modifier
                           </Button>
@@ -2333,12 +3194,12 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                             size="sm"
                             icon={Trash}
                             onClick={() => {
-                            if (window.confirm(`Voulez-vous vraiment supprimer la fiche de paie pour ${payslip.employee?.name || "N/A"} (${payslip.payPeriod}) ?`)) {
-                              deletePaySlip(emp.id, payslip.id);
+                            if (window.confirm(`Voulez-vous vraiment supprimer la fiche de paie pour ${payslip.employee?.name || payslip.employeeName || emp.name || "N/A"} (${payslip.payPeriod || (payslip.year && payslip.month ? `${payslip.year}-${String(payslip.month).padStart(2,'0')}` : 'N/A')}) ?`)) {
+                              deletePaySlip(emp.id, payslip.id, index);
                               }
                             }}
                             className="bg-red-600 hover:bg-red-700 text-white"
-                          disabled={!payslip.employee || typeof payslip.remuneration?.total !== 'number'}
+                          disabled={false}
                           >
                             Supprimer
                           </Button>
@@ -2425,7 +3286,13 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
                       </Button>
                       <Button
                         size="sm"
-                        onClick={() => deletePaySlip(selectedEmployee.id, payslip.id)}
+                        onClick={() => {
+                          const period = payslip.payPeriod || (payslip.year && payslip.month ? `${payslip.year}-${String(payslip.month).padStart(2,'0')}` : 'N/A');
+                          const name = selectedEmployee?.name || payslip.employeeName || 'N/A';
+                          if (window.confirm(`Supprimer la fiche de paie de ${name} (${period}) ?`)) {
+                            deletePaySlip(selectedEmployee.id, payslip.id, index);
+                          }
+                        }}
                         icon={Trash2}
                         className="bg-red-600 hover:bg-red-700 text-white"
                       >
@@ -2965,23 +3832,45 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
               </Card>
             </div>
           )}
-          {activeTab === "contracts" && (
-            <ContractManagementPage
-              employees={employees}
-              onEmployeeUpdate={(employeeId, updatedEmployee) => {
-                setEmployees(prev => prev.map(emp => 
-                  emp.id === employeeId ? updatedEmployee : emp
-                ));
-              }}
-            />
-          )}
           {activeTab === "documents" && companyData?.id && (
-            <DocumentsManager 
-              companyId={companyData.id} 
-              userRole="admin" 
-              companyData={companyData} 
-              employees={employees}
-            />
+            <div className="space-y-6">
+              {/* Section Documents RH unifiée */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">📄 Documents des Employés</h2>
+                    <p className="text-sm text-gray-600">Tous les documents RH : contrats, offres, attestations, certificats</p>
+                  </div>
+                </div>
+                
+                {/* DocumentsManager unifié */}
+                <DocumentsManager 
+                  companyId={companyData.id} 
+                  userRole="admin" 
+                  companyData={companyData} 
+                  employees={employees}
+                />
+              </div>
+
+              {/* Section Gestion des Contrats */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">📋 Gestion des Contrats</h2>
+                    <p className="text-sm text-gray-600">Modifications de contrats et procédures de licenciement</p>
+                  </div>
+                </div>
+                
+                <ContractManagementPage
+                  employees={employees}
+                  onEmployeeUpdate={(employeeId, updatedEmployee) => {
+                    setEmployees(prev => prev.map(emp => 
+                      emp.id === employeeId ? updatedEmployee : emp
+                    ));
+                  }}
+                />
+              </div>
+            </div>
           )}
           {activeTab === "hr-procedures" && (
             <HRProceduresPage
@@ -3047,6 +3936,792 @@ const savePaySlip = async (paySlipData, payslipId = null) => {
         )}
       </Modal>
       
+      {/* Bouton d'actions rapides flottant - Mobile uniquement */}
+      <div className="fixed bottom-20 right-4 z-40 md:hidden">
+        <div className="relative">
+          {/* Menu d'actions rapides */}
+          {showQuickActions && (
+            <div className="absolute bottom-16 right-0 bg-white rounded-2xl shadow-2xl border border-gray-200 p-2 min-w-[200px]">
+              <div className="space-y-1">
+                <button
+                  onClick={() => {
+                    setShowEmployeeModal(true);
+                    setShowQuickActions(false);
+                  }}
+                  className="w-full flex items-center gap-3 p-3 text-left hover:bg-blue-50 rounded-lg transition-colors"
+                >
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <Plus className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <span className="text-sm font-medium text-gray-700">Nouvel Employé</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowImportWizard(true);
+                    setShowQuickActions(false);
+                  }}
+                  className="w-full flex items-center gap-3 p-3 text-left hover:bg-blue-50 rounded-lg transition-colors"
+                >
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <Upload className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <span className="text-sm font-medium text-gray-700">Import CSV</span>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setShowPaySlipForm(true);
+                    setShowQuickActions(false);
+                  }}
+                  className="w-full flex items-center gap-3 p-3 text-left hover:bg-green-50 rounded-lg transition-colors"
+                >
+                  <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                    <CreditCard className="w-4 h-4 text-green-600" />
+                  </div>
+                  <span className="text-sm font-medium text-gray-700">Fiche de Paie</span>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setActiveTab("documents");
+                    setShowQuickActions(false);
+                  }}
+                  className="w-full flex items-center gap-3 p-3 text-left hover:bg-purple-50 rounded-lg transition-colors"
+                >
+                  <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <FileText className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <span className="text-sm font-medium text-gray-700">Nouveau Document</span>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setActiveTab("documents");
+                    setShowQuickActions(false);
+                  }}
+                  className="w-full flex items-center gap-3 p-3 text-left hover:bg-orange-50 rounded-lg transition-colors"
+                >
+                  <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                    <Edit className="w-4 h-4 text-orange-600" />
+                  </div>
+                  <span className="text-sm font-medium text-gray-700">Nouveau Contrat</span>
+                </button>
+              </div>
+            </div>
+          )}
+          
+          {/* Bouton principal */}
+          <button
+            onClick={() => setShowQuickActions(!showQuickActions)}
+            className="w-14 h-14 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-all duration-200 active:scale-95"
+          >
+            {showQuickActions ? (
+              <X className="w-6 h-6" />
+            ) : (
+              <Plus className="w-6 h-6" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* WIZARD D'IMPORT D'EMPLOYÉS */}
+      <Modal 
+        isOpen={showImportWizard} 
+        onClose={() => {
+          setShowImportWizard(false);
+          setImportStep(1);
+          setImportFile(null);
+          setImportData([]);
+          setImportHeaders([]);
+          setColumnMapping({});
+          setImportProgress({ current: 0, total: 0, step: '' });
+          setImportResults({ success: [], errors: [] });
+        }}
+        className="max-w-4xl"
+      >
+        <div className="p-6">
+          {/* En-tête simplifié */}
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">Import d'Employés</h2>
+              <p className="text-sm text-gray-500">Étape {importStep} sur 5</p>
+            </div>
+            <div className="flex items-center space-x-1">
+              {[1, 2, 3, 4, 5].map((step) => (
+                <div
+                  key={step}
+                  className={`w-2 h-2 rounded-full ${
+                    step <= importStep ? 'bg-blue-500' : 'bg-gray-300'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Étape 1: Upload du fichier */}
+          {importStep === 1 && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-medium mb-2">Fichier CSV</h3>
+                <p className="text-gray-600 text-sm">
+                  Format attendu : Nom, Matricule, CNPS, Salaire, Poste
+                </p>
+              </div>
+
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={async (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      try {
+                        setImportFile(file);
+                        const { headers, data } = await parseCSVFile(file);
+                        setImportHeaders(headers);
+                        setImportData(data);
+                        setColumnMapping(getAutoMapping(headers));
+                        toast.success(`${data.length} lignes détectées`);
+                      } catch (error) {
+                        toast.error(error.message);
+                      }
+                    }
+                  }}
+                  className="hidden"
+                  id="csv-upload"
+                />
+                <label htmlFor="csv-upload" className="cursor-pointer">
+                  <Upload className="w-8 h-8 text-gray-400 mx-auto mb-3" />
+                  <p className="font-medium text-gray-700 mb-1">
+                    {importFile ? importFile.name : 'Sélectionner un fichier CSV'}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {importFile ? `${importData.length} lignes` : 'Glisser-déposer ou cliquer'}
+                  </p>
+                </label>
+              </div>
+
+              {importFile && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm font-medium text-blue-800 mb-2">Colonnes : {importHeaders.length}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {importHeaders.slice(0, 6).map((header, index) => (
+                      <span key={index} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
+                        {header}
+                      </span>
+                    ))}
+                    {importHeaders.length > 6 && (
+                      <span className="px-2 py-1 text-blue-600 text-xs">+{importHeaders.length - 6}</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-between">
+                <Button onClick={() => setShowImportWizard(false)} variant="outline">
+                  Annuler
+                </Button>
+                <Button
+                  onClick={() => setImportStep(2)}
+                  disabled={!importFile || importData.length === 0}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Suivant
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Étape 2: Mapping des colonnes */}
+          {importStep === 2 && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-medium mb-2">Correspondance des colonnes</h3>
+                <p className="text-gray-600 text-sm">
+                  Associez les colonnes de votre fichier aux champs employé
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { key: 'name', label: 'Nom complet', required: true },
+                  { key: 'matricule', label: 'Matricule', required: true },
+                  { key: 'cnpsNumber', label: 'Numéro CNPS', required: true },
+                  { key: 'baseSalary', label: 'Salaire de base', required: true },
+                  { key: 'poste', label: 'Poste/Fonction', required: false },
+                  { key: 'department', label: 'Département', required: false },
+                  { key: 'hireDate', label: 'Date d\'embauche', required: false },
+                  { key: 'phone', label: 'Téléphone', required: false },
+                  { key: 'email', label: 'Email', required: false },
+                  { key: 'dateOfBirth', label: 'Date de naissance', required: false },
+                  { key: 'lieuNaissance', label: 'Lieu de naissance', required: false }
+                ].map((field) => (
+                  <div key={field.key} className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      {field.label} {field.required && <span className="text-red-500">*</span>}
+                    </label>
+                    <select
+                      value={columnMapping[field.key] || ''}
+                      onChange={(e) => setColumnMapping(prev => ({
+                        ...prev,
+                        [field.key]: e.target.value
+                      }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">-- Sélectionner une colonne --</option>
+                      {importHeaders.map((header, index) => (
+                        <option key={index} value={header}>{header}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+
+              {/* Aperçu simplifié */}
+              {importData.length > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm font-medium text-blue-800 mb-2">Aperçu (3 premières lignes)</p>
+                  <div className="space-y-2">
+                    {importData.slice(0, 3).map((row, index) => (
+                      <div key={index} className="text-xs text-blue-700 bg-blue-100 rounded p-2">
+                        {columnMapping.name && row[columnMapping.name] && (
+                          <span className="font-medium">{row[columnMapping.name]}</span>
+                        )}
+                        {columnMapping.matricule && row[columnMapping.matricule] && (
+                          <span className="ml-2">• {row[columnMapping.matricule]}</span>
+                        )}
+                        {columnMapping.baseSalary && row[columnMapping.baseSalary] && (
+                          <span className="ml-2">• {row[columnMapping.baseSalary]} FCFA</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-between">
+                <Button
+                  onClick={() => setImportStep(1)}
+                  variant="outline"
+                >
+                  Précédent
+                </Button>
+                <Button
+                  onClick={() => setImportStep(3)}
+                  disabled={!columnMapping.name || !columnMapping.matricule || !columnMapping.cnpsNumber || !columnMapping.baseSalary}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Suivant
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Étape 3: Validation */}
+          {importStep === 3 && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-medium mb-2">Validation</h3>
+                <p className="text-gray-600 text-sm">
+                  Vérification avant création
+                </p>
+              </div>
+
+              {(() => {
+                const validationResults = importData.map((row, index) => {
+                  const errors = validateEmployeeData(row, columnMapping);
+                  return {
+                    index,
+                    row,
+                    errors,
+                    employee: transformRowToEmployee(row, columnMapping)
+                  };
+                });
+
+                const validRows = validationResults.filter(r => r.errors.length === 0);
+                const invalidRows = validationResults.filter(r => r.errors.length > 0);
+
+                return (
+                  <div className="space-y-4">
+                    {/* Résumé simplifié */}
+                    <div className="flex justify-center space-x-8">
+                      <div className="text-center">
+                        <div className="text-xl font-semibold text-gray-900">{importData.length}</div>
+                        <div className="text-xs text-gray-600">Total</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xl font-semibold text-green-600">{validRows.length}</div>
+                        <div className="text-xs text-gray-600">Valides</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xl font-semibold text-red-600">{invalidRows.length}</div>
+                        <div className="text-xs text-gray-600">Erreurs</div>
+                      </div>
+                    </div>
+
+                    {/* Erreurs détaillées */}
+                    {invalidRows.length > 0 && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <h4 className="font-medium text-red-800 mb-3">Erreurs détectées :</h4>
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                          {invalidRows.map((result) => (
+                            <div key={result.index} className="text-sm">
+                              <span className="font-medium text-red-700">
+                                Ligne {result.index + 2}: {result.row[columnMapping.name] || 'Nom manquant'}
+                              </span>
+                              <ul className="ml-4 text-red-600">
+                                {result.errors.map((error, i) => (
+                                  <li key={i}>• {error}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Options contrats */}
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="generate-contracts"
+                          checked={generateContracts}
+                          onChange={(e) => setGenerateContracts(e.target.checked)}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <label htmlFor="generate-contracts" className="text-sm font-medium text-gray-700">
+                          Générer les contrats PDF
+                        </label>
+                      </div>
+                      
+                      {generateContracts && (
+                        <div className="mt-3">
+                          <select
+                            value={contractTemplateForImport}
+                            onChange={(e) => setContractTemplateForImport(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                          >
+                            <option value="contract1">Standard Cameroun</option>
+                            <option value="amendment">Avenant</option>
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Stockage des résultats pour l'étape suivante */}
+                    <script
+                      dangerouslySetInnerHTML={{
+                        __html: `window.validationResults = ${JSON.stringify(validRows.map(r => r.employee))};`
+                      }}
+                    />
+                  </div>
+                );
+              })()}
+
+              <div className="flex justify-between">
+                <Button
+                  onClick={() => setImportStep(2)}
+                  variant="outline"
+                >
+                  Précédent
+                </Button>
+                <Button
+                  onClick={() => setImportStep(4)}
+                  disabled={importData.filter((row) => validateEmployeeData(row, columnMapping).length === 0).length === 0}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Créer
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Étape 4: Création des employés */}
+          {importStep === 4 && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h3 className="text-lg font-medium mb-2">Création en cours</h3>
+                <p className="text-gray-600 text-sm">
+                  {importProgress.step || 'Traitement...'}
+                </p>
+              </div>
+
+              {/* Barre de progression */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>Progression</span>
+                  <span>{importProgress.current} / {importProgress.total}</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                    style={{
+                      width: importProgress.total > 0 ? `${(importProgress.current / importProgress.total) * 100}%` : '0%'
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Démarrage automatique de la création */}
+              {(() => {
+                React.useEffect(() => {
+                  if (importStep === 4 && importResults.success.length === 0 && importResults.errors.length === 0) {
+                    const validEmployees = importData
+                      .filter((row) => validateEmployeeData(row, columnMapping).length === 0)
+                      .map((row) => transformRowToEmployee(row, columnMapping));
+
+                    if (validEmployees.length > 0) {
+                      createEmployeesFromImport(validEmployees, setImportProgress)
+                        .then((results) => {
+                          setImportResults(results);
+                          if (generateContracts && results.success.length > 0) {
+                            setImportStep(5);
+                          } else {
+                            // Afficher les résultats finaux
+                            toast.success(`${results.success.length} employé(s) créé(s) avec succès !`);
+                            if (results.errors.length > 0) {
+                              toast.warning(`${results.errors.length} erreur(s) lors de la création`);
+                            }
+                          }
+                        })
+                        .catch((error) => {
+                          toast.error(`Erreur lors de la création : ${error.message}`);
+                        });
+                    }
+                  }
+                }, [importStep]);
+
+                return null;
+              })()}
+
+              <div className="flex justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              </div>
+            </div>
+          )}
+
+          {/* Étape 5: Génération des contrats */}
+          {importStep === 5 && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h3 className="text-lg font-medium mb-2">Génération PDF</h3>
+                <p className="text-gray-600 text-sm">
+                  {importProgress.step || 'Création des contrats...'}
+                </p>
+              </div>
+
+              {/* Barre de progression contrats */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>Contrats</span>
+                  <span>{importProgress.current} / {importProgress.total}</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                    style={{
+                      width: importProgress.total > 0 ? `${(importProgress.current / importProgress.total) * 100}%` : '0%'
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Démarrage automatique de la génération de contrats */}
+              {(() => {
+                React.useEffect(() => {
+                  if (importStep === 5 && importResults.success.length > 0) {
+                    generateContractsForImportedEmployees(
+                      importResults.success,
+                      contractTemplateForImport,
+                      setImportProgress
+                    )
+                      .then((contractResults) => {
+                        toast.success(`${contractResults.success.length} contrat(s) généré(s) !`);
+                        if (contractResults.errors.length > 0) {
+                          toast.warning(`${contractResults.errors.length} erreur(s) de génération de contrats`);
+                        }
+                        
+                        // Résumé final
+                        const totalCreated = importResults.success.length;
+                        const totalContracts = contractResults.success.length;
+                        
+                        toast.success(
+                          `🎉 Import terminé !\n` +
+                          `✅ ${totalCreated} employé(s) créé(s)\n` +
+                          `📄 ${totalContracts} contrat(s) généré(s)`,
+                          { autoClose: 10000 }
+                        );
+                      })
+                      .catch((error) => {
+                        toast.error(`Erreur génération contrats : ${error.message}`);
+                      });
+                  }
+                }, [importStep, importResults]);
+
+                return null;
+              })()}
+
+              <div className="flex justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              </div>
+
+              <div className="text-center">
+                <Button
+                  onClick={() => {
+                    setShowImportWizard(false);
+                    // Reset du wizard
+                    setImportStep(1);
+                    setImportFile(null);
+                    setImportData([]);
+                    setImportHeaders([]);
+                    setColumnMapping({});
+                    setImportProgress({ current: 0, total: 0, step: '' });
+                    setImportResults({ success: [], errors: [] });
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Terminer
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Modal de choix de documents après création d'employé */}
+      {showPostCreateModal && preparedDocuments && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Créer un document</h3>
+                <p className="text-sm text-gray-600">
+                  Employé : {preparedDocuments.employee?.name}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowPostCreateModal(false);
+                  setPreparedDocuments(null);
+                  setSelectedDocumentType('contract');
+                  setShowDocumentPreview(false);
+                }}
+                className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-all"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              {!showDocumentPreview ? (
+                <>
+                  {/* Choix du type de document */}
+                  <div className="space-y-4 mb-6">
+                    <h4 className="font-medium text-gray-800">Choisir le type de document :</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <button
+                        onClick={() => setSelectedDocumentType('contract')}
+                        className={`p-4 border-2 rounded-lg transition-all ${
+                          selectedDocumentType === 'contract'
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                            selectedDocumentType === 'contract' ? 'bg-blue-100' : 'bg-gray-100'
+                          }`}>
+                            <FileText className={`w-5 h-5 ${
+                              selectedDocumentType === 'contract' ? 'text-blue-600' : 'text-gray-600'
+                            }`} />
+                          </div>
+                          <div className="text-left">
+                            <h5 className="font-medium text-gray-900">Contrat de travail</h5>
+                            <p className="text-sm text-gray-600">Document officiel d'embauche</p>
+                          </div>
+                        </div>
+                      </button>
+                      
+                      <button
+                        onClick={() => setSelectedDocumentType('offer')}
+                        className={`p-4 border-2 rounded-lg transition-all ${
+                          selectedDocumentType === 'offer'
+                            ? 'border-green-500 bg-green-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                            selectedDocumentType === 'offer' ? 'bg-green-100' : 'bg-gray-100'
+                          }`}>
+                            <Edit className={`w-5 h-5 ${
+                              selectedDocumentType === 'offer' ? 'text-green-600' : 'text-gray-600'
+                            }`} />
+                          </div>
+                          <div className="text-left">
+                            <h5 className="font-medium text-gray-900">Lettre d'offre</h5>
+                            <p className="text-sm text-gray-600">Proposition d'emploi</p>
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => {
+                        setShowPostCreateModal(false);
+                        setPreparedDocuments(null);
+                        setSelectedDocumentType('contract');
+                      }}
+                      className="px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all"
+                    >
+                      Passer
+                    </button>
+                    
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={() => setShowDocumentPreview(true)}
+                        className="flex items-center space-x-2 px-4 py-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all"
+                      >
+                        <Eye className="h-4 w-4" />
+                        <span>Aperçu</span>
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const docData = preparedDocuments[selectedDocumentType];
+                            
+                            // Sauvegarder le document dans Firestore
+                            await addDoc(collection(db, 'documents'), {
+                              ...docData,
+                              companyId: companyData.id,
+                              createdAt: new Date(),
+                              updatedAt: new Date()
+                            });
+                            
+                            // Générer le PDF
+                            if (selectedDocumentType === 'contract') {
+                              const { exportDocumentContract } = await import('../utils/exportContractPDF');
+                              exportDocumentContract(docData);
+                            } else {
+                              const { generateOfferLetterPDF } = await import('../utils/pdfTemplates/offerTemplateCameroon');
+                              const offerOptions = {
+                                version: docData.templateVersion || 'v2'
+                              };
+                              generateOfferLetterPDF(docData, offerOptions);
+                            }
+                            
+                            toast.success(`${selectedDocumentType === 'contract' ? 'Contrat' : 'Lettre d\'offre'} créé et téléchargé !`);
+                            setShowPostCreateModal(false);
+                            setPreparedDocuments(null);
+                            setSelectedDocumentType('contract');
+                          } catch (error) {
+                            console.error('Erreur création document:', error);
+                            toast.error('Erreur lors de la création du document');
+                          }
+                        }}
+                        className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-all"
+                      >
+                        <Download className="h-4 w-4" />
+                        <span>Créer & Télécharger</span>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Prévisualisation du document */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium text-gray-800">
+                        Aperçu - {selectedDocumentType === 'contract' ? 'Contrat de travail' : 'Lettre d\'offre'}
+                      </h4>
+                      <button
+                        onClick={() => setShowDocumentPreview(false)}
+                        className="text-gray-500 hover:text-gray-700"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    
+                    <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        {Object.entries(preparedDocuments[selectedDocumentType]).map(([key, value]) => {
+                          if (key === 'type' || key === 'companyId') return null;
+                          return (
+                            <div key={key} className="flex justify-between">
+                              <span className="font-medium text-gray-600 capitalize">
+                                {key.replace(/([A-Z])/g, ' $1').toLowerCase()}:
+                              </span>
+                              <span className="text-gray-800">
+                                {typeof value === 'object' ? JSON.stringify(value) : String(value || '-')}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <button
+                        onClick={() => setShowDocumentPreview(false)}
+                        className="px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all"
+                      >
+                        Retour
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const docData = preparedDocuments[selectedDocumentType];
+                            
+                            // Sauvegarder le document dans Firestore
+                            await addDoc(collection(db, 'documents'), {
+                              ...docData,
+                              companyId: companyData.id,
+                              createdAt: new Date(),
+                              updatedAt: new Date()
+                            });
+                            
+                            // Générer le PDF
+                            if (selectedDocumentType === 'contract') {
+                              const { exportDocumentContract } = await import('../utils/exportContractPDF');
+                              exportDocumentContract(docData);
+                            } else {
+                              const { generateOfferLetterPDF } = await import('../utils/pdfTemplates/offerTemplateCameroon');
+                              const offerOptions = {
+                                version: docData.templateVersion || 'v2'
+                              };
+                              generateOfferLetterPDF(docData, offerOptions);
+                            }
+                            
+                            toast.success(`${selectedDocumentType === 'contract' ? 'Contrat' : 'Lettre d\'offre'} créé et téléchargé !`);
+                            setShowPostCreateModal(false);
+                            setPreparedDocuments(null);
+                            setSelectedDocumentType('contract');
+                            setShowDocumentPreview(false);
+                          } catch (error) {
+                            console.error('Erreur création document:', error);
+                            toast.error('Erreur lors de la création du document');
+                          }
+                        }}
+                        className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition-all"
+                      >
+                        <Download className="h-4 w-4" />
+                        <span>Générer PDF</span>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Footer Navigation */}
       <MobileFooterNav 
         activeTab={activeTab} 

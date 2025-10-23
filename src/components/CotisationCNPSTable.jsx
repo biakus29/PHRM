@@ -18,7 +18,7 @@ import {
   computeGrossTotal,
   computePVID,
   computeTDL,
-  CNPS_CAP,
+  CNPS_PLAFOND,
   calculerCNPS,
   applyEmployerOptionsToCNPS,
   computeEmployerChargesFromBases,

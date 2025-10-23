@@ -71,12 +71,13 @@ export function generateContractAmendmentPDFCameroon(amendmentData) {
   // Fonction pour ajouter une ligne de rémunération avec alignement en colonnes
   const addSalaryLine = (label, amount, englishLabel, yPos) => {
     // Label français
-    y = addText(`- ${label}`, margin, yPos, { fontSize: 11, lineHeight: 5 });
+    y = addText(`- ${label}`, margin, yPos, { fontSize: 11, style: 'normal', lineHeight: 5 });
     
     // Montant aligné à droite - utiliser align: 'right' pour un alignement parfait
     const formattedAmount = formatAmount(amount);
     y = addText(formattedAmount, pageWidth - margin, y - 5, { 
       fontSize: 11, 
+      style: 'bold',
       align: 'right',
       lineHeight: 5
     });
@@ -166,7 +167,7 @@ export function generateContractAmendmentPDFCameroon(amendmentData) {
   // ============================================
   y = checkPageBreak(60);
   y = addText(amendmentData.employerName || '', 
-    margin, y, { fontSize: 11, lineHeight: 5 });
+    margin, y, { fontSize: 11, style: 'bold', lineHeight: 5 });
   y = addText('(Nom et Prénoms ou Raison Sociale)', margin, y, { 
     fontSize: 9, 
     style: 'italic',
@@ -187,7 +188,7 @@ export function generateContractAmendmentPDFCameroon(amendmentData) {
   });
 
   y = addText(`Représenté par ${amendmentData.employerRepresentative || '........................................................................'}`, 
-    margin, y, { fontSize: 11, lineHeight: 5 });
+    margin, y, { fontSize: 11, style: 'bold', lineHeight: 5 });
   y = addText('Represented by', margin, y, { 
     fontSize: 9, 
     style: 'italic',
@@ -234,7 +235,7 @@ export function generateContractAmendmentPDFCameroon(amendmentData) {
   // ============================================
   y = checkPageBreak(80);
   y = addText(`${computeCivility(amendmentData)} ${amendmentData.employeeName || '.......................................................'}`, 
-    margin, y, { fontSize: 11, lineHeight: 5 });
+    margin, y, { fontSize: 11, style: 'bold', lineHeight: 5 });
   y = addText('(Nom et Prénoms)', margin, y, { 
     fontSize: 9, 
     style: 'italic',
@@ -284,6 +285,7 @@ export function generateContractAmendmentPDFCameroon(amendmentData) {
   if (amendmentData.employeeEmergencyContact) {
     y = addText(`Personne à prévenir : ${amendmentData.employeeEmergencyContact}`, margin, y, { 
       fontSize: 11, 
+      style: 'bold',
       lineHeight: 5 
     });
     y = addText('Emergency contact', margin, y, { 

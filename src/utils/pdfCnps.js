@@ -2,7 +2,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { buildCnpsCode } from './cnpsUtils';
-import { computeSBC, CNPS_CAP, computeSBT, computeGrossTotal, getCalculs, calculerBases, computeCompletePayroll, computeEmployerChargesFromBases } from './payrollCalculations';
+import { computeSBC, CNPS_PLAFOND, computeSBT, computeGrossTotal, getCalculs, calculerBases, computeCompletePayroll, computeEmployerChargesFromBases } from './payrollCalculations';
 
 /**
  * Formate un nombre avec des espaces comme séparateurs de milliers
@@ -130,7 +130,7 @@ export function exportCnpsPDF({ selectedIds, formData, employerOptions, employer
     });
     
     // Valeurs pour le PDF (identiques au tableau)
-    const base = Math.min(calc.sbc, CNPS_CAP);
+    const base = Math.min(calc.sbc, CNPS_PLAFOND);
     const cotisSalarie = calc.deductions.pvid;
     const cotisEmployeur = employerCharges.totalCNPS_Employeur;
     const totalGlobal = cotisSalarie + cotisEmployeur;

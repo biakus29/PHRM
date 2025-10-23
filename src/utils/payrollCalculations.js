@@ -766,77 +766,16 @@ export const safeGetDeductions = (payrollResult) => {
 };
 
 
-// Alias pour CNPS_CAP
-export const CNPS_CAP = CNPS_PLAFOND;
-
-// Fonction computeSBT pour compatibilité
+// Fonction computeSBT pour compatibilité - basé sur calculerBases (évite récursion)
 export const computeSBT = (salaryDetails = {}, remuneration = {}, primes = [], indemnites = []) => {
-  const employeeData = {
-    salaireBrut: num(salaryDetails.baseSalary),
-    primesCotisables: {},
-    primesNonCotisables: {}
-  };
-  
-  // Convertir les primes
-  primes.forEach(prime => {
-    const label = (prime.label || '').toLowerCase();
-    const montant = num(prime.montant || prime.amount);
-    
-    if (label.includes('transport')) {
-      employeeData.primesNonCotisables.primeTransport = montant;
-    } else {
-      employeeData.primesCotisables[`prime_${Date.now()}_${Math.random()}`] = montant;
-    }
-  });
-  
-  // Intégrer les indemnités: cotisables -> primesCotisables, sinon non-cotisables (impacte SBT)
-  ;(Array.isArray(indemnites) ? indemnites : []).forEach(ind => {
-    const label = ind.label || ind.type || '';
-    const montant = num(ind.montant || ind.amount);
-    const key = `indemnite_${Date.now()}_${Math.random()}`;
-    if (categorizeAsCotisable(label)) {
-      employeeData.primesCotisables[key] = montant;
-    } else {
-      employeeData.primesNonCotisables[key] = montant;
-    }
-  });
-  
+  const employeeData = buildEmployeeDataFromInputs(salaryDetails, primes, indemnites);
   const bases = calculerBases(employeeData);
   return bases.sbt;
 };
 
-// Fonction computeSBC pour compatibilité
+// Fonction computeSBC pour compatibilité - basé sur calculerBases (évite récursion)
 export const computeSBC = (salaryDetails = {}, remuneration = {}, primes = [], indemnites = []) => {
-  const employeeData = {
-    salaireBrut: num(salaryDetails.baseSalary),
-    primesCotisables: {},
-    primesNonCotisables: {}
-  };
-  
-  // Convertir les primes
-  primes.forEach(prime => {
-    const label = (prime.label || '').toLowerCase();
-    const montant = num(prime.montant || prime.amount);
-    
-    if (label.includes('transport')) {
-      employeeData.primesNonCotisables.primeTransport = montant;
-    } else {
-      employeeData.primesCotisables[`prime_${Date.now()}_${Math.random()}`] = montant;
-    }
-  });
-  
-  // Intégrer les indemnités: cotisables -> primesCotisables (affectent SBC), sinon non-cotisables
-  ;(Array.isArray(indemnites) ? indemnites : []).forEach(ind => {
-    const label = ind.label || ind.type || '';
-    const montant = num(ind.montant || ind.amount);
-    const key = `indemnite_${Date.now()}_${Math.random()}`;
-    if (categorizeAsCotisable(label)) {
-      employeeData.primesCotisables[key] = montant;
-    } else {
-      employeeData.primesNonCotisables[key] = montant;
-    }
-  });
-  
+  const employeeData = buildEmployeeDataFromInputs(salaryDetails, primes, indemnites);
   const bases = calculerBases(employeeData);
   return bases.sbc;
 };
@@ -874,12 +813,10 @@ export const getCalculs = (data = {}, employerOptions = {}) => {
   };
 };
 
-// Fonction computeGrossTotal pour compatibilité
+// Fonction computeGrossTotal pour compatibilité - utilise computeCompletePayroll
 export const computeGrossTotal = (salaryDetails = {}, remuneration = {}, primes = [], indemnites = []) => {
-  const baseSalary = num(salaryDetails.baseSalary);
-  const primesSum = primes.reduce((sum, p) => sum + num(p.montant || p.amount), 0);
-  const indemSum = indemnites.reduce((sum, i) => sum + num(i.montant || i.amount), 0);
-  return baseSalary + primesSum + indemSum;
+  const payslipData = { salaryDetails, remuneration, primes, indemnites };
+  return computeCompletePayroll(payslipData).bases.salaireBrutTotal;
 };
 
 // Fonction validateDeductions pour compatibilité
@@ -895,14 +832,12 @@ export const validateDeductions = (deductions = {}) => {
   };
 };
 
-// Fonction computeEffectiveDeductions pour compatibilité
-export const computeEffectiveDeductions = (deductions = {}) => {
-  return validateDeductions(deductions);
-};
+// Fonction computeEffectiveDeductions pour compatibilité - alias de validateDeductions
+export const computeEffectiveDeductions = validateDeductions;
 
 // Fonction computeRoundedDeductions pour compatibilité
 export const computeRoundedDeductions = (deductions = {}) => {
-  const effective = computeEffectiveDeductions(deductions);
+  const effective = validateDeductions(deductions);
   return {
     pvid: Math.round(effective.pvid),
     pvis: Math.round(effective.pvid),
@@ -1098,4 +1033,375 @@ export const computeTaxesForEmployees = (selectedIds = [], formData = {}, employ
   });
   
   return { rows };
+};
+
+// TRAITEMENT EN PARALLÈLE ET DÉTECTION D'ANOMALIES
+// ==================================================================================
+
+// Helper interne: construit un employeeData minimal à partir des entrées UI
+const buildEmployeeDataFromInputs = (salaryDetails = {}, primes = [], indemnites = []) => {
+  const employeeData = {
+    salaireBrut: num(salaryDetails.baseSalary),
+    primesCotisables: {},
+    primesNonCotisables: {}
+  };
+
+  // Primes
+  (Array.isArray(primes) ? primes : []).forEach((prime, index) => {
+    const label = (prime.label || prime.type || '').toLowerCase();
+    const montant = num(prime.montant || prime.amount);
+    const key = `prime_${index}`;
+    if (categorizeAsCotisable(label)) employeeData.primesCotisables[key] = montant;
+    else employeeData.primesNonCotisables[key] = montant;
+  });
+
+  // Indemnités
+  (Array.isArray(indemnites) ? indemnites : []).forEach((ind, index) => {
+    const label = (ind.label || ind.type || '').toLowerCase();
+    const montant = num(ind.montant || ind.amount);
+    const key = `indemnite_${index}`;
+    if (categorizeAsCotisable(label)) employeeData.primesCotisables[key] = montant;
+    else employeeData.primesNonCotisables[key] = montant;
+  });
+
+  return employeeData;
+};
+
+/**
+ * Utilitaire pour créer les données de paie standardisées
+ * @param {Object} employee - Données de l'employé
+ * @returns {Object} - Données formatées pour computeCompletePayroll
+ */
+const createPayslipDataFromEmployee = (employee) => {
+  const payslips = Array.isArray(employee.payslips) ? employee.payslips : [];
+  const latestPayslip = payslips[payslips.length - 1] || {};
+  
+  return {
+    salaryDetails: {
+      baseSalary: num(employee.baseSalary)
+    },
+    remuneration: {
+      total: num(latestPayslip.remuneration?.total || employee.baseSalary)
+    },
+    primes: Array.isArray(latestPayslip.primes) ? latestPayslip.primes : [],
+    indemnites: Array.isArray(latestPayslip.indemnites) ? latestPayslip.indemnites : []
+  };
+};
+
+// ==================================================================================
+
+/**
+ * Détecte les anomalies dans les données d'un employé avant le calcul de paie
+ * @param {Object} employee - Données de l'employé
+ * @returns {Object} - { hasAnomalies: boolean, anomalies: string[] }
+ */
+export const detectPayrollAnomalies = (employee) => {
+  const anomalies = [];
+  
+  // Vérification salaire de base
+  const baseSalary = num(employee.baseSalary);
+  if (!baseSalary || baseSalary <= 0) {
+    anomalies.push(`Salaire de base manquant ou invalide (${baseSalary})`);
+  } else if (baseSalary < 36270) { // SMIG Cameroun
+    anomalies.push(`Salaire inférieur au SMIG (${baseSalary} < 36,270 FCFA)`);
+  } else if (baseSalary > 10000000) { // Seuil de vérification
+    anomalies.push(`Salaire exceptionnellement élevé (${baseSalary} FCFA)`);
+  }
+  
+  // Vérification données obligatoires
+  if (!employee.name?.trim()) {
+    anomalies.push("Nom de l'employé manquant");
+  }
+  
+  if (!employee.cnpsNumber?.trim()) {
+    anomalies.push("Numéro CNPS manquant");
+  }
+  
+  if (!employee.matricule?.trim()) {
+    anomalies.push("Matricule employé manquant");
+  }
+  
+  // Vérification statut employé
+  if (employee.status !== 'Actif') {
+    anomalies.push(`Employé non actif (statut: ${employee.status})`);
+  }
+  
+  // Vérification primes et indemnités
+  const payslips = Array.isArray(employee.payslips) ? employee.payslips : [];
+  const latestPayslip = payslips[payslips.length - 1];
+  
+  if (latestPayslip) {
+    const primes = Array.isArray(latestPayslip.primes) ? latestPayslip.primes : [];
+    const indemnites = Array.isArray(latestPayslip.indemnites) ? latestPayslip.indemnites : [];
+    
+    // Vérification montants négatifs
+    primes.forEach((prime, index) => {
+      const montant = num(prime.montant || prime.amount);
+      if (montant < 0) {
+        anomalies.push(`Prime ${index + 1} négative (${montant})`);
+      }
+    });
+    
+    indemnites.forEach((indemnite, index) => {
+      const montant = num(indemnite.montant || indemnite.amount);
+      if (montant < 0) {
+        anomalies.push(`Indemnité ${index + 1} négative (${montant})`);
+      }
+    });
+  }
+  
+  return {
+    hasAnomalies: anomalies.length > 0,
+    anomalies
+  };
+};
+
+/**
+ * Calcule la paie d'un employé avec gestion d'erreurs optimisée
+ * @param {Object} employee - Données de l'employé
+ * @param {Object} options - Options de calcul
+ * @returns {Promise<Object>} - Résultat du calcul ou erreur
+ */
+export const calculateEmployeePayrollAsync = async (employee, options = {}) => {
+  try {
+    // Détection d'anomalies en premier
+    const anomalyCheck = detectPayrollAnomalies(employee);
+    
+    if (anomalyCheck.hasAnomalies && !options.ignoreAnomalies) {
+      return {
+        success: false,
+        employeeId: employee.id,
+        employeeName: employee.name,
+        error: 'Anomalies détectées',
+        anomalies: anomalyCheck.anomalies
+      };
+    }
+    
+    // Préparation des données pour le calcul
+    const employeePayslipData = createPayslipDataFromEmployee(employee);
+    
+    // Calcul complet de la paie
+    const payrollResult = computeCompletePayroll(employeePayslipData);
+    
+    // Construction de la fiche de paie finale
+    const finalPayslipData = {
+      id: `payslip_${employee.id}_${Date.now()}`,
+      employeeId: employee.id,
+      employeeName: employee.name,
+      matricule: employee.matricule,
+      cnpsNumber: employee.cnpsNumber,
+      month: options.month || new Date().getMonth() + 1,
+      year: options.year || new Date().getFullYear(),
+      generatedAt: new Date().toISOString(),
+      
+      // Données salariales
+      salaryDetails: {
+        baseSalary: num(employeePayslipData?.salaryDetails?.baseSalary || 0)
+      },
+      
+      // Éléments de rémunération détaillés
+      primes: Array.isArray(employeePayslipData?.primes) ? employeePayslipData.primes : [],
+      indemnites: Array.isArray(employeePayslipData?.indemnites) ? employeePayslipData.indemnites : [],
+      
+      // Résultats de calcul
+      remuneration: {
+        total: payrollResult.grossTotal
+      },
+      
+      // Bases de calcul
+      bases: {
+        sbc: payrollResult.sbc,
+        sbt: payrollResult.sbt
+      },
+      
+      // Déductions
+      deductions: {
+        pvid: payrollResult.deductions.pvid,
+        irpp: payrollResult.deductions.irpp,
+        cfc: payrollResult.deductions.cfc,
+        total: payrollResult.deductions.total
+      },
+      
+      // Salaire net
+      netPay: payrollResult.netPay,
+      
+      // Métadonnées
+      calculationDetails: payrollResult,
+      anomalies: anomalyCheck.anomalies
+    };
+    
+    return {
+      success: true,
+      employeeId: employee.id,
+      employeeName: employee.name,
+      payslipData: finalPayslipData,
+      anomalies: anomalyCheck.anomalies
+    };
+    
+  } catch (error) {
+    return {
+      success: false,
+      employeeId: employee.id,
+      employeeName: employee.name || 'Inconnu',
+      error: error.message || 'Erreur de calcul',
+      anomalies: []
+    };
+  }
+};
+
+/**
+ * Traite la paie de tous les employés en parallèle avec optimisations
+ * @param {Array} employees - Liste des employés
+ * @param {Object} options - Options de traitement
+ * @param {Function} onProgress - Callback de progression
+ * @returns {Promise<Object>} - Résultats du traitement
+ */
+export const processPayrollBatch = async (employees, options = {}, onProgress = null) => {
+  const startTime = Date.now();
+  const results = {
+    success: [],
+    errors: [],
+    anomalies: [],
+    summary: {
+      total: employees.length,
+      processed: 0,
+      successful: 0,
+      failed: 0,
+      withAnomalies: 0,
+      processingTime: 0
+    }
+  };
+  
+  // Filtrer les employés actifs seulement (sauf si forcé)
+  const activeEmployees = options.includeInactive 
+    ? employees 
+    : employees.filter(emp => emp.status === 'Actif');
+  
+  results.summary.total = activeEmployees.length;
+  
+  if (activeEmployees.length === 0) {
+    return {
+      ...results,
+      summary: {
+        ...results.summary,
+        processingTime: Date.now() - startTime
+      }
+    };
+  }
+  
+  // Traitement en parallèle par chunks pour éviter la surcharge
+  const chunkSize = options.chunkSize || 10; // Traiter 10 employés en parallèle max
+  const chunks = [];
+  
+  for (let i = 0; i < activeEmployees.length; i += chunkSize) {
+    chunks.push(activeEmployees.slice(i, i + chunkSize));
+  }
+  
+  // Traitement chunk par chunk
+  for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+    const chunk = chunks[chunkIndex];
+    
+    try {
+      // Traitement parallèle du chunk
+      const chunkPromises = chunk.map(employee => 
+        calculateEmployeePayrollAsync(employee, options)
+      );
+      
+      const chunkResults = await Promise.all(chunkPromises);
+      
+      // Traitement des résultats du chunk
+      chunkResults.forEach(result => {
+        results.summary.processed++;
+        
+        if (result.success) {
+          results.success.push(result);
+          results.summary.successful++;
+          
+          if (result.anomalies && result.anomalies.length > 0) {
+            results.anomalies.push({
+              employeeId: result.employeeId,
+              employeeName: result.employeeName,
+              anomalies: result.anomalies
+            });
+            results.summary.withAnomalies++;
+          }
+        } else {
+          results.errors.push(result);
+          results.summary.failed++;
+          
+          if (result.anomalies && result.anomalies.length > 0) {
+            results.anomalies.push({
+              employeeId: result.employeeId,
+              employeeName: result.employeeName,
+              anomalies: result.anomalies
+            });
+            results.summary.withAnomalies++;
+          }
+        }
+        
+        // Callback de progression
+        if (onProgress) {
+          onProgress({
+            processed: results.summary.processed,
+            total: results.summary.total,
+            percentage: Math.round((results.summary.processed / results.summary.total) * 100),
+            currentEmployee: result.employeeName
+          });
+        }
+      });
+      
+    } catch (chunkError) {
+      // En cas d'erreur sur tout le chunk
+      chunk.forEach(employee => {
+        results.errors.push({
+          success: false,
+          employeeId: employee.id,
+          employeeName: employee.name || 'Inconnu',
+          error: `Erreur chunk: ${chunkError.message}`,
+          anomalies: []
+        });
+        results.summary.processed++;
+        results.summary.failed++;
+      });
+    }
+  }
+  
+  results.summary.processingTime = Date.now() - startTime;
+  
+  return results;
+};
+
+/**
+ * Prépare les données pour l'écriture batch Firestore
+ * @param {Array} payslipResults - Résultats des calculs de paie
+ * @param {string} companyId - ID de l'entreprise
+ * @returns {Array} - Chunks de données prêtes pour Firestore batch
+ */
+export const prepareFirestoreBatches = (payslipResults, companyId) => {
+  const batches = [];
+  const batchSize = 100; // Limite Firestore batch
+  
+  // Grouper les résultats par batch de 100
+  for (let i = 0; i < payslipResults.length; i += batchSize) {
+    const batchData = payslipResults.slice(i, i + batchSize);
+    
+    const operations = batchData.map(result => ({
+      type: 'update', // ou 'set' selon le besoin
+      collection: 'clients',
+      docPath: `${companyId}/employees/${result.employeeId}`,
+      data: {
+        payslips: result.payslipData ? [result.payslipData] : [], // Ajouter à l'array existant
+        lastPayrollUpdate: new Date().toISOString(),
+        payrollStatus: result.success ? 'completed' : 'error'
+      }
+    }));
+    
+    batches.push({
+      batchIndex: Math.floor(i / batchSize),
+      operations: operations,
+      size: operations.length
+    });
+  }
+  
+  return batches;
 };

@@ -64,7 +64,6 @@ const mainItems = [
   { id: "leaves", label: "Congés", icon: Calendar },
   { id: "absences", label: "Absences", icon: Clock },
   { id: "payslips", label: "Paie", icon: CreditCard },
-  { id: "contracts", label: "Contrats", icon: ClipboardList },
   { id: "documents", label: "Documents", icon: ClipboardList },
   { id: "hr-procedures", label: "Procédures RH", icon: ClipboardList },
   { id: "reports", label: "Déclarations", icon: Download },

@@ -73,14 +73,14 @@ export function generateContractPDFCameroon(contractData) {
     const labelCol = margin + 5;
     const amountCol = pageWidth - margin - 40;
     
-    // Label français en gras
+    // Label français en normal
     doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('helvetica', 'normal');
     doc.text(`-  ${label}`, labelCol, yPos);
     
     const formattedAmount = formatAmount(amount);
-    // Montant en police normale aligné à droite
-    doc.setFont('helvetica', 'normal');
+    // Montant en gras aligné à droite
+    doc.setFont('helvetica', 'bold');
     doc.text(formattedAmount, amountCol, yPos, { align: 'right' });
     
     yPos += 5;
@@ -188,7 +188,7 @@ export function generateContractPDFCameroon(contractData) {
   });
 
   y = addText(`Représenté par ${contractData.employerRepresentative || '............,...........................................'}`, 
-    margin, y, { fontSize: 11, lineHeight: 5 });
+    margin, y, { fontSize: 11, style: 'bold', lineHeight: 5 });
   y = addText('Represented by', margin, y, { 
     fontSize: 9, 
     style: 'italic',
@@ -266,7 +266,7 @@ export function generateContractPDFCameroon(contractData) {
   });
 
   y = addText(`Fils de ${contractData.employeeFatherName || '.................................'}`, 
-    margin, y, { fontSize: 11, lineHeight: 5 });
+    margin, y, { fontSize: 11, style: 'bold', lineHeight: 5 });
   y = addText('Son of', margin, y, { 
     fontSize: 9, 
     style: 'italic',
@@ -284,7 +284,7 @@ export function generateContractPDFCameroon(contractData) {
   });
 
   y = addText(`et de ${contractData.employeeMotherName || '....................................'}`, 
-    margin, y, { fontSize: 11, lineHeight: 5 });
+    margin, y, { fontSize: 11, style: 'bold', lineHeight: 5 });
   y = addText('(Nom et Prénoms de la mère)', margin, y, { 
     fontSize: 9, 
     style: 'italic',
@@ -313,7 +313,7 @@ export function generateContractPDFCameroon(contractData) {
   });
 
   y = addText(`1/ Nom et Prénoms de l'épouse ${contractData.employeeSpouseName || '………………………………………………….'}`, 
-    margin, y, { fontSize: 11, lineHeight: 5 });
+    margin, y, { fontSize: 11, style: 'bold', lineHeight: 5 });
   y = addText('Spouse\'s name in full', margin, y, { 
     fontSize: 9, 
     style: 'italic',
@@ -329,7 +329,7 @@ export function generateContractPDFCameroon(contractData) {
   });
 
   y = addText(`Personne à prévenir en cas de besoin ${contractData.employeeEmergencyContact || '............,.........................'}`, 
-    margin, y, { fontSize: 11, lineHeight: 5 });
+    margin, y, { fontSize: 11, style: 'bold', lineHeight: 5 });
   y = addText('Person to notify in case of necessity', margin, y, { 
     fontSize: 9, 
     style: 'italic',
@@ -507,7 +507,7 @@ export function generateContractPDFCameroon(contractData) {
   
   doc.setFontSize(11);
   doc.setFont('helvetica', 'normal');
-  const pipelineText = 'Et peut être affecté sur différentes installations de la Société le long du tracé camerounais du Pipeline.';
+  const pipelineText = 'Et peut être affecté sur différentes sites';
   const pipelineLines = doc.splitTextToSize(pipelineText, maxWidth);
   doc.text(pipelineLines, margin, y);
   y += pipelineLines.length * 5;

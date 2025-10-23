@@ -28,7 +28,6 @@ const MobileFooterNav = ({ activeTab, setActiveTab, notificationCount = 0, handl
     { id: "leaves", label: "Congés", icon: FiCalendar },
     { id: "absences", label: "Absences", icon: FiClock },
     { id: "payslips", label: "Fiches de Paie", icon: FiFileText },
-    { id: "contracts", label: "Contrats", icon: FiFile },
     { id: "documents", label: "Documents", icon: FiFileText },
   ];
   

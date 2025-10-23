@@ -405,7 +405,7 @@ function addBody(builder, offerData) {
   builder.addSpace(6);
 }
 
-function addCompensation(builder, offerData) {
+function addCompensation(builder, offerData, version = 'v2') {
   const { config } = builder;
 
   // Calculer les montants
@@ -424,13 +424,34 @@ function addCompensation(builder, offerData) {
   });
   builder.addSpace(4);
 
-  // Décomposition du salaire
-  const salaryBreakdown = [
-    { label: 'Salaire de base catégoriel', value: formatAmount(baseSalary) },
-    { label: 'Sursalaire y compris forfait heures supplémentaires', value: formatAmount(overtime) },
-    { label: 'Indemnité de logement', value: formatAmount(housing) },
-    { label: 'Indemnité de transport', value: formatAmount(transport) }
-  ];
+  // Décomposition du salaire selon la version
+  let salaryBreakdown;
+  
+  if (version === 'v1') {
+    // Version 1 : Ancien modèle (comme les contrats)
+    salaryBreakdown = [
+      { label: 'Salaire de base catégoriel', value: formatAmount(baseSalary) },
+      { label: 'Sursalaire y compris forfait heures supplémentaires', value: formatAmount(overtime) },
+      { label: 'Indemnité de logement', value: formatAmount(housing) },
+      { label: 'Indemnité de transport', value: formatAmount(transport) }
+    ];
+  } else {
+    // Version 2 : Nouveau modèle (avec ou sans sursalaire)
+    if (overtime && overtime > 0) {
+      salaryBreakdown = [
+        { label: 'Salaire de base catégoriel', value: formatAmount(baseSalary) },
+        { label: 'Sursalaire y compris forfait heures supplémentaires', value: formatAmount(overtime) },
+        { label: 'Indemnité de logement', value: formatAmount(housing) },
+        { label: 'Indemnité de transport', value: formatAmount(transport) }
+      ];
+    } else {
+      salaryBreakdown = [
+        { label: 'Salaire de base catégoriel', value: formatAmount(baseSalary) },
+        { label: 'Indemnité de logement', value: formatAmount(housing) },
+        { label: 'Indemnité de transport', value: formatAmount(transport) }
+      ];
+    }
+  }
 
   builder.addTable(salaryBreakdown, { indent: 5 });
   builder.addSpace(6);
@@ -692,7 +713,7 @@ function addFooter(doc, offerData) {
 }
 
 // ==================== FONCTION PRINCIPALE ====================
-export function generateOfferLetterPDF(offerData) {
+export function generateOfferLetterPDF(offerData, options = {}) {
   // Validation
   const errors = validateOfferData(offerData);
   if (errors.length > 0) {
@@ -703,13 +724,16 @@ export function generateOfferLetterPDF(offerData) {
   // Initialisation
   const doc = new jsPDF();
   const builder = new PDFBuilder(doc);
+  
+  // Version par défaut : v2 (nouveau modèle avec ou sans sursalaire)
+  const version = options.version || offerData.templateVersion || 'v2';
 
   try {
     // Construction du document
     addHeader(builder, offerData);
     addRecipient(builder, offerData);
     addBody(builder, offerData);
-    addCompensation(builder, offerData);
+    addCompensation(builder, offerData, version);
     addBenefits(builder, offerData);
     addConditions(builder, offerData);
     addAcceptanceInstructions(builder, offerData);

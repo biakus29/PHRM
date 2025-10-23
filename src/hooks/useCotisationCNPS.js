@@ -12,7 +12,7 @@ import {
   computeSBT, 
   computeSBC,
   getCalculs,
-  CNPS_CAP
+  CNPS_PLAFOND
 } from "../utils/payrollCalculations";
 import { 
   getPayslipCacheKeyFromCNPSRow, 
@@ -230,7 +230,7 @@ export const useCotisationCNPS = (companyId, cnpsEmployeur) => {
             pvid: cache.deductions?.pvid || cache.deductions?.pvis || cache.pvid || cache.pvis || 0,
             // Respect centralized bases; do not fallback to gross totals
             sbt: Number(cache.sbt || 0),
-            sbc: Math.min(Number(cache.sbc || 0), CNPS_CAP),
+            sbc: Math.min(Number(cache.sbc || 0), CNPS_PLAFOND),
             netToPay: cache.netPay || cache.netToPay || cache.net || 0,
           };
           updated += 1;
@@ -428,7 +428,7 @@ export const useCotisationCNPS = (companyId, cnpsEmployeur) => {
     if (data.brut > 0 && data.brut < 36270) errors.push("Salaire < SMIG (36 270 FCFA)");
     // Validate against actual centralized SBC computed from row data
     const sbc = getSBC(data);
-    if (sbc > CNPS_CAP) errors.push("Base cotisable dépasse le plafond CNPS");
+    if (sbc > CNPS_PLAFOND) errors.push("Base cotisable dépasse le plafond CNPS");
     return errors;
   };
 
