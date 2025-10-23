@@ -1923,7 +1923,7 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
                     </button>
                     
                     <button
-                      onClick={() => setShowPaySlipForm(true)}
+                      onClick={() => setActiveTab("payslips")}
                       className="flex flex-col items-center p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 hover:scale-105 backdrop-blur-sm"
                     >
                       <CreditCard className="w-5 h-5 text-white mb-1" />
@@ -2405,9 +2405,6 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
                     <p className="text-sm text-gray-600">Créer un nouveau profil</p>
                   </Button>
                   <Button onClick={() => {
-                    setSelectedEmployee(null);
-                    setShowPaySlipForm(true);
-                    setPaySlipData(null);
                     setActiveTab("payslips");
                   }} className="p-4 bg-green-50 hover:bg-green-100 text-left">
                     <CreditCard className="w-8 h-8 text-green-600 mb-2" />
@@ -2450,7 +2447,7 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
           </Button>
           
           <Button 
-            onClick={() => setShowPaySlipForm(true)} 
+            onClick={() => setActiveTab("payslips")} 
             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all hover:scale-105"
           >
             <CreditCard className="w-4 h-4" />
@@ -2994,10 +2991,10 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
               </Card>
             </div>
           )}
-           {activeTab === "payslips" && (
-  <div className="space-y-6">
-    {/* ⚡ EN-TÊTE OPTIMISÉ AVEC ACTIONS RAPIDES */}
-    <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl shadow-lg p-4 sm:p-6">
+          {activeTab === "payslips" && (
+            <div className="space-y-6">
+              {/* ⚡ EN-TÊTE OPTIMISÉ AVEC ACTIONS RAPIDES */}
+              <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl shadow-lg p-4 sm:p-6">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
         <div className="text-white">
           <h1 className="text-2xl sm:text-3xl font-bold mb-2">💰 Gestion de la Paie Optimisée</h1>
@@ -3662,8 +3659,8 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
     </Modal>
 
 
-  </div>
-)}
+            </div>
+          )}
           {activeTab === "settings" && (
             <div className="space-y-6">
               <h1 className="text-3xl font-bold text-gray-900">Paramètres</h1>
@@ -3971,7 +3968,7 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
                 
                 <button
                   onClick={() => {
-                    setShowPaySlipForm(true);
+                    setActiveTab("payslips");
                     setShowQuickActions(false);
                   }}
                   className="w-full flex items-center gap-3 p-3 text-left hover:bg-green-50 rounded-lg transition-colors"
