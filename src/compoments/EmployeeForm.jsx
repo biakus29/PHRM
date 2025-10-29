@@ -10,7 +10,7 @@ const EmployeeForm = ({ newEmployee, setNewEmployee, onSubmit }) => (
       { placeholder: "Matricule", key: "matricule", type: "text", required: true, tooltip: "Matricule de l'employé" },
       { placeholder: "Poste", key: "poste", type: "text", required: true, tooltip: "Poste de l'employé" },
       { placeholder: "Téléphone (optionnel)", key: "phone", type: "tel", tooltip: "Numéro de téléphone" },
-      { placeholder: "Départément (optionnel)", key: "department", type: "text", tooltip: "Départément de l'employé" },
+      { placeholder: "Département (optionnel)", key: "department", type: "text", tooltip: "Département de l'employé", defaultValue: "" },
       { placeholder: "Date d'embauche", key: "hireDate", type: "date", required: true, tooltip: "Date d'embauche" },
     ].map(({ placeholder, key, type, required, tooltip }) => (
       <input

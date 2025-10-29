@@ -654,20 +654,27 @@ const addEmployee = async (e) => {
       throw new Error("ID de l'entreprise manquant.");
     }
     
-    // Si c'est un compte démo, simuler l'ajout
+    // Si c'est un compte démo, ajouter dans Firestore avec flag temporaire
     if (isDemoAccount) {
       const seniorityData = calculateSeniorityPrime(
         { seniority: newEmployee.seniority || 0 },
         Number(newEmployee.baseSalary) || 0
       );
-      const newEmp = {
-        id: `demo_${Date.now()}`,
+      
+      // Créer l'employé avec flag temporaire
+      const employeeData = {
         ...newEmployee,
         seniorityYears: seniorityData.years,
         seniorityPercent: seniorityData.percent,
         seniorityAllowance: seniorityData.amount,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        isTemporary: true, // Flag pour identifier les employés de démo
+        demoExpiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 jours
       };
+      
+      // Sauvegarder dans Firestore
+      await svcAddEmployee(db, companyData.id, employeeData);
+      const newEmp = { id: Date.now().toString(), ...employeeData };
       setEmployees([...employees, newEmp]);
       setNewEmployee({
         name: '',
@@ -726,7 +733,7 @@ const addEmployee = async (e) => {
         dateOfBirth: convertFrenchDateToISO(newEmployee.dateOfBirth),
         contract: contractData,
         contractFile: null,
-        department: newEmployee.department,
+        department: newEmployee.department || '',
       };
       await svcUpdateEmployee(db, companyData.id, newEmployee.id, employeeData);
       employeeId = newEmployee.id;

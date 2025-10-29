@@ -117,10 +117,10 @@ const EmployeeFormModal = ({
 
       <AutocompleteField
         label="Département"
-        value={newEmployee.department}
-        onChange={(newValue) => setNewEmployee({ ...newEmployee, department: newValue })}
-        inputValue={newEmployee.department}
-        onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, department: newInputValue })}
+        value={newEmployee.department || ''}
+        onChange={(newValue) => setNewEmployee({ ...newEmployee, department: newValue || '' })}
+        inputValue={newEmployee.department || ''}
+        onInputChange={(newInputValue) => setNewEmployee({ ...newEmployee, department: newInputValue || '' })}
         options={DEPARTEMENTS}
         placeholder="Sélectionnez ou tapez un département"
       />

@@ -88,10 +88,36 @@ const DemoToClientConversion = () => {
         auth.currentUser.uid
       );
 
-      // Supprimer le compte démo
+      // Convertir les employés temporaires en employés permanents
+      const employeesQuery = query(
+        collection(db, 'clients', demoData.id, 'employees'),
+        where('isTemporary', '==', true)
+      );
+      
+      const employeesSnapshot = await getDocs(employeesQuery);
+      
+      // Mise à jour en batch pour de meilleures performances
+      const batch = writeBatch(db);
+      
+      employeesSnapshot.forEach((employeeDoc) => {
+        const employeeRef = doc(db, 'clients', clientId, 'employees', employeeDoc.id);
+        // Supprimer les flags temporaires et mettre à jour avec le nouveau client ID
+        const employeeData = {
+          ...employeeDoc.data(),
+          isTemporary: false,
+          demoExpiry: null,
+          updatedAt: new Date().toISOString()
+        };
+        batch.set(employeeRef, employeeData);
+      });
+      
+      await batch.commit();
+
+      // Supprimer l'ancien compte démo
       const demoQuery = query(
-        collection(db, 'demo_accounts'),
-        where('uid', '==', auth.currentUser.uid)
+        collection(db, 'clients'),
+        where('adminUid', '==', auth.currentUser.uid),
+        where('isDemo', '==', true)
       );
       const demoSnapshot = await getDocs(demoQuery);
       if (!demoSnapshot.empty) {
