@@ -51,6 +51,24 @@ const generateDemoLeaveRequests = () => {
   }));
 };
 
+const formatTimeRemaining = (timeInMs) => {
+  if (!timeInMs) return 'Expiré';
+  
+  const days = Math.floor(timeInMs / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((timeInMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((timeInMs % (1000 * 60 * 60)) / (1000 * 60));
+  
+  if (days > 0) {
+    return `${days} jour${days > 1 ? 's' : ''} ${hours}h`;
+  } else if (hours > 0) {
+    return `${hours}h ${minutes}min`;
+  } else if (minutes > 0) {
+    return `${minutes} minute${minutes > 1 ? 's' : ''}`;
+  } else {
+    return 'Moins d\'une minute';
+  }
+};
+
 const DemoContext = createContext();
 
 export const useDemo = () => {
@@ -66,28 +84,56 @@ export const DemoProvider = ({ children }) => {
   const [demoData, setDemoData] = useState(null);
   const [timeRemaining, setTimeRemaining] = useState(null);
   const [isExpired, setIsExpired] = useState(false);
+  
+  // Mettre à jour le temps restant toutes les minutes
+  useEffect(() => {
+    let interval;
+    if (isDemoAccount && demoData?.licenseExpiry) {
+      const updateTimeRemaining = () => {
+        const now = new Date();
+        const expiryDate = new Date(demoData.licenseExpiry);
+        const remaining = expiryDate - now;
+        
+        if (remaining <= 0) {
+          setIsExpired(true);
+          setTimeRemaining(0);
+          clearInterval(interval);
+        } else {
+          setTimeRemaining(remaining);
+        }
+      };
+      
+      updateTimeRemaining(); // Mise à jour initiale
+      interval = setInterval(updateTimeRemaining, 60000); // Mise à jour toutes les minutes
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isDemoAccount, demoData?.licenseExpiry]);
 
   // Vérifier si l'utilisateur actuel est un compte démo
   const checkDemoStatus = async (user) => {
     if (!user) {
       setIsDemoAccount(false);
       setDemoData(null);
-      return;
+      return { found: false };
     }
 
     try {
-      // 1) Chercher d'abord dans la collection `clients` un compte marqué `isDemo`
+      // Vérifier dans la collection `clients` les comptes démo
       const clientDemoQuery = query(
         collection(db, "clients"),
         where("adminUid", "==", user.uid),
-        where("isDemo", "==", true),
-        where("isActive", "==", true)
+        where("isDemo", "==", true)
       );
       const clientSnapshot = await getDocs(clientDemoQuery);
 
       if (!clientSnapshot.empty) {
         const clientDoc = clientSnapshot.docs[0];
         const clientInfo = clientDoc.data();
+        console.log("Checking demo account status:", clientInfo);
+        
         const expiresAt = clientInfo.licenseExpiry ? new Date(clientInfo.licenseExpiry) : null;
         const now = new Date();
 
@@ -97,6 +143,7 @@ export const DemoProvider = ({ children }) => {
           setIsExpired(true);
           setIsDemoAccount(false);
           window.location.href = '/subscription';
+          return { found: false, expired: true, docId: clientDoc.id };
         } else {
           // Compte démo actif
           setIsDemoAccount(true);
@@ -109,6 +156,7 @@ export const DemoProvider = ({ children }) => {
           setIsExpired(false);
           const remaining = expiresAt ? (expiresAt - now) : null;
           setTimeRemaining(remaining);
+          return { found: true, docId: clientDoc.id, data: clientInfo };
         }
       } else {
         // 2) Fallback : vérifier l'ancienne collection `demo_accounts` si existante
@@ -133,6 +181,7 @@ export const DemoProvider = ({ children }) => {
             setIsExpired(true);
             setIsDemoAccount(false);
             window.location.href = '/subscription';
+            return { found: false, expired: true, docId: demoDoc.id };
           } else {
             // Compte actif
             setIsDemoAccount(true);
@@ -146,17 +195,20 @@ export const DemoProvider = ({ children }) => {
             // Calculer le temps restant
             const remaining = expiresAt - now;
             setTimeRemaining(remaining);
+            return { found: true, docId: demoDoc.id, data: demoInfo, collection: 'demo_accounts' };
           }
         } else {
           setIsDemoAccount(false);
           setDemoData(null);
           setIsExpired(false);
+          return { found: false };
         }
       }
     } catch (error) {
       console.error("Erreur lors de la vérification du statut démo:", error);
       setIsDemoAccount(false);
       setDemoData(null);
+      return { found: false, error };
     }
   };
 

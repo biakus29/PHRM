@@ -48,56 +48,76 @@ const ClientAdminLogin = () => {
       const user = userCredential.user;
       console.log("Utilisateur connecté, UID:", user.uid);
 
-      // Vérifier d'abord si c'est un compte démo
-      const demoQuery = query(
-        collection(db, "demo_accounts"),
-        where("uid", "==", user.uid),
-        where("isActive", "==", true)
-      );
-      const demoSnapshot = await getDocs(demoQuery);
-
-      if (!demoSnapshot.empty) {
-        console.log("Compte démo trouvé, vérification du statut...");
-        await checkDemoStatus(user);
-        navigate("/client-admin-dashboard");
-        return;
-      }
-
-      // Chercher un document client où adminUid == user.uid
+      // Vérifier si c'est un compte client (démo ou normal)
       const clientsQuery = query(
         collection(db, "clients"),
         where("adminUid", "==", user.uid)
       );
       const querySnapshot = await getDocs(clientsQuery);
 
-      if (!querySnapshot.empty) {
-        const clientDoc = querySnapshot.docs[0];
-        const clientData = clientDoc.data();
-        console.log("Document client trouvé:", clientData);
+      if (querySnapshot.empty) {
+        // Fallback: vérifier si l'utilisateur est lié à un compte démo via d'autres collections
+        console.log("Aucun client direct trouvé pour adminUid:", user.uid, "- vérification demo fallback...");
+        const demoResult = await checkDemoStatus(user);
 
-        if (!clientData.isActive) {
+        if (!demoResult || !demoResult.found) {
           await auth.signOut();
-          console.warn("Compte client inactif, déconnexion");
-          setErrorMessage("Votre compte est désactivé. Contactez l'administrateur.");
+          console.warn("Aucun document client trouvé pour adminUid:", user.uid);
+          setErrorMessage(
+            "Accès non autorisé. Veuillez utiliser un compte administrateur d'entreprise."
+          );
           setIsLoading(false);
           return;
         }
 
-        // Mettre à jour les métadonnées
-        await updateDoc(doc(db, "clients", clientDoc.id), {
-          lastLogin: new Date().toISOString(),
-          loginCount: (clientData.loginCount || 0) + 1,
-        });
-        console.log("Métadonnées client mises à jour, redirection vers /client-admin-dashboard");
+        // Si un compte démo a été trouvé via fallback, on essaie de mettre à jour ses métadonnées si possible
+        const clientDocId = demoResult.docId;
+        const clientCollection = demoResult.collection || 'clients';
+        const clientData = demoResult.data || {};
+        try {
+          if (clientDocId) {
+            await updateDoc(doc(db, clientCollection, clientDocId), {
+              lastLogin: new Date().toISOString(),
+              loginCount: (clientData.loginCount || 0) + 1,
+            });
+          }
+        } catch (updateErr) {
+          console.warn('Impossible de mettre à jour les métadonnées du compte démo:', updateErr);
+        }
 
-        navigate("/client-admin-dashboard");
-      } else {
-        await auth.signOut();
-        console.warn("Aucun document client trouvé pour adminUid:", user.uid);
-        setErrorMessage(
-          "Accès non autorisé. Veuillez utiliser un compte administrateur d'entreprise."
-        );
+        console.log('Compte démo accepté via fallback:', demoResult);
+        navigate('/client-admin-dashboard');
+        return;
       }
+
+      const clientDoc = querySnapshot.docs[0];
+      const clientData = clientDoc.data();
+      console.log("Document client trouvé:", clientData);
+
+      if (!clientData.isActive) {
+        await auth.signOut();
+        const message = clientData.isDemo 
+          ? "Votre compte démo est expiré. Veuillez vous abonner pour continuer."
+          : "Votre compte est désactivé. Contactez l'administrateur.";
+        setErrorMessage(message);
+        setIsLoading(false);
+        return;
+      }
+
+      // Si c'est un compte démo, vérifier son statut
+      if (clientData.isDemo) {
+        console.log("Compte démo trouvé, vérification du statut...");
+        await checkDemoStatus(user);
+      }
+
+      // Mettre à jour les métadonnées
+      await updateDoc(doc(db, "clients", clientDoc.id), {
+        lastLogin: new Date().toISOString(),
+        loginCount: (clientData.loginCount || 0) + 1,
+      });
+      
+      console.log("Métadonnées client mises à jour, redirection vers /client-admin-dashboard");
+      navigate("/client-admin-dashboard");
     } catch (error) {
       console.error("Erreur de connexion:", error.code, error.message);
       console.error("Détails de l'erreur:", error);
