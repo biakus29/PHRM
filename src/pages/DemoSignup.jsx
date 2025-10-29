@@ -81,9 +81,9 @@ const DemoSignup = () => {
         displayName: `${formData.firstName} ${formData.lastName}`
       });
 
-      // Calculer la date d'expiration (24h à partir de maintenant)
+      // Calculer la date d'expiration (30 jours à partir de maintenant)
       const expirationDate = new Date();
-      expirationDate.setHours(expirationDate.getHours() + 24);
+      expirationDate.setDate(expirationDate.getDate() + 30);
 
       // Créer le document démo dans Firestore
       await addDoc(collection(db, "demo_accounts"), {
@@ -139,7 +139,7 @@ const DemoSignup = () => {
               Essai Gratuit 30 Jours
             </h2>
             <p className="mt-2 text-sm text-gray-600">
-              Créez votre compte démo et explorez PHRM gratuitement pendant 24h
+              Créez votre compte démo et explorez PRHM gratuitement pendant 30 jours
             </p>
           </div>
 
@@ -308,7 +308,7 @@ const DemoSignup = () => {
                     </button>
                   </div>
                   <div className="text-sm text-gray-600 space-y-3">
-                    <p>• Ce compte démo est valide pendant 24 heures à compter de sa création.</p>
+                    <p>• Ce compte démo est valide pendant 30 jours à compter de sa création.</p>
                     <p>• Toutes les données sont fictives et seront supprimées automatiquement à l'expiration.</p>
                     <p>• L'accès est limité aux fonctionnalités de démonstration.</p>
                     <p>• Vous ne pouvez pas exporter ou sauvegarder des données réelles.</p>

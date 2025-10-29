@@ -495,7 +495,9 @@ const deletePaySlip = async (employeeId, payslipId, fallback) => {
           sector: "Démonstration",
           adminUid: user.uid,
           createdAt: new Date(),
-          licenseExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
+          // Licence démo : 30 jours par défaut, et limitation à 2 utilisateurs/employés
+          licenseExpiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 jours
+          licenseMaxUsers: 2,
           isActive: true
         });
         setEmployees(demoData.employees || []);

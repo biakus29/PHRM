@@ -16,10 +16,10 @@ const DemoExpirationBanner = () => {
     return null;
   }
 
-  // Calculer les heures restantes pour déterminer l'urgence
-  const hoursRemaining = timeRemaining ? Math.floor(timeRemaining / (1000 * 60 * 60)) : 0;
-  const isUrgent = hoursRemaining <= 2; // Urgent si moins de 2h
-  const isWarning = hoursRemaining <= 6; // Avertissement si moins de 6h
+  // Calculer les jours restants pour déterminer l'urgence
+  const daysRemaining = timeRemaining ? Math.floor(timeRemaining / (1000 * 60 * 60 * 24)) : 0;
+  const isUrgent = daysRemaining <= 2; // Urgent si moins de 2 jours
+  const isWarning = daysRemaining <= 5; // Avertissement si moins de 5 jours
 
   const getBannerStyle = () => {
     if (isUrgent) {
@@ -43,17 +43,17 @@ const DemoExpirationBanner = () => {
     if (isUrgent) {
       return {
         title: '⚠️ Expiration imminente !',
-        subtitle: `Votre essai expire dans ${formatTimeRemaining(timeRemaining)}. Souscrivez maintenant pour ne pas perdre vos données.`
+        subtitle: `Votre période d'essai de 30 jours expire dans ${formatTimeRemaining(timeRemaining)}. Souscrivez maintenant pour ne pas perdre vos données.`
       };
     } else if (isWarning) {
       return {
         title: '⏰ Bientôt la fin de votre essai',
-        subtitle: `Plus que ${formatTimeRemaining(timeRemaining)} pour profiter de PHRM gratuitement.`
+        subtitle: `Plus que ${formatTimeRemaining(timeRemaining)} sur votre période d'essai de 30 jours pour profiter de PRHM.`
       };
     } else {
       return {
         title: '🎯 Mode Démonstration Actif',
-        subtitle: `Temps restant : ${formatTimeRemaining(timeRemaining)} pour explorer toutes les fonctionnalités.`
+        subtitle: `Il vous reste ${formatTimeRemaining(timeRemaining)} sur votre période d'essai de 30 jours pour explorer toutes les fonctionnalités.`
       };
     }
   };
@@ -101,13 +101,13 @@ const DemoExpirationBanner = () => {
             <div 
               className="bg-white h-full transition-all duration-1000 ease-out"
               style={{ 
-                width: `${Math.max(0, Math.min(100, (timeRemaining / (24 * 60 * 60 * 1000)) * 100))}%` 
+                width: `${Math.max(0, Math.min(100, (timeRemaining / (30 * 24 * 60 * 60 * 1000)) * 100))}%` 
               }}
             ></div>
           </div>
           <div className="flex justify-between text-xs opacity-75 mt-1">
             <span>Début de l'essai</span>
-            <span>24h</span>
+            <span>30 jours</span>
           </div>
         </div>
       </div>

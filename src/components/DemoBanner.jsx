@@ -16,7 +16,7 @@ const DemoBanner = () => {
           <AlertTriangle className="h-5 w-5 text-red-400 mr-3" />
           <div>
             <p className="text-sm text-red-700">
-              <strong>Compte démo expiré</strong> - Votre période d'essai de 24h est terminée.
+              <strong>Compte démo expiré</strong> - Votre période d'essai de 30 jours est terminée.
               Les données ont été supprimées automatiquement.
             </p>
           </div>

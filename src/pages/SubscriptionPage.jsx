@@ -168,7 +168,7 @@ const SubscriptionPage = () => {
           <div className="flex items-center justify-center space-x-3">
             <Clock className="w-6 h-6 animate-pulse" />
             <div className="text-center">
-              <p className="font-semibold">⏰ Votre période d'essai de 24h a expiré</p>
+              <p className="font-semibold">⏰ Votre période d'essai de 30 jours a expiré</p>
               <p className="text-red-100 text-sm">Choisissez un abonnement pour continuer à utiliser PHRM</p>
             </div>
           </div>

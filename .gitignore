@@ -21,3 +21,17 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Ignore removed markdown documentation files
+# Specific removed files (kept here to avoid re-adding accidentally)
+/BEFORE_AFTER_COMPARISON.md
+/MIGRATION_GUIDE.md
+/QUICK_START_GUIDE.md
+/REFACTORING_COMPLETE.md
+/REFACTORING_DOCUMENTATION.md
+/REFACTORING_SUMMARY.md
+/REFACTORING_FILES_INDEX.md
+src/components/DocumentsManager/README.md
+
+# If you prefer to ignore all markdown files, uncomment the following:
+# *.md

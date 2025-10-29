@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useDemo } from '../contexts/DemoContext';
 import { INDEMNITIES, BONUSES } from '../utils/payrollLabels';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -36,6 +37,9 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
     { value: 'enterprise', label: 'Enterprise' },
   ];
 
+  // Détection mode démo
+  const { isDemoAccount } = useDemo();
+
   // État local pour le modèle sélectionné dans ce composant
   const initialTemplate = (template || salaryDetails?.selectedTemplate || remuneration?.selectedTemplate || 'eneo');
   const [selectedTemplate, setSelectedTemplate] = useState(String(initialTemplate).toLowerCase());
@@ -47,6 +51,11 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
   }, [template, salaryDetails?.selectedTemplate, remuneration?.selectedTemplate]);
   
   const generatePaySlipPDF = () => {
+    // En mode démo, l'export PDF est désactivé
+    if (isDemoAccount) {
+      if (toast) toast.info("Mode démo : l'export PDF est désactivé. Vous pouvez voir l'aperçu à l'écran.");
+      return;
+    }
     // Vérification des champs obligatoires
     const payslip = { employee, employer, salaryDetails, remuneration, deductions, payPeriod, generatedAt };
     const missing = REQUIRED_FIELDS.filter(f => !getValue(payslip, f.key));
@@ -150,7 +159,7 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
       }
 
       // Configuration PDF
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pageWidth = doc.internal.pageSize.width;
       const pageHeight = doc.internal.pageSize.height;
       const margin = 12;
@@ -361,15 +370,24 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
         </div>
       </div>
       
-      <button
-        onClick={generatePaySlipPDF}
-        className="w-full bg-blue-600 text-white font-semibold py-3 px-6 rounded hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center gap-2"
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        Générer le Bulletin de Salaire PDF
-      </button>
+      {isDemoAccount ? (
+        <div className="w-full bg-gray-100 text-gray-700 font-medium py-3 px-6 rounded flex items-center justify-center gap-2 border">
+          <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Mode démo — l'export PDF est désactivé. Aperçu écran uniquement.
+        </div>
+      ) : (
+        <button
+          onClick={generatePaySlipPDF}
+          className="w-full bg-blue-600 text-white font-semibold py-3 px-6 rounded hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center gap-2"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Générer le Bulletin de Salaire PDF
+        </button>
+      )}
 
       {/* Aperçu dynamique Type / Montant (écran) */}
       <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">

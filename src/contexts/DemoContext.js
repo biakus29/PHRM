@@ -2,7 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, db } from '../firebase';
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
-const generateDemoEmployees = () => {
+const generateDemoEmployees = (count = 2) => {
+  // Liste plus complète disponible en production, mais limiter à 2 pour le mode démo
   const names = [
     'Marie Nguema', 'Jean-Paul Mballa', 'Aminata Diallo', 'Pierre Kamdem', 'Sophie Owona',
     'Michel Etoa', 'Fatima Mbarga', 'Joseph Nkoulou', 'Rose Atangana', 'Antoine Abega'
@@ -10,7 +11,7 @@ const generateDemoEmployees = () => {
   const departments = ['RH', 'Finance', 'IT', 'Marketing', 'Production'];
   const statuses = ['Actif', 'Actif', 'Actif', 'Actif', 'Actif', 'Inactif'];
 
-  return names.map((name, index) => ({
+  return names.slice(0, Math.max(1, count)).map((name, index) => ({
     id: `demo_${index + 1}`,
     name,
     email: name.toLowerCase().replace(' ', '.') + '@demo.com',

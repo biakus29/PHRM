@@ -2,7 +2,7 @@
 // Gestionnaire de documents RH : Offres d'emploi, Attestations, Certificats
 
 import React, { useState, useEffect } from 'react';
-import { FiFileText, FiDownload, FiPlus, FiEdit, FiTrash2, FiEye, FiSettings, FiSend } from 'react-icons/fi';
+import { FiFileText, FiDownload, FiPlus, FiEdit, FiTrash2, FiEye, FiSettings, FiSend, FiUser, FiUsers, FiX } from 'react-icons/fi';
 import { db, auth } from '../firebase';
 import { collection, addDoc, getDocs, doc, deleteDoc, updateDoc, query, where, orderBy } from 'firebase/firestore';
 import { toast } from 'react-toastify';
@@ -39,6 +39,8 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
   const [editingDoc, setEditingDoc] = useState(null);
   const [formData, setFormData] = useState({});
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [viewMode, setViewMode] = useState('all'); // 'all' ou 'employee'
+  const [searchTerm, setSearchTerm] = useState('');
   const [showTextCustomization, setShowTextCustomization] = useState(false);
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [showPreview, setShowPreview] = useState(false);
@@ -672,13 +674,34 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
     );
   };
 
+  // Filtrer les employés pour la recherche
+  const filteredEmployees = employees.filter(employee => 
+    employee.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    employee.matricule?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    employee.poste?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   // Rendu de la liste des documents
   const renderDocumentsList = () => {
     const currentDocs = documents[activeTab] || [];
-    const filteredDocs = currentDocs.filter(d => {
-      if (departmentFilter === 'all') return true;
-      return String(getDocDepartment(d) || '').toLowerCase() === String(departmentFilter).toLowerCase();
-    });
+    let filteredDocs = currentDocs;
+    
+    // Filtrer par employé si un employé est sélectionné et le mode employé est actif
+    if (viewMode === 'employee' && selectedEmployee) {
+      filteredDocs = currentDocs.filter(doc => {
+        const docEmployeeName = doc.employeeName || doc.nomEmploye || '';
+        const selectedEmployeeName = selectedEmployee.name || selectedEmployee.nom || '';
+        return docEmployeeName.toLowerCase() === selectedEmployeeName.toLowerCase();
+      });
+    }
+    
+    // Filtrer par département
+    if (departmentFilter !== 'all') {
+      filteredDocs = filteredDocs.filter(d => {
+        return String(getDocDepartment(d) || '').toLowerCase() === String(departmentFilter).toLowerCase();
+      });
+    }
+    
     const currentType = documentTypes[activeTab];
 
     if (loading) {
@@ -691,27 +714,49 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
     }
 
     if (filteredDocs.length === 0) {
+      const isEmployeeMode = viewMode === 'employee';
+      const hasSelectedEmployee = selectedEmployee !== null;
+      
       return (
         <div className="text-center py-16">
           <div className="bg-gray-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
             <currentType.icon className="h-10 w-10 text-gray-400" />
           </div>
-          <h3 className="text-xl font-medium text-gray-900 mb-2">Aucun {currentType.title.toLowerCase()}</h3>
+          <h3 className="text-xl font-medium text-gray-900 mb-2">
+            {isEmployeeMode && hasSelectedEmployee 
+              ? `Aucun ${currentType.title.toLowerCase()} pour ${selectedEmployee.name}`
+              : isEmployeeMode && !hasSelectedEmployee
+              ? 'Sélectionnez un employé'
+              : `Aucun ${currentType.title.toLowerCase()}`
+            }
+          </h3>
           <p className="text-gray-500 mb-6 max-w-md mx-auto">
-            Créez votre premier document pour commencer à gérer vos {currentType.title.toLowerCase()}.
+            {isEmployeeMode && hasSelectedEmployee 
+              ? `Créez le premier ${currentType.title.toLowerCase().slice(0, -1)} pour ${selectedEmployee.name}.`
+              : isEmployeeMode && !hasSelectedEmployee
+              ? 'Choisissez un employé pour voir ses documents ou créer de nouveaux documents pré-remplis.'
+              : `Créez votre premier document pour commencer à gérer vos ${currentType.title.toLowerCase()}.`
+            }
           </p>
-          <button
-            onClick={() => {
-              setEditingDoc(null);
-              const defaultValues = getDefaultValues(activeTab);
-              setFormData(defaultValues);
-              setShowForm(true);
-            }}
-            className="inline-flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:scale-105"
-          >
-            <FiPlus className="h-5 w-5" />
-            <span>Créer mon premier document</span>
-          </button>
+          {(!isEmployeeMode || hasSelectedEmployee) && (
+            <button
+              onClick={() => {
+                setEditingDoc(null);
+                const defaultValues = getDefaultValues(activeTab);
+                setFormData(defaultValues);
+                setShowForm(true);
+              }}
+              className="inline-flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:scale-105"
+            >
+              <FiPlus className="h-5 w-5" />
+              <span>
+                {isEmployeeMode && hasSelectedEmployee
+                  ? `Créer pour ${selectedEmployee.name}`
+                  : 'Créer mon premier document'
+                }
+              </span>
+            </button>
+          )}
         </div>
       );
     }
@@ -751,8 +796,17 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
 
     return (
       <div className="grid gap-4 sm:gap-6">
-        {filteredDocs.map((doc, index) => (
-          <div key={doc.id} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 hover:scale-[1.01] sm:hover:scale-[1.02] overflow-hidden">
+        {filteredDocs.map((doc, index) => {
+          const isEmployeeDoc = viewMode === 'employee' && selectedEmployee && (
+            (doc.employeeName || doc.nomEmploye || '').toLowerCase() === (selectedEmployee.name || selectedEmployee.nom || '').toLowerCase()
+          );
+          
+          return (
+            <div key={doc.id} className={`bg-white rounded-xl shadow-sm border transition-all duration-200 hover:scale-[1.01] sm:hover:scale-[1.02] overflow-hidden ${
+              isEmployeeDoc 
+                ? 'border-green-300 hover:shadow-lg ring-1 ring-green-200' 
+                : 'border-gray-200 hover:shadow-md'
+            }`}>
             <div className="p-4 sm:p-6">
               <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start space-y-4 lg:space-y-0">
                 <div className="flex-1">
@@ -768,9 +822,16 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
                       <currentType.icon className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h4 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
-                        {doc.title || doc.employeeName || doc.position || `Document #${index + 1}`}
-                      </h4>
+                      <div className="flex items-center space-x-2 mb-1">
+                        <h4 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
+                          {doc.title || doc.employeeName || doc.position || `Document #${index + 1}`}
+                        </h4>
+                        {isEmployeeDoc && (
+                          <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium flex-shrink-0">
+                            ✓ Employé sélectionné
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs sm:text-sm text-gray-500 mt-1">
                         📅 <span className="hidden sm:inline">Créé le </span>
                         {new Date(doc.createdAt?.seconds * 1000).toLocaleDateString('fr-FR', {
@@ -900,7 +961,8 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
               'from-gray-500 to-gray-600'
             }`}></div>
           </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
@@ -987,39 +1049,86 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
         </div>
       </div>
 
-      {/* Sélecteur d'employé simplifié */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-        <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
-          <label className="text-sm font-medium text-gray-700 flex items-center space-x-2">
-            <FiEye className="h-4 w-4 text-blue-600" />
-            <span>Pré-remplir avec un employé :</span>
-          </label>
-          <div className="flex-1 flex items-center space-x-3">
-            <select
-              value={selectedEmployee?.id || ''}
-              onChange={(e) => {
-                const employee = employees.find(emp => emp.id === e.target.value);
-                setSelectedEmployee(employee || null);
-              }}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            >
-              <option value="">Sélectionner un employé...</option>
-              {employees.map(employee => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.name} - {employee.poste}
-                </option>
-              ))}
-            </select>
-            {selectedEmployee && (
+      {/* Système de sélection d'employé amélioré */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        {/* En-tête avec modes de vue */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+            <h3 className="text-lg font-semibold text-gray-800 flex items-center space-x-2">
+              <FiUsers className="h-5 w-5 text-blue-600" />
+              <span>Gestion par employé</span>
+            </h3>
+            
+            {/* Boutons de mode */}
+            <div className="flex items-center space-x-2 bg-white rounded-lg p-1 shadow-sm">
               <button
-                onClick={() => setSelectedEmployee(null)}
-                className="px-3 py-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-all text-sm"
+                onClick={() => {
+                  setViewMode('all');
+                  setSelectedEmployee(null);
+                }}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                  viewMode === 'all'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                }`}
               >
-                ✕ Effacer
+                Tous les documents
               </button>
-            )}
+              <button
+                onClick={() => setViewMode('employee')}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                  viewMode === 'employee'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                }`}
+              >
+                Par employé
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Interface de sélection d'employé (épurée) */}
+        {viewMode === 'employee' && (
+          <div className="p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <input
+                type="text"
+                placeholder="Rechercher (nom, matricule, poste)"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full sm:max-w-xs px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              />
+              <select
+                value={selectedEmployee?.id || ''}
+                onChange={(e) => {
+                  const emp = employees.find(x => x.id === e.target.value);
+                  setSelectedEmployee(emp || null);
+                }}
+                className="w-full sm:max-w-sm px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Sélectionner un employé...</option>
+                {filteredEmployees.map(emp => (
+                  <option key={emp.id} value={emp.id}>
+                    {(emp.name || emp.nom) || '—'} {emp.matricule ? `- ${emp.matricule}` : ''}
+                  </option>
+                ))}
+              </select>
+              {selectedEmployee && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedEmployee(null)}
+                  className="px-3 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md"
+                >
+                  Effacer
+                </button>
+              )}
+            </div>
+            {!selectedEmployee && (
+              <div className="text-sm text-gray-500 mt-2">Sélectionnez un employé pour filtrer la liste des documents.</div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Onglets modernisés - Responsive */}
@@ -1068,41 +1177,111 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
 
         {/* Contenu avec padding responsive et scroll fixé */}
         <div className="p-4 sm:p-6 max-h-[70vh] overflow-y-auto">
-          {/* Filtres simples */}
+          {/* Filtres et indicateurs */}
           {(() => {
             const allDocs = Object.values(documents).flat();
             const departments = Array.from(new Set([
               ...employees.map(e => e.department || e.departement || e.service || e.services || '').filter(Boolean),
               ...allDocs.map(d => d.department || d.departement || d.service || d.services || '').filter(Boolean)
             ])).sort();
+            
+            const currentDocs = documents[activeTab] || [];
+            const totalDocs = currentDocs.length;
+            let filteredCount = currentDocs.length;
+            
+            // Calculer le nombre de documents filtrés
+            if (viewMode === 'employee' && selectedEmployee) {
+              filteredCount = currentDocs.filter(doc => {
+                const docEmployeeName = doc.employeeName || doc.nomEmploye || '';
+                const selectedEmployeeName = selectedEmployee.name || selectedEmployee.nom || '';
+                return docEmployeeName.toLowerCase() === selectedEmployeeName.toLowerCase();
+              }).length;
+            }
+            
+            if (departmentFilter !== 'all') {
+              filteredCount = currentDocs.filter(d => {
+                let matchesEmployee = true;
+                if (viewMode === 'employee' && selectedEmployee) {
+                  const docEmployeeName = d.employeeName || d.nomEmploye || '';
+                  const selectedEmployeeName = selectedEmployee.name || selectedEmployee.nom || '';
+                  matchesEmployee = docEmployeeName.toLowerCase() === selectedEmployeeName.toLowerCase();
+                }
+                const matchesDepartment = String(getDocDepartment(d) || '').toLowerCase() === String(departmentFilter).toLowerCase();
+                return matchesEmployee && matchesDepartment;
+              }).length;
+            }
+            
             return (
-              <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600 font-medium">Département:</span>
-                  <select
-                    value={departmentFilter}
-                    onChange={(e) => setDepartmentFilter(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="all">Tous</option>
-                    {departments.map(dep => (
-                      <option key={dep} value={dep}>{dep}</option>
-                    ))}
-                  </select>
-                  {departmentFilter !== 'all' && (
-                    <button
-                      onClick={() => setDepartmentFilter('all')}
-                      className="text-sm px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
-                    >
-                      Réinitialiser
-                    </button>
-                  )}
-                </div>
-                {departmentFilter !== 'all' && (
-                  <div className="text-sm text-gray-600">
-                    Filtre actif: <span className="font-semibold text-blue-700">{departmentFilter}</span>
+              <div className="mb-4 space-y-3">
+                {/* Indicateurs de filtre actifs */}
+                {(viewMode === 'employee' && selectedEmployee) || departmentFilter !== 'all' ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="text-blue-800 font-medium">Filtres actifs:</span>
+                      {viewMode === 'employee' && selectedEmployee && (
+                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full flex items-center space-x-1">
+                          <span>👤</span>
+                          <span>{selectedEmployee.name}</span>
+                          <button
+                            onClick={() => {
+                              setViewMode('all');
+                              setSelectedEmployee(null);
+                            }}
+                            className="ml-1 text-blue-600 hover:text-blue-800"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      )}
+                      {departmentFilter !== 'all' && (
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full flex items-center space-x-1">
+                          <span>🏢</span>
+                          <span>{departmentFilter}</span>
+                          <button
+                            onClick={() => setDepartmentFilter('all')}
+                            className="ml-1 text-green-600 hover:text-green-800"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      )}
+                      <span className="text-blue-700 font-medium ml-2">
+                        {filteredCount} sur {totalDocs} documents
+                      </span>
+                    </div>
                   </div>
-                )}
+                ) : null}
+                
+                {/* Filtres */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600 font-medium">Département:</span>
+                    <select
+                      value={departmentFilter}
+                      onChange={(e) => setDepartmentFilter(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="all">Tous les départements</option>
+                      {departments.map(dep => (
+                        <option key={dep} value={dep}>{dep}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* Statistiques rapides */}
+                  <div className="flex items-center space-x-4 text-sm text-gray-600">
+                    <div className="flex items-center space-x-1">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <span>Total: <span className="font-semibold text-blue-600">{totalDocs}</span></span>
+                    </div>
+                    {viewMode === 'employee' && selectedEmployee && (
+                      <div className="flex items-center space-x-1">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>Employé: <span className="font-semibold text-green-600">{filteredCount}</span></span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             );
           })()}
