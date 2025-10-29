@@ -76,47 +76,82 @@ export const DemoProvider = ({ children }) => {
     }
 
     try {
-      const demoQuery = query(
-        collection(db, "demo_accounts"),
-        where("uid", "==", user.uid),
+      // 1) Chercher d'abord dans la collection `clients` un compte marqué `isDemo`
+      const clientDemoQuery = query(
+        collection(db, "clients"),
+        where("adminUid", "==", user.uid),
+        where("isDemo", "==", true),
         where("isActive", "==", true)
       );
+      const clientSnapshot = await getDocs(clientDemoQuery);
 
-      const querySnapshot = await getDocs(demoQuery);
-
-      if (!querySnapshot.empty) {
-        const demoDoc = querySnapshot.docs[0];
-        const demoInfo = demoDoc.data();
-        const expiresAt = demoInfo.expiresAt.toDate();
+      if (!clientSnapshot.empty) {
+        const clientDoc = clientSnapshot.docs[0];
+        const clientInfo = clientDoc.data();
+        const expiresAt = clientInfo.licenseExpiry ? new Date(clientInfo.licenseExpiry) : null;
         const now = new Date();
 
-        if (now > expiresAt) {
-          // Compte expiré - désactiver
-          await updateDoc(doc(db, "demo_accounts", demoDoc.id), {
-            isActive: false
-          });
+        if (expiresAt && now > expiresAt) {
+          // Compte démo expiré : désactiver
+          await updateDoc(doc(db, "clients", clientDoc.id), { isActive: false });
           setIsExpired(true);
           setIsDemoAccount(false);
-          // Rediriger vers la page d'abonnement au lieu de déconnecter
           window.location.href = '/subscription';
         } else {
-          // Compte actif
+          // Compte démo actif
           setIsDemoAccount(true);
           setDemoData({
-            ...demoInfo,
-            employees: generateDemoEmployees(),
+            ...clientInfo,
+            // Générer un petit jeu de données fictives limité (2 employés)
+            employees: generateDemoEmployees(2),
             leaveRequests: generateDemoLeaveRequests(),
           });
           setIsExpired(false);
-
-          // Calculer le temps restant
-          const remaining = expiresAt - now;
+          const remaining = expiresAt ? (expiresAt - now) : null;
           setTimeRemaining(remaining);
         }
       } else {
-        setIsDemoAccount(false);
-        setDemoData(null);
-        setIsExpired(false);
+        // 2) Fallback : vérifier l'ancienne collection `demo_accounts` si existante
+        const demoQuery = query(
+          collection(db, "demo_accounts"),
+          where("uid", "==", user.uid),
+          where("isActive", "==", true)
+        );
+        const querySnapshot = await getDocs(demoQuery);
+
+        if (!querySnapshot.empty) {
+          const demoDoc = querySnapshot.docs[0];
+          const demoInfo = demoDoc.data();
+          const expiresAt = demoInfo.expiresAt.toDate();
+          const now = new Date();
+
+          if (now > expiresAt) {
+            // Compte expiré - désactiver
+            await updateDoc(doc(db, "demo_accounts", demoDoc.id), {
+              isActive: false
+            });
+            setIsExpired(true);
+            setIsDemoAccount(false);
+            window.location.href = '/subscription';
+          } else {
+            // Compte actif
+            setIsDemoAccount(true);
+            setDemoData({
+              ...demoInfo,
+              employees: generateDemoEmployees(2),
+              leaveRequests: generateDemoLeaveRequests(),
+            });
+            setIsExpired(false);
+
+            // Calculer le temps restant
+            const remaining = expiresAt - now;
+            setTimeRemaining(remaining);
+          }
+        } else {
+          setIsDemoAccount(false);
+          setDemoData(null);
+          setIsExpired(false);
+        }
       }
     } catch (error) {
       console.error("Erreur lors de la vérification du statut démo:", error);

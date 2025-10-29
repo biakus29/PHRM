@@ -85,22 +85,33 @@ const DemoSignup = () => {
       const expirationDate = new Date();
       expirationDate.setDate(expirationDate.getDate() + 30);
 
-      // Créer le document démo dans Firestore
-      await addDoc(collection(db, "demo_accounts"), {
-        uid: user.uid,
-        originalEmail: formData.email,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        companyName: formData.companyName,
+      // Créer le document démo dans la collection `clients` (compte limité)
+      // Le document est un client avec `isDemo: true` pour permettre un basculement
+      await addDoc(collection(db, "clients"), {
+        adminUid: user.uid,
+        name: formData.companyName,
+        originalAdminEmail: formData.email,
+        contactEmail: formData.email,
+        contactPhone: "",
+        address: "",
+        sector: "Démonstration",
         createdAt: serverTimestamp(),
-        expiresAt: expirationDate,
+        // Licence démo : 30 jours
+        licenseExpiry: expirationDate,
+        // Limitation : 2 utilisateurs/employés
+        licenseMaxUsers: 2,
+        currentUsers: 1,
         isActive: true,
-        // Données fictives pour la démo
-        demoData: {
-          employeeCount: 1247,
-          payrollGenerated: 1200,
-          complianceRate: 98.5,
-          lastPayrollDate: new Date().toISOString(),
+        // Flag demo pour distinguer d'un vrai client
+        isDemo: true,
+        // Fonctionnalités restreintes en mode démo (ex: export PDF désactivé)
+        restrictedFeatures: ['export_pdf', 'export_documents', 'external_backup'],
+        // Petites métriques fictives pour l'affichage
+        demoMetrics: {
+          employeeCount: 2,
+          payrollGenerated: 0,
+          complianceRate: 100,
+          lastPayrollDate: null,
         }
       });
 
