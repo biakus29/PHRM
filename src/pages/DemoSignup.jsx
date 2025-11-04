@@ -91,6 +91,7 @@ const DemoSignup = () => {
         adminUid: user.uid,
         name: formData.companyName,
         originalAdminEmail: formData.email,
+        demoLoginEmail: demoEmail,
         contactEmail: formData.email,
         contactPhone: "",
         address: "",
@@ -115,11 +116,14 @@ const DemoSignup = () => {
         }
       });
 
-      setSuccessMessage("Compte démo créé avec succès ! Vous allez être redirigé...");
+      // Sauvegarder localement l'email de connexion démo pour aider l'utilisateur
+      try { localStorage.setItem('prhm_demo_login_email', demoEmail); } catch (_) {}
 
-      // Rediriger vers le dashboard client après 2 secondes
+      setSuccessMessage(`Compte démo créé avec succès !\n\nIdentifiant de connexion (email) pour les 30 prochains jours: ${demoEmail}\n\nNote: utilisez cet email avec votre mot de passe pour vous reconnecter. Redirection en cours...`);
+
+      // Rediriger vers le dashboard démo après 2 secondes
       setTimeout(() => {
-        navigate("/client-admin-dashboard");
+        navigate("/demo-dashboard");
       }, 2000);
 
     } catch (error) {

@@ -84,6 +84,11 @@ export const DemoProvider = ({ children }) => {
   const [demoData, setDemoData] = useState(null);
   const [timeRemaining, setTimeRemaining] = useState(null);
   const [isExpired, setIsExpired] = useState(false);
+  const [demoActions, setDemoActions] = useState({
+    employeeCreated: false,
+    payslipGenerated: false,
+    documentsCreated: 0
+  });
   
   // Mettre à jour le temps restant toutes les minutes
   useEffect(() => {
@@ -257,6 +262,52 @@ export const DemoProvider = ({ children }) => {
     }
   };
 
+  // Fonctions pour gérer les actions démo
+  const trackDemoAction = (actionType) => {
+    setDemoActions(prev => {
+      switch (actionType) {
+        case 'employee':
+          return { ...prev, employeeCreated: true };
+        case 'payslip':
+          return { ...prev, payslipGenerated: true };
+        case 'document':
+          return { ...prev, documentsCreated: prev.documentsCreated + 1 };
+        default:
+          return prev;
+      }
+    });
+  };
+
+  const canPerformAction = (actionType) => {
+    if (!isDemoAccount) return true; // Pas de limitation pour les comptes complets
+    
+    switch (actionType) {
+      case 'employee':
+        return !demoActions.employeeCreated;
+      case 'payslip':
+        return demoActions.employeeCreated && !demoActions.payslipGenerated;
+      case 'document':
+        return demoActions.employeeCreated && demoActions.payslipGenerated;
+      default:
+        return false;
+    }
+  };
+
+  const getDemoProgress = () => {
+    if (!isDemoAccount) return null;
+    
+    const steps = [
+      { id: 'employee', label: 'Créer un employé', completed: demoActions.employeeCreated },
+      { id: 'payslip', label: 'Générer une fiche de paie', completed: demoActions.payslipGenerated },
+      { id: 'explore', label: 'Explorer les autres fonctionnalités', completed: demoActions.documentsCreated > 0 }
+    ];
+    
+    const completedSteps = steps.filter(step => step.completed).length;
+    const progress = (completedSteps / steps.length) * 100;
+    
+    return { steps, completedSteps, progress };
+  };
+
   const value = {
     isDemoAccount,
     demoData,
@@ -264,6 +315,10 @@ export const DemoProvider = ({ children }) => {
     isExpired,
     formatTimeRemaining,
     checkDemoStatus,
+    demoActions,
+    trackDemoAction,
+    canPerformAction,
+    getDemoProgress,
   };
 
   return (

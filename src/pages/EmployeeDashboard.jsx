@@ -20,6 +20,7 @@ import { createRoot } from 'react-dom/client';
 import { displayDate, displayDateWithOptions, displayGeneratedAt, displayContractStartDate } from "../utils/displayUtils";
 import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, formatCFA, computeCompletePayroll } from "../utils/payrollCalculations";
 import MobileFooterNav from "../components/MobileFooterNav";
+import { useDemo } from "../contexts/DemoContext";
 
 // Configurer pdfjs
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
@@ -27,6 +28,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/$
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
 const EmployeeDashboard = () => {
+  const { isDemoAccount } = useDemo?.() || { isDemoAccount: false };
   const [employeeData, setEmployeeData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -1071,15 +1073,19 @@ const EmployeeDashboard = () => {
                                 employer={employerData}
                                 salaryDetails={selectedPaySlip.salaryDetails}
                                 remuneration={selectedPaySlip.remuneration}
-                                deductions={selectedPayrollCalc?.deductions || selectedPaySlip.deductions}
+                                deductions={selectedPaySlip.deductions}
                                 payPeriod={selectedPaySlip.payPeriod}
                                 generatedAt={selectedPaySlip.generatedAt}
-                                auto={true}
+                                primes={selectedPaySlip.primes}
+                                indemnites={selectedPaySlip.indemnites}
+                                template={selectedPaySlip.template}
+                                auto
+                                isDemoAccount={isDemoAccount}
                                 onExported={() => {
-                                  setTimeout(() => {
+                                  try {
                                     root.unmount();
                                     document.body.removeChild(tempDiv);
-                                  }, 500);
+                                  } catch {}
                                 }}
                               />
                             );

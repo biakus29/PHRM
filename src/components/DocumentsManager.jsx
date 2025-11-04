@@ -6,6 +6,9 @@ import { FiFileText, FiDownload, FiPlus, FiEdit, FiTrash2, FiEye, FiSettings, Fi
 import { db, auth } from '../firebase';
 import { collection, addDoc, getDocs, doc, deleteDoc, updateDoc, query, where, orderBy } from 'firebase/firestore';
 import { toast } from 'react-toastify';
+import { useDemo } from '../contexts/DemoContext';
+import DemoLimitModal from './DemoLimitModal';
+import UpgradeForm from './UpgradeForm';
 import { generateOfferLetterPDF } from '../utils/pdfTemplates/offerTemplateCameroon';
 import { generateAttestationPDFCameroon } from '../utils/pdfTemplates/attestationTemplateCameroon';
 import { generateCertificatePDFCameroon } from '../utils/pdfTemplates/certificateTemplateCameroon';
@@ -24,8 +27,11 @@ import {
   SERVICES
 } from '../utils/constants';
 import { createJob } from '../services/jobs';
+import { upgradeService } from '../services/upgradeService';
 
 const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, employees = [] }) => {
+  const { isDemoAccount, canPerformAction, trackDemoAction, getDemoProgress } = useDemo();
+  
   const [activeTab, setActiveTab] = useState('offers');
   const [documents, setDocuments] = useState({
     offers: [],
@@ -45,6 +51,11 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [showPreview, setShowPreview] = useState(false);
   const [previewData, setPreviewData] = useState(null);
+  
+  // États pour les modales démo
+  const [showDemoLimit, setShowDemoLimit] = useState(false);
+  const [showUpgradeForm, setShowUpgradeForm] = useState(false);
+  const [demoLimitAction, setDemoLimitAction] = useState('document');
 
   // Types de documents
   const documentTypes = {
@@ -474,8 +485,25 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
     }
   };
 
+  // Vérifier les limitations démo avant une action
+  const checkDemoLimitation = (actionType) => {
+    if (!isDemoAccount) return true;
+    
+    if (!canPerformAction(actionType)) {
+      setDemoLimitAction(actionType);
+      setShowDemoLimit(true);
+      return false;
+    }
+    return true;
+  };
+
   // Sauvegarder un document
   const saveDocument = async (data) => {
+    // Vérifier les limitations démo pour la création de documents
+    if (!editingDoc && !checkDemoLimitation('document')) {
+      return;
+    }
+
     setLoading(true);
     try {
       const docData = {
@@ -492,6 +520,11 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
       } else {
         await addDoc(collection(db, 'documents'), docData);
         toast.success('Document créé avec succès');
+        
+        // Tracker l'action pour les comptes démo
+        if (isDemoAccount) {
+          trackDemoAction('document');
+        }
       }
 
       setShowForm(false);
@@ -526,6 +559,12 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
   // Générer PDF
   const generatePDF = (documentData) => {
     try {
+      if (isDemoAccount) {
+        setDemoLimitAction('document');
+        setShowDemoLimit(true);
+        toast.info("Mode démo: la génération de PDF est bloquée. Passez en Pro pour débloquer cette fonctionnalité.");
+        return;
+      }
       switch (activeTab) {
         case 'offers':
           // Passer les options pour la version du modèle
@@ -554,6 +593,28 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
       console.error('Erreur lors de la génération PDF:', error);
       toast.error('Erreur lors de la génération PDF');
     }
+  };
+
+  // Fonctions pour gérer l'upgrade
+  const handleUpgradeSubmit = async (upgradeData) => {
+    try {
+      const result = await upgradeService.processUpgradeRequest(upgradeData);
+      
+      if (result.success) {
+        console.log('Demande d\'upgrade traitée avec succès:', result.requestId);
+        return true;
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'envoi de la demande d\'upgrade:', error);
+      throw error;
+    }
+  };
+
+  const handleUpgradeClick = () => {
+    setShowDemoLimit(false);
+    setShowUpgradeForm(true);
   };
 
   // Charger les documents au montage
@@ -741,6 +802,8 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
           {(!isEmployeeMode || hasSelectedEmployee) && (
             <button
               onClick={() => {
+                if (!checkDemoLimitation('document')) return;
+                
                 setEditingDoc(null);
                 const defaultValues = getDefaultValues(activeTab);
                 setFormData(defaultValues);
@@ -973,8 +1036,59 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg shadow-sm p-4 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
           <div className="text-white">
-            <h3 className="text-lg font-semibold mb-1">Documents RH</h3>
-            <p className="text-blue-100 text-sm">Gestion complète des documents employés</p>
+            <h3 className="text-lg font-semibold mb-1">
+              Documents RH
+              {isDemoAccount && (
+                <span className="ml-2 bg-yellow-500 text-yellow-900 px-2 py-1 rounded-full text-xs font-medium">
+                  DÉMO
+                </span>
+              )}
+            </h3>
+            <p className="text-blue-100 text-sm">
+              {isDemoAccount 
+                ? 'Mode démo - Fonctionnalités limitées' 
+                : 'Gestion complète des documents employés'
+              }
+            </p>
+            
+            {/* Indicateur de progrès démo */}
+            {isDemoAccount && (() => {
+              const progress = getDemoProgress();
+              if (!progress) return null;
+              
+              return (
+                <div className="mt-3 bg-white/20 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-blue-100">Progrès de la démo</span>
+                    <span className="text-sm text-blue-100">{progress.completedSteps}/{progress.steps.length}</span>
+                  </div>
+                  <div className="w-full bg-white/20 rounded-full h-2 mb-2">
+                    <div 
+                      className="bg-yellow-400 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${progress.progress}%` }}
+                    ></div>
+                  </div>
+                  <div className="space-y-1">
+                    {progress.steps.map((step, index) => (
+                      <div key={step.id} className="flex items-center space-x-2 text-xs">
+                        <div className={`w-3 h-3 rounded-full ${
+                          step.completed ? 'bg-green-400' : 'bg-white/30'
+                        }`}>
+                          {step.completed && (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <span className="text-green-800 text-xs">✓</span>
+                            </div>
+                          )}
+                        </div>
+                        <span className={step.completed ? 'text-green-200' : 'text-blue-200'}>
+                          {step.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
           
           {/* Actions rapides */}
@@ -983,6 +1097,8 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
               <button
                 key={type}
                 onClick={() => {
+                  if (!checkDemoLimitation('document')) return;
+                  
                   setActiveTab(type);
                   setEditingDoc(null);
                   const defaultValues = getDefaultValues(type);
@@ -1035,6 +1151,8 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
             </button>
             <button
               onClick={() => {
+                if (!checkDemoLimitation('document')) return;
+                
                 setEditingDoc(null);
                 const defaultValues = getDefaultValues(activeTab);
                 setFormData(defaultValues);
@@ -1403,6 +1521,21 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
           </div>
         </div>
       )}
+
+      {/* Modal de limitation démo */}
+      <DemoLimitModal
+        isOpen={showDemoLimit}
+        onClose={() => setShowDemoLimit(false)}
+        onUpgrade={handleUpgradeClick}
+        actionType={demoLimitAction}
+      />
+
+      {/* Formulaire d'upgrade */}
+      <UpgradeForm
+        isOpen={showUpgradeForm}
+        onClose={() => setShowUpgradeForm(false)}
+        onSubmit={handleUpgradeSubmit}
+      />
     </div>
   );
 };

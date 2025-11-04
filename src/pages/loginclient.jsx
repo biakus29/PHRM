@@ -13,8 +13,22 @@ const ClientAdminLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [demoHintEmail, setDemoHintEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+
+  // Prefill demo email if available (stored after demo signup)
+  useEffect(() => {
+    try {
+      const storedDemoEmail = localStorage.getItem('prhm_demo_login_email');
+      if (storedDemoEmail) {
+        setEmail(storedDemoEmail);
+        setDemoHintEmail(storedDemoEmail);
+      }
+    } catch (_) {
+      // ignore storage errors
+    }
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -86,7 +100,7 @@ const ClientAdminLogin = () => {
         }
 
         console.log('Compte démo accepté via fallback:', demoResult);
-        navigate('/client-admin-dashboard');
+        navigate('/demo-dashboard');
         return;
       }
 
@@ -116,8 +130,10 @@ const ClientAdminLogin = () => {
         loginCount: (clientData.loginCount || 0) + 1,
       });
       
-      console.log("Métadonnées client mises à jour, redirection vers /client-admin-dashboard");
-      navigate("/client-admin-dashboard");
+      // Rediriger vers le dashboard approprié
+      const dashboardPath = clientData.isDemo ? "/demo-dashboard" : "/client-admin-dashboard";
+      console.log(`Métadonnées client mises à jour, redirection vers ${dashboardPath}`);
+      navigate(dashboardPath);
     } catch (error) {
       console.error("Erreur de connexion:", error.code, error.message);
       console.error("Détails de l'erreur:", error);
@@ -177,6 +193,11 @@ const ClientAdminLogin = () => {
         <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center sm:text-3xl">
           Connexion Administrateur Client
         </h2>
+        {demoHintEmail && (
+          <div className="bg-blue-50 text-blue-700 p-3 rounded-lg mb-4 text-xs sm:text-sm">
+            Compte démo détecté: utilisez l'email <span className="font-semibold">{demoHintEmail}</span> avec le mot de passe choisi lors de l'inscription pour vous reconnecter pendant 30 jours.
+          </div>
+        )}
         {errorMessage && (
           <div className="bg-red-100 text-red-600 p-3 rounded-lg mb-4 text-sm sm:text-base animate-fade-bounce">
             {errorMessage}
