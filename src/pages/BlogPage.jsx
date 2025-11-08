@@ -105,7 +105,10 @@ const BlogPage = () => {
           }
         }
       } catch (error) {
-        console.error("Erreur lors du chargement des infos admin:", error);
+        // Ne pas afficher l'erreur si c'est juste une question de permissions
+        if (error.code !== 'permission-denied') {
+          console.error("Erreur lors du chargement des infos admin:", error);
+        }
         // Ne pas bloquer l'affichage si les infos admin échouent
       }
     };
@@ -142,15 +145,34 @@ const BlogPage = () => {
           }
         },
         (error) => {
-          console.error("Erreur lors du chargement des articles:", error);
+          // Ne pas afficher l'erreur si c'est juste une question de permissions
+          if (error.code !== 'permission-denied') {
+            console.error("Erreur lors du chargement des articles:", error);
+          }
           setLoading(false);
-          setError("Impossible de charger les articles. Veuillez réessayer plus tard.");
+          // Si c'est une erreur de permissions, ne pas afficher de message d'erreur
+          // (l'utilisateur n'a peut-être pas les droits pour voir le blog)
+          if (error.code === 'permission-denied') {
+            setError(null);
+            setPosts([]); // Pas d'articles à afficher
+          } else {
+            setError("Impossible de charger les articles. Veuillez réessayer plus tard.");
+          }
         }
       );
     } catch (error) {
-      console.error("Erreur lors de l'initialisation de la requête:", error);
+      // Ne pas afficher l'erreur si c'est juste une question de permissions
+      if (error.code !== 'permission-denied') {
+        console.error("Erreur lors de l'initialisation de la requête:", error);
+      }
       setLoading(false);
-      setError("Erreur de connexion. Veuillez réessayer plus tard.");
+      // Si c'est une erreur de permissions, ne pas afficher de message d'erreur
+      if (error.code === 'permission-denied') {
+        setError(null);
+        setPosts([]);
+      } else {
+        setError("Erreur de connexion. Veuillez réessayer plus tard.");
+      }
     }
 
     fetchSuperAdminInfo();

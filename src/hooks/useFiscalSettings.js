@@ -72,7 +72,11 @@ export const useFiscalSettings = () => {
         setLoading(false);
       },
       (err) => {
-        console.error('Erreur chargement paramètres fiscaux:', err);
+        // Ne pas afficher l'erreur si c'est juste une question de permissions
+        // (les employés n'ont pas besoin d'accéder aux paramètres fiscaux)
+        if (err.code !== 'permission-denied') {
+          console.error('Erreur chargement paramètres fiscaux:', err);
+        }
         setError(err);
         setSettings(DEFAULT_SETTINGS); // Utiliser les valeurs par défaut en cas d'erreur
         setLoading(false);
@@ -99,7 +103,10 @@ export const loadFiscalSettings = async () => {
     }
     return DEFAULT_SETTINGS;
   } catch (error) {
-    console.error('Erreur chargement paramètres fiscaux:', error);
+    // Ne pas afficher l'erreur si c'est juste une question de permissions
+    if (error.code !== 'permission-denied') {
+      console.error('Erreur chargement paramètres fiscaux:', error);
+    }
     return DEFAULT_SETTINGS;
   }
 };

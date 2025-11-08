@@ -64,7 +64,10 @@ const BlogManagement = () => {
           }
         }
       } catch (error) {
-        console.error("Erreur lors du chargement des infos admin:", error);
+        // Ne pas afficher l'erreur si c'est juste une question de permissions
+        if (error.code !== 'permission-denied') {
+          console.error("Erreur lors du chargement des infos admin:", error);
+        }
       }
     };
 
@@ -83,8 +86,16 @@ const BlogManagement = () => {
         setLoading(false);
       },
       (error) => {
-        console.error("Erreur lors du chargement des articles:", error);
-        setErrorMessage("Erreur lors du chargement des articles");
+        // Ne pas afficher l'erreur si c'est juste une question de permissions
+        if (error.code !== 'permission-denied') {
+          console.error("Erreur lors du chargement des articles:", error);
+        }
+        // Si c'est une erreur de permissions, afficher un message approprié
+        if (error.code === 'permission-denied') {
+          setErrorMessage("Vous n'avez pas les permissions nécessaires pour gérer le blog.");
+        } else {
+          setErrorMessage("Erreur lors du chargement des articles");
+        }
         setLoading(false);
       }
     );

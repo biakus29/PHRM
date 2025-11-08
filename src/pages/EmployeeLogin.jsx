@@ -72,8 +72,14 @@ const EmployeeLogin = () => {
         }
       } catch (error) {
         console.error("Erreur connexion :", error.code, error.message);
-        setErrorMessage("Erreur de connexion : " + error.message);
-        toast.error("Erreur : " + error.message);
+        // Gérer spécifiquement les erreurs de permissions
+        if (error.code === 'permission-denied') {
+          setErrorMessage("Accès refusé. Veuillez contacter votre administrateur.");
+          toast.error("Accès refusé. Veuillez contacter votre administrateur.");
+        } else {
+          setErrorMessage("Erreur de connexion : " + error.message);
+          toast.error("Erreur : " + error.message);
+        }
       } finally {
         setIsLoading(false);
       }
