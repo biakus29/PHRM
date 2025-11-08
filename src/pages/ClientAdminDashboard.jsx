@@ -3,6 +3,7 @@ import TemplateSelector from "../components/TemplateSelector";
 import DocumentsManager from "../components/DocumentsManager";
 import { createRoot } from "react-dom/client";
 import { auth, db } from "../firebase";
+import { createUserWithEmailAndPassword } from "firebase/auth";
 import {
   doc,
   getDocs,
@@ -773,6 +774,25 @@ const addEmployee = async (e) => {
         currentPassword: newEmployee.initialPassword || "123456", // Mot de passe actuel (identique à l'initial au départ)
         passwordChanged: false, // Indicateur si le mot de passe a été changé
       };
+      
+      // Créer un compte Firebase Auth pour l'employé (si possible)
+      let authUid = null;
+      try {
+        const password = newEmployee.initialPassword || "123456";
+        const userCredential = await createUserWithEmailAndPassword(auth, newEmployee.email, password);
+        authUid = userCredential.user.uid;
+        employeeData.authUid = authUid; // Stocker l'UID Firebase Auth
+        console.log("Compte Firebase Auth créé pour l'employé:", authUid);
+      } catch (authError) {
+        // Si l'email est déjà utilisé, ce n'est pas grave (l'employé peut déjà avoir un compte)
+        if (authError.code === 'auth/email-already-in-use') {
+          console.log("L'email est déjà utilisé pour Firebase Auth, continuer sans créer de compte");
+        } else {
+          console.warn("Impossible de créer un compte Firebase Auth pour l'employé:", authError.message);
+          // Continuer quand même - l'employé pourra utiliser la méthode legacy
+        }
+      }
+      
       employeeId = await svcAddEmployee(db, companyData.id, employeeData);
       toast.success("Employé ajouté avec succès !");
     }
