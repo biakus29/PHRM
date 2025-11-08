@@ -125,16 +125,23 @@ const BlogPage = () => {
 
     // Récupérer les articles depuis Firestore
     try {
+      // Récupérer tous les articles (publics par défaut)
       const q = query(collection(db, "blogPosts"), orderBy("createdAt", "desc"));
       
       unsubscribe = onSnapshot(
         q,
         (snapshot) => {
           try {
-            const postsData = snapshot.docs.map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            }));
+            const postsData = snapshot.docs
+              .map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+              }))
+              // Filtrer les articles publiés (si le champ published existe, il doit être true)
+              // Sinon, afficher tous les articles
+              .filter((post) => post.published !== false);
+            
+            console.log(`Articles chargés: ${postsData.length} sur ${snapshot.docs.length}`);
             setPosts(postsData);
             setLoading(false);
             setError(null);
@@ -145,16 +152,16 @@ const BlogPage = () => {
           }
         },
         (error) => {
-          // Ne pas afficher l'erreur si c'est juste une question de permissions
-          if (error.code !== 'permission-denied') {
-            console.error("Erreur lors du chargement des articles:", error);
-          }
+          console.error("Erreur lors du chargement des articles:", error);
           setLoading(false);
-          // Si c'est une erreur de permissions, ne pas afficher de message d'erreur
-          // (l'utilisateur n'a peut-être pas les droits pour voir le blog)
+          // Afficher un message d'erreur plus informatif
           if (error.code === 'permission-denied') {
-            setError(null);
-            setPosts([]); // Pas d'articles à afficher
+            setError("Les articles ne sont pas accessibles. Veuillez vérifier les règles de sécurité Firestore.");
+            setPosts([]);
+          } else if (error.code === 'failed-precondition') {
+            // Erreur d'index manquant
+            setError("Index Firestore manquant. Veuillez créer un index pour 'createdAt' sur la collection 'blogPosts'.");
+            setPosts([]);
           } else {
             setError("Impossible de charger les articles. Veuillez réessayer plus tard.");
           }

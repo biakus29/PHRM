@@ -212,16 +212,18 @@ const BlogManagement = () => {
           title: formData.title.trim(),
           content: formData.content.trim(),
           author: formData.author.trim() || superAdminInfo.name,
+          published: true, // S'assurer que l'article reste publié
           updatedAt: new Date(),
         });
         setSuccessMessage("Article mis à jour avec succès");
       } else {
-        // Créer un nouvel article
+        // Créer un nouvel article (publié par défaut)
         await addDoc(collection(db, "blogPosts"), {
           title: formData.title.trim(),
           content: formData.content.trim(),
           author: formData.author.trim() || superAdminInfo.name,
           likes: 0,
+          published: true, // Article publié par défaut
           createdAt: new Date(),
           updatedAt: new Date(),
         });
