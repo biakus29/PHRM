@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { db } from "../firebase";
 import { 
   collection, 
@@ -11,17 +11,57 @@ import {
   getDocs,
   where
 } from "firebase/firestore";
-import { Heart, Calendar, User, BookOpen, TrendingUp } from "lucide-react";
+import { Heart, Calendar, User, BookOpen, TrendingUp, Sparkles } from "lucide-react";
 
 const BlogPage = () => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [likedPosts, setLikedPosts] = useState(new Set());
+  const [visiblePosts, setVisiblePosts] = useState(new Set());
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const heroRef = useRef(null);
   const [superAdminInfo, setSuperAdminInfo] = useState({
     name: "Super Admin",
     photo: "/directeur.jpg",
   });
+
+  // Animation au scroll pour les articles
+  useEffect(() => {
+    const observerOptions = {
+      threshold: 0.1,
+      rootMargin: '0px 0px -50px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          setVisiblePosts((prev) => new Set([...prev, entry.target.id]));
+        }
+      });
+    }, observerOptions);
+
+    // Observer tous les articles
+    const articleElements = document.querySelectorAll('[data-article-id]');
+    articleElements.forEach((el) => observer.observe(el));
+
+    return () => {
+      articleElements.forEach((el) => observer.unobserve(el));
+    };
+  }, [posts]);
+
+  // Suivre la position de la souris pour les effets parallax
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      setMousePosition({
+        x: (e.clientX / window.innerWidth - 0.5) * 20,
+        y: (e.clientY / window.innerHeight - 0.5) * 20,
+      });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
 
   // S'assurer que loading passe à false après un délai maximum
   useEffect(() => {
@@ -122,7 +162,7 @@ const BlogPage = () => {
     };
   }, []);
 
-  const handleLike = async (postId) => {
+  const handleLike = async (postId, event) => {
     try {
       const postRef = doc(db, "blogPosts", postId);
       const postDoc = await getDoc(postRef);
@@ -144,12 +184,47 @@ const BlogPage = () => {
         await updateDoc(postRef, {
           likes: currentLikes + 1,
         });
+        
+        // Animation de confetti pour le like
+        if (event) {
+          createLikeAnimation(event);
+        }
       }
       
       setLikedPosts(newLikedPosts);
       localStorage.setItem("blogLikes", JSON.stringify(Array.from(newLikedPosts)));
     } catch (error) {
       console.error("Erreur lors du like:", error);
+    }
+  };
+
+  // Animation de confetti pour les likes
+  const createLikeAnimation = (event) => {
+    const button = event.currentTarget;
+    const rect = button.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+
+    for (let i = 0; i < 12; i++) {
+      const angle = (i * 30) * (Math.PI / 180); // Convertir en radians
+      const distance = 100;
+      const endX = x + Math.cos(angle) * distance;
+      const endY = y + Math.sin(angle) * distance;
+
+      const translateX = endX - x;
+      const translateY = endY - y;
+      
+      const particle = document.createElement('div');
+      particle.className = 'like-particle';
+      particle.style.left = x + 'px';
+      particle.style.top = y + 'px';
+      particle.style.setProperty('--translate-x', translateX + 'px');
+      particle.style.setProperty('--translate-y', translateY + 'px');
+      document.body.appendChild(particle);
+
+      setTimeout(() => {
+        particle.remove();
+      }, 1000);
     }
   };
 
@@ -194,23 +269,48 @@ const BlogPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50" style={{ minHeight: '100vh', backgroundColor: '#eff6ff' }}>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 blog-container" style={{ minHeight: '100vh', backgroundColor: '#eff6ff' }}>
       {/* Hero Section avec informations du super admin */}
-      <section className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 text-white py-12 sm:py-16 lg:py-20 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        {/* Background Elements */}
+      <section 
+        ref={heroRef}
+        className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 text-white py-12 sm:py-16 lg:py-20 px-4 sm:px-6 lg:px-8 relative overflow-hidden hero-section"
+        style={{
+          transform: `translate(${mousePosition.x * 0.02}px, ${mousePosition.y * 0.02}px)`,
+          transition: 'transform 0.3s ease-out'
+        }}
+      >
+        {/* Background Elements animés */}
         <div className="absolute inset-0 opacity-20">
-          <div className="absolute inset-0" style={{
+          <div className="absolute inset-0 animated-bg" style={{
             backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
           }}></div>
+        </div>
+        
+        {/* Particules flottantes */}
+        <div className="absolute inset-0 overflow-hidden">
+          {[...Array(6)].map((_, i) => (
+            <div
+              key={i}
+              className="floating-particle"
+              style={{
+                left: `${(i * 15) % 100}%`,
+                animationDelay: `${i * 0.5}s`,
+                animationDuration: `${3 + (i % 3)}s`
+              }}
+            />
+          ))}
         </div>
 
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-8 sm:mb-12 animate-fade-in-up">
-            <div className="flex items-center justify-center mb-4 sm:mb-6">
-              <BookOpen className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 text-white animate-bounce" />
+            <div className="flex items-center justify-center mb-4 sm:mb-6 relative">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Sparkles className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 text-yellow-300 opacity-30 animate-pulse-sparkle" />
+              </div>
+              <BookOpen className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 text-white relative z-10 animate-bounce-gentle" />
             </div>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-3 sm:mb-4 animate-slide-in-left px-2">
-              Blog <span className="text-blue-200">PHRM</span>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-3 sm:mb-4 animate-slide-in-left px-2 relative">
+              Blog <span className="text-blue-200 relative inline-block animate-gradient-text">PHRM</span>
             </h1>
             <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-blue-100 mb-6 sm:mb-8 animate-fade-in-up animation-delay-200 px-2">
               Découvrez nos dernières actualités et articles
@@ -219,24 +319,22 @@ const BlogPage = () => {
 
           {/* Carte du super admin */}
           <div className="max-w-2xl mx-auto">
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 flex flex-col sm:flex-row items-center gap-4 sm:gap-6 shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-[1.02] animate-fade-in-up animation-delay-300 border border-white/20">
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 flex flex-col sm:flex-row items-center gap-4 sm:gap-6 shadow-2xl hover:shadow-3xl transition-all duration-500 hover:scale-[1.02] animate-fade-in-up animation-delay-300 border border-white/20 admin-card group">
               <div className="relative flex-shrink-0">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-yellow-400 via-pink-500 to-blue-500 opacity-0 group-hover:opacity-30 blur-xl transition-opacity duration-500 animate-pulse-ring"></div>
                 <img
                   src={superAdminInfo.photo}
                   onError={(e) => { 
                     e.target.src = '/logophrm.png'; 
                   }}
                   alt={superAdminInfo.name}
-                  className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full object-cover ring-4 ring-white/30 shadow-lg"
+                  className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full object-cover ring-4 ring-white/30 shadow-lg relative z-10 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3"
                 />
-                <div className="absolute -bottom-1 -right-1 sm:-bottom-2 sm:-right-2 bg-green-500 w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-white"></div>
+                <div className="absolute -bottom-1 -right-1 sm:-bottom-2 sm:-right-2 bg-green-500 w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-white animate-pulse-glow"></div>
               </div>
               <div className="text-center sm:text-left flex-1">
-                <p className="text-blue-200 text-xs sm:text-sm mb-1">Auteur Principal</p>
-                <h3 className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-2">
-                  {superAdminInfo.name}
-                </h3>
-                <p className="text-blue-100 text-sm sm:text-base">
+                <p className="text-blue-200 text-xs sm:text-sm mb-1 font-semibold animate-fade-in-up animation-delay-400">Paul Valentin Ndoko</p>
+                <p className="text-blue-100 text-sm sm:text-base animate-fade-in-up animation-delay-500">
                   Partageant son expertise et ses connaissances en gestion des ressources humaines
                 </p>
               </div>
@@ -260,16 +358,27 @@ const BlogPage = () => {
             </div>
           ) : (
             <div className="space-y-6 sm:space-y-8">
-              {posts.map((post, index) => (
+              {posts.map((post, index) => {
+                const isVisible = visiblePosts.has(post.id);
+                return (
                 <article
                   key={post.id}
-                  className="bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-[1.01] sm:hover:scale-[1.02] border border-gray-100 overflow-hidden animate-fade-in-up"
-                  style={{ animationDelay: `${index * 100}ms` }}
+                  id={post.id}
+                  data-article-id={post.id}
+                  className={`bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 border border-gray-100 overflow-hidden article-card group ${
+                    isVisible ? 'article-visible' : 'article-hidden'
+                  }`}
+                  style={{ 
+                    animationDelay: `${index * 100}ms`,
+                    transform: isVisible ? 'translateY(0) scale(1)' : 'translateY(50px) scale(0.95)',
+                    opacity: isVisible ? 1 : 0
+                  }}
                 >
                   <div className="p-4 sm:p-6 md:p-8 space-y-4 sm:space-y-6">
                     {/* En-tête de l'article */}
-                    <div>
-                      <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-3 sm:mb-4 hover:text-blue-600 transition-colors duration-300 leading-tight">
+                    <div className="relative">
+                      <div className="absolute -left-4 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-purple-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                      <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-3 sm:mb-4 hover:text-blue-600 transition-all duration-300 leading-tight group-hover:translate-x-2">
                         {post.title}
                       </h2>
                       <div className="flex flex-wrap items-center gap-2 sm:gap-3 md:gap-4 text-xs sm:text-sm">
@@ -309,28 +418,30 @@ const BlogPage = () => {
                     {/* Actions */}
                     <div className="flex items-center justify-between pt-4 sm:pt-6 border-t border-gray-200">
                       <button
-                        onClick={() => handleLike(post.id)}
-                        className={`flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-lg transition-all duration-300 transform hover:scale-105 active:scale-95 ${
+                        onClick={(e) => handleLike(post.id, e)}
+                        className={`like-button flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-lg transition-all duration-300 transform hover:scale-110 active:scale-95 relative overflow-hidden ${
                           likedPosts.has(post.id)
                             ? "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg hover:shadow-xl"
-                            : "bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200"
+                            : "bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200 hover:border-red-300"
                         }`}
                       >
+                        <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 hover:opacity-20 transform -skew-x-12 -translate-x-full hover:translate-x-full transition-transform duration-700"></span>
                         <Heart
-                          className={`w-4 h-4 sm:w-5 sm:h-5 transition-all duration-300 flex-shrink-0 ${
+                          className={`w-4 h-4 sm:w-5 sm:h-5 transition-all duration-300 flex-shrink-0 relative z-10 ${
                             likedPosts.has(post.id) 
-                              ? "fill-current animate-pulse" 
-                              : ""
+                              ? "fill-current animate-heart-beat" 
+                              : "group-hover:scale-125"
                           }`}
                         />
-                        <span className="font-semibold text-sm sm:text-base">
+                        <span className="font-semibold text-sm sm:text-base relative z-10 transition-all duration-300">
                           {post.likes || 0}
                         </span>
                       </button>
                     </div>
                   </div>
                 </article>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
