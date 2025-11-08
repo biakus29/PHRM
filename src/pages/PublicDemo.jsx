@@ -21,7 +21,7 @@ const DEMO_DATA = {
       matricule: 'EMP001',
       poste: 'Responsable RH',
       department: 'Ressources Humaines',
-      baseSalary: 450000,
+      baseSalary: 250000,
       cnpsNumber: '12345678',
       professionalCategory: 'Cadre',
       status: 'Actif',
@@ -32,7 +32,7 @@ const DEMO_DATA = {
           payPeriod: 'Novembre 2024',
           generatedAt: new Date().toISOString(),
           salaryDetails: {
-            baseSalary: 450000,
+            baseSalary: 250000,
             transportAllowance: 25000,
           },
           netPay: 407600
@@ -45,7 +45,7 @@ const DEMO_DATA = {
       matricule: 'EMP002',
       poste: 'Comptable',
       department: 'Finance',
-      baseSalary: 350000,
+      baseSalary: 150000,
       cnpsNumber: '87654321',
       professionalCategory: 'Agent de maîtrise',
       status: 'Actif',
@@ -58,7 +58,7 @@ const DEMO_DATA = {
       matricule: 'EMP003',
       poste: 'Assistant administratif',
       department: 'Administration',
-      baseSalary: 250000,
+      baseSalary: 60000,
       cnpsNumber: '45678912',
       professionalCategory: 'Employé',
       status: 'Actif',
@@ -74,7 +74,7 @@ const PublicDemo = () => {
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [editingPayslip, setEditingPayslip] = useState(false);
   const [payslipData, setPayslipData] = useState({
-    baseSalary: 450000,
+    baseSalary: 250000,
     transportAllowance: 25000,
     housingAllowance: 15000,
     primes: [],

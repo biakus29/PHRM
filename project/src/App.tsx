@@ -1,6 +1,22 @@
-import { Users, TrendingUp, CheckCircle, BarChart3, CreditCard, UserCheck, Scale, Smartphone, Mail, Phone, MapPin, Clock, Facebook, Twitter, Linkedin, MessageCircle, Shield, Zap, Target, Award, Globe, Download, LogOut, Headphones, BookOpen, ArrowRight } from 'lucide-react';
+import { Users, TrendingUp, CheckCircle, BarChart3, CreditCard, UserCheck, Scale, Smartphone, Mail, Phone, MapPin, Clock, Facebook, Twitter, Linkedin, MessageCircle, Shield, Zap, Target, Award, Globe, Download, LogOut, Headphones, BookOpen, ArrowRight, Calendar, Heart } from 'lucide-react';
 import * as React from 'react';
 import { useState, useEffect } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+
+// Configuration Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyAw5fhcY5rm0glQW61AR6nbHQLDIRcm_Mw",
+  authDomain: "phrm-399e5.firebaseapp.com",
+  projectId: "phrm-399e5",
+  storageBucket: "phrm-399e5.firebasestorage.app",
+  messagingSenderId: "141528249149",
+  appId: "1:141528249149:web:c8f40952d8cc995dfe0b54",
+  measurementId: "G-LHPZ61T63E"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 type TruncatedTextProps = {
   text: string;
@@ -30,6 +46,8 @@ function App() {
   const [aboutTab, setAboutTab] = useState<'presentation' | 'role' | 'mission' | 'objectifs' | 'recrutement'>('presentation');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [aboutAutoplay, setAboutAutoplay] = useState(true);
+  const [recentPosts, setRecentPosts] = useState<any[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(true);
   
   // Données simulées pour les statistiques réelles
   const [realTimeStats, setRealTimeStats] = useState({
@@ -59,6 +77,32 @@ function App() {
     return () => clearInterval(interval);
   }, [aboutAutoplay]);
 
+  // Charger les articles récents du blog
+  useEffect(() => {
+    const fetchRecentPosts = async () => {
+      try {
+        setLoadingPosts(true);
+        const q = query(
+          collection(db, 'blogPosts'),
+          orderBy('createdAt', 'desc'),
+          limit(6)
+        );
+        const querySnapshot = await getDocs(q);
+        const posts = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setRecentPosts(posts);
+      } catch (error) {
+        console.error('Erreur lors du chargement des articles:', error);
+      } finally {
+        setLoadingPosts(false);
+      }
+    };
+
+    fetchRecentPosts();
+  }, []);
+
   // Simulation de données en temps réel
   useEffect(() => {
     const interval = setInterval(() => {
@@ -74,6 +118,23 @@ function App() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Fonction pour formater la date
+  const formatDate = (timestamp: any) => {
+    if (!timestamp) return "";
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleDateString("fr-FR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
+  // Fonction pour tronquer le texte
+  const truncateText = (text: string, maxLength: number = 150) => {
+    if (text.length <= maxLength) return text;
+    return text.slice(0, maxLength) + '...';
+  };
   return (
     <div className="min-h-screen bg-gradient-to-br from-phrm-light via-white to-phrm-light">
       {/* Navigation */}
@@ -124,7 +185,7 @@ function App() {
                 { href: '#about', label: 'À propos' },
                 { href: '#features', label: 'Fonctionnalités' },
                 { href: '#testimonials', label: 'Témoignages' },
-                { href: '/blog', label: 'Blog' },
+                { href: 'https://phrmapp.com/blog', label: 'Blog' },
                 { href: '#faq', label: 'FAQ' },
                 { href: '#contact', label: 'Contact' },
               ].map((link) => (
@@ -1235,6 +1296,92 @@ function App() {
         </div>
       </section>
 
+      {/* Articles Récents Section */}
+      {recentPosts.length > 0 && (
+        <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white relative overflow-hidden">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-12">
+              <div className="flex items-center justify-center mb-4">
+                <BookOpen className="w-12 h-12 text-phrm-dark animate-bounce" />
+              </div>
+              <h2 className="text-4xl font-bold text-gray-900 mb-4 animate-fade-in-up">
+                Articles Récents
+              </h2>
+              <p className="text-xl text-gray-600 animate-fade-in-up animation-delay-200">
+                Découvrez nos dernières publications sur la gestion RH
+              </p>
+            </div>
+
+            {loadingPosts ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-phrm-dark"></div>
+              </div>
+            ) : (
+              <>
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+                  {recentPosts.slice(0, 6).map((post, index) => (
+                    <article
+                      key={post.id}
+                      className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 border border-gray-100 overflow-hidden group animate-fade-in-up"
+                      style={{ animationDelay: `${index * 100}ms` }}
+                    >
+                      <div className="p-6 space-y-4">
+                        <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <div className="flex items-center gap-1.5 bg-blue-50 px-3 py-1 rounded-full">
+                            <Calendar className="w-3 h-3 text-blue-600" />
+                            <span className="text-blue-700 font-medium">
+                              {formatDate(post.createdAt)}
+                            </span>
+                          </div>
+                          {post.likes > 0 && (
+                            <div className="flex items-center gap-1.5 bg-red-50 px-3 py-1 rounded-full">
+                              <Heart className="w-3 h-3 text-red-600 fill-current" />
+                              <span className="text-red-700 font-medium">
+                                {post.likes}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <h3 className="text-xl font-bold text-gray-900 group-hover:text-phrm-dark transition-colors duration-300 line-clamp-2">
+                          {post.title}
+                        </h3>
+                        
+                        <div 
+                          className="text-gray-600 text-sm leading-relaxed line-clamp-3"
+                          dangerouslySetInnerHTML={{ 
+                            __html: truncateText(post.content?.replace(/\n/g, ' ') || '', 150)
+                          }}
+                        />
+                        
+                        <a
+                          href="https://phrmapp.com/blog"
+                          className="inline-flex items-center gap-2 text-phrm-dark font-semibold hover:gap-3 transition-all duration-300 group-hover:text-blue-700"
+                        >
+                          Lire la suite
+                          <ArrowRight className="w-4 h-4" />
+                        </a>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="text-center animate-fade-in-up animation-delay-300">
+                  <a
+                    href="https://phrmapp.com/blog"
+                    className="inline-flex items-center gap-2 bg-phrm-dark text-white px-8 py-4 rounded-lg hover:bg-phrm-dark/90 transition-all transform hover:scale-105 shadow-lg font-semibold text-lg"
+                  >
+                    <BookOpen className="w-5 h-5" />
+                    Voir tous les articles
+                    <ArrowRight className="w-5 h-5" />
+                  </a>
+                </div>
+              </>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* Blog Section */}
       <section id="blog" className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-blue-50 to-white relative overflow-hidden">
         {/* Background Elements */}
@@ -1269,7 +1416,7 @@ function App() {
                 Restez informé des dernières tendances et actualités dans le domaine des ressources humaines au Cameroun.
               </p>
               <a 
-                href="/blog" 
+                href="https://phrmapp.com/blog" 
                 className="inline-flex items-center gap-2 text-phrm-dark font-semibold hover:gap-3 transition-all duration-300 group-hover:text-blue-700"
               >
                 Lire les articles
@@ -1289,7 +1436,7 @@ function App() {
                 Des conseils pratiques et des astuces pour optimiser votre gestion des ressources humaines.
               </p>
               <a 
-                href="/blog" 
+                href="https://phrmapp.com/blog" 
                 className="inline-flex items-center gap-2 text-phrm-dark font-semibold hover:gap-3 transition-all duration-300 group-hover:text-green-700"
               >
                 Découvrir
@@ -1309,7 +1456,7 @@ function App() {
                 Partage d'expertise et de connaissances par notre équipe de spécialistes en gestion RH.
               </p>
               <a 
-                href="/blog" 
+                href="https://phrmapp.com/blog" 
                 className="inline-flex items-center gap-2 text-phrm-dark font-semibold hover:gap-3 transition-all duration-300 group-hover:text-purple-700"
               >
                 En savoir plus
@@ -1329,7 +1476,7 @@ function App() {
                 la conformité CNPS, et bien plus encore.
               </p>
               <a 
-                href="/blog"
+                href="https://phrmapp.com/blog"
                 className="inline-flex items-center gap-2 bg-white text-phrm-dark px-8 py-4 rounded-lg hover:bg-phrm-light transition-all transform hover:scale-105 shadow-lg font-semibold text-lg"
               >
                 <BookOpen className="w-5 h-5" />
@@ -1664,7 +1811,7 @@ function App() {
               <h4 className="font-semibold mb-4">Entreprise</h4>
               <ul className="space-y-2 text-sm text-gray-400">
                 <li><a href="#about" className="hover:text-white transition-colors">À propos</a></li>
-                <li><a href="/blog" className="hover:text-white transition-colors">Blog</a></li>
+                <li><a href="https://phrmapp.com/blog" className="hover:text-white transition-colors">Blog</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Carrières</a></li>
               </ul>
             </div>
