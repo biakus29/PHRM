@@ -22,13 +22,6 @@ const EmployeeLogin = () => {
         return;
       }
 
-      // Vérifier si le mot de passe est correct
-      if (password !== "123456") {
-        setErrorMessage("Mot de passe incorrect.");
-        toast.error("Mot de passe incorrect.");
-        return;
-      }
-
       setIsLoading(true);
       setErrorMessage("");
 
@@ -54,6 +47,17 @@ const EmployeeLogin = () => {
         }
 
         if (employeeData && clientId && employeeId) {
+          // Vérifier le mot de passe
+          // Utiliser currentPassword s'il existe, sinon initialPassword, sinon "123456" par défaut
+          const currentPassword = employeeData.currentPassword || employeeData.initialPassword || "123456";
+          
+          if (password !== currentPassword) {
+            setErrorMessage("Mot de passe incorrect.");
+            toast.error("Mot de passe incorrect.");
+            setIsLoading(false);
+            return;
+          }
+
           console.log("Employé trouvé:", { clientId, employeeId, email });
           toast.success("Connexion réussie ! Redirection...");
           setTimeout(() => {

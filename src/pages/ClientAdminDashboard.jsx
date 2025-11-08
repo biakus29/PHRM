@@ -49,6 +49,12 @@ import {
   Upload,
   FileText,
   Trash,
+  Lock,
+  Key,
+  User,
+  Copy,
+  RefreshCw,
+  Database,
 } from "lucide-react";
 import {
   Chart as ChartJS,
@@ -202,6 +208,7 @@ const CompanyAdminDashboard = () => {
   const [showPostCreateModal, setShowPostCreateModal] = useState(false);
   const [showBadgeForm, setShowBadgeForm] = useState(false);
   const [employeeForBadge, setEmployeeForBadge] = useState(null);
+  const [employeeDetailTab, setEmployeeDetailTab] = useState("info"); // "info" ou "credentials"
   
   // Ajout des hooks pour suggestions
   const [allResidences, setAllResidences] = useState([]);
@@ -670,6 +677,10 @@ const addEmployee = async (e) => {
         createdAt: new Date().toISOString(),
         isTemporary: true, // Flag pour identifier les employés de démo
         demoExpiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 jours
+        // Informations de connexion - Stocker le mot de passe initial
+        initialPassword: newEmployee.initialPassword || "123456", // Mot de passe initial par défaut
+        currentPassword: newEmployee.initialPassword || "123456", // Mot de passe actuel (identique à l'initial au départ)
+        passwordChanged: false, // Indicateur si le mot de passe a été changé
       };
       
       // Sauvegarder dans Firestore
@@ -757,6 +768,10 @@ const addEmployee = async (e) => {
         payslips: [],
         createdAt: new Date().toISOString(),
         department: newEmployee.department,
+        // Informations de connexion - Stocker le mot de passe initial
+        initialPassword: newEmployee.initialPassword || "123456", // Mot de passe initial par défaut
+        currentPassword: newEmployee.initialPassword || "123456", // Mot de passe actuel (identique à l'initial au départ)
+        passwordChanged: false, // Indicateur si le mot de passe a été changé
       };
       employeeId = await svcAddEmployee(db, companyData.id, employeeData);
       toast.success("Employé ajouté avec succès !");
@@ -2653,38 +2668,227 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
   setShowContract(false);
   setShowEmployeeModal(false);
   setPaySlipData(null);
+  setEmployeeDetailTab("info"); // Réinitialiser l'onglet
 }}>
   {selectedEmployee && (
     <div className="space-y-4">
       {console.log('[DEBUG] Affichage modal employé:', selectedEmployee)}
-      <h2 className="text-lg font-semibold">Détails de l'Employé - {selectedEmployee.name || 'N/A'}</h2>
-      <img
-        src={selectedEmployee.profilePicture || "https://ui-avatars.com/api/?name=Inconnu&background=60A5FA&color=fff"}
-        alt={selectedEmployee.name || "Employé"}
-        className="w-16 h-16 rounded-full mx-auto"
-        onError={(e) => (e.target.src = "https://ui-avatars.com/api/?name=Inconnu&background=60A5FA&color=fff")}
-      />
-              <p><strong>Nom:</strong> {selectedEmployee.name || "Non renseigné"}</p>
-        <p><strong>Email:</strong> {selectedEmployee.email || "Non renseigné"}</p>
-        <p><strong>Poste:</strong> {selectedEmployee.poste || "Non renseigné"}</p>
-      <p><strong>Departement:</strong> {typeof displayDepartment === 'function' ? displayDepartment(selectedEmployee.department) : (selectedEmployee.department || "Non renseigne")}</p>
-      <p><strong>Date d'embauche:</strong> {typeof displayDate === 'function' ? displayDate(selectedEmployee.hireDate) : (selectedEmployee.hireDate || "Non renseigné")}</p>
-      <p><strong>Statut:</strong> {selectedEmployee.status || "Non renseigné"}</p>
-      <p><strong>Numero CNPS:</strong> {typeof displayCNPSNumber === 'function' ? displayCNPSNumber(selectedEmployee.cnpsNumber) : (selectedEmployee.cnpsNumber || "Non renseigne")}</p>
-      <p><strong>Catégorie:</strong> {typeof displayProfessionalCategory === 'function' ? displayProfessionalCategory(selectedEmployee.professionalCategory) : (selectedEmployee.professionalCategory || "Non renseigné")}</p>
-      <p><strong>Salaire de base:</strong> {typeof displaySalary === 'function' ? displaySalary(selectedEmployee.baseSalary) : (selectedEmployee.baseSalary ? selectedEmployee.baseSalary.toLocaleString() : "Non renseigné")}</p>
-      <p><strong>Diplômes:</strong> {typeof displayDiplomas === 'function' ? displayDiplomas(selectedEmployee.diplomas) : (selectedEmployee.diplomas || "Non renseigné")}</p>
-      <p><strong>Échelon:</strong> {typeof displayEchelon === 'function' ? displayEchelon(selectedEmployee.echelon) : (selectedEmployee.echelon || "Non renseigné")}</p>
-      <p><strong>Service:</strong> {typeof displayService === 'function' ? displayService(selectedEmployee.service) : (selectedEmployee.service || "Non renseigné")}</p>
-      <p><strong>Superviseur:</strong> {typeof displaySupervisor === 'function' ? displaySupervisor(selectedEmployee.supervisor) : (selectedEmployee.supervisor || "Non renseigné")}</p>
-      <p><strong>Date de naissance:</strong> {typeof displayDateOfBirth === 'function' ? displayDateOfBirth(selectedEmployee.dateOfBirth) : (selectedEmployee.dateOfBirth || "Non renseigné")}</p>
-      <p><strong>Lieu de naissance:</strong> {typeof displayPlaceOfBirth === 'function' ? displayPlaceOfBirth(selectedEmployee.lieuNaissance) : (selectedEmployee.lieuNaissance || "Non renseigné")}</p>
-      <p><strong>Période d'essai:</strong> {selectedEmployee.hasTrialPeriod ? selectedEmployee.trialPeriodDuration || "Non renseignée" : "Non"}</p>
-      <p><strong>Matricule:</strong> {typeof displayMatricule === 'function' ? displayMatricule(selectedEmployee.matricule) : (selectedEmployee.matricule || "Non renseigné")}</p>
-      <div className="flex gap-4">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold">Détails de l'Employé - {selectedEmployee.name || 'N/A'}</h2>
+        <img
+          src={selectedEmployee.profilePicture || "https://ui-avatars.com/api/?name=Inconnu&background=60A5FA&color=fff"}
+          alt={selectedEmployee.name || "Employé"}
+          className="w-16 h-16 rounded-full"
+          onError={(e) => (e.target.src = "https://ui-avatars.com/api/?name=Inconnu&background=60A5FA&color=fff")}
+        />
+      </div>
+
+      {/* Onglets */}
+      <div className="border-b border-gray-200 mb-4">
+        <nav className="flex space-x-4">
+          <button
+            onClick={() => setEmployeeDetailTab("info")}
+            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+              employeeDetailTab === "info"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <User className="w-4 h-4" />
+              Informations
+            </div>
+          </button>
+          <button
+            onClick={() => setEmployeeDetailTab("credentials")}
+            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+              employeeDetailTab === "credentials"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Lock className="w-4 h-4" />
+              Informations de connexion
+            </div>
+          </button>
+        </nav>
+      </div>
+
+      {/* Contenu des onglets */}
+      {employeeDetailTab === "info" && (
+        <div className="space-y-3">
+          <p><strong>Nom:</strong> {selectedEmployee.name || "Non renseigné"}</p>
+          <p><strong>Email:</strong> {selectedEmployee.email || "Non renseigné"}</p>
+          <p><strong>Poste:</strong> {selectedEmployee.poste || "Non renseigné"}</p>
+          <p><strong>Departement:</strong> {typeof displayDepartment === 'function' ? displayDepartment(selectedEmployee.department) : (selectedEmployee.department || "Non renseigne")}</p>
+          <p><strong>Date d'embauche:</strong> {typeof displayDate === 'function' ? displayDate(selectedEmployee.hireDate) : (selectedEmployee.hireDate || "Non renseigné")}</p>
+          <p><strong>Statut:</strong> {selectedEmployee.status || "Non renseigné"}</p>
+          <p><strong>Numero CNPS:</strong> {typeof displayCNPSNumber === 'function' ? displayCNPSNumber(selectedEmployee.cnpsNumber) : (selectedEmployee.cnpsNumber || "Non renseigne")}</p>
+          <p><strong>Catégorie:</strong> {typeof displayProfessionalCategory === 'function' ? displayProfessionalCategory(selectedEmployee.professionalCategory) : (selectedEmployee.professionalCategory || "Non renseigné")}</p>
+          <p><strong>Salaire de base:</strong> {typeof displaySalary === 'function' ? displaySalary(selectedEmployee.baseSalary) : (selectedEmployee.baseSalary ? selectedEmployee.baseSalary.toLocaleString() : "Non renseigné")}</p>
+          <p><strong>Diplômes:</strong> {typeof displayDiplomas === 'function' ? displayDiplomas(selectedEmployee.diplomas) : (selectedEmployee.diplomas || "Non renseigné")}</p>
+          <p><strong>Échelon:</strong> {typeof displayEchelon === 'function' ? displayEchelon(selectedEmployee.echelon) : (selectedEmployee.echelon || "Non renseigné")}</p>
+          <p><strong>Service:</strong> {typeof displayService === 'function' ? displayService(selectedEmployee.service) : (selectedEmployee.service || "Non renseigné")}</p>
+          <p><strong>Superviseur:</strong> {typeof displaySupervisor === 'function' ? displaySupervisor(selectedEmployee.supervisor) : (selectedEmployee.supervisor || "Non renseigné")}</p>
+          <p><strong>Date de naissance:</strong> {typeof displayDateOfBirth === 'function' ? displayDateOfBirth(selectedEmployee.dateOfBirth) : (selectedEmployee.dateOfBirth || "Non renseigné")}</p>
+          <p><strong>Lieu de naissance:</strong> {typeof displayPlaceOfBirth === 'function' ? displayPlaceOfBirth(selectedEmployee.lieuNaissance) : (selectedEmployee.lieuNaissance || "Non renseigné")}</p>
+          <p><strong>Période d'essai:</strong> {selectedEmployee.hasTrialPeriod ? selectedEmployee.trialPeriodDuration || "Non renseignée" : "Non"}</p>
+          <p><strong>Matricule:</strong> {typeof displayMatricule === 'function' ? displayMatricule(selectedEmployee.matricule) : (selectedEmployee.matricule || "Non renseigné")}</p>
+        </div>
+      )}
+
+      {employeeDetailTab === "credentials" && (
+        <div className="space-y-4">
+          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+            <h3 className="text-lg font-semibold text-blue-900 mb-4 flex items-center gap-2">
+              <Key className="w-5 h-5" />
+              Informations de connexion
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email de connexion</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={selectedEmployee.email || ""}
+                    readOnly
+                    className="flex-1 p-3 border border-gray-300 rounded-lg bg-white text-gray-800 font-mono text-sm"
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(selectedEmployee.email || "");
+                      toast.success("Email copié dans le presse-papiers !");
+                    }}
+                    className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="Copier l'email"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Mot de passe actuel
+                  {selectedEmployee.passwordChanged ? (
+                    <span className="ml-2 text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded">
+                      (Mot de passe modifié par l'employé)
+                    </span>
+                  ) : (
+                    <span className="ml-2 text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
+                      (Mot de passe initial actif)
+                    </span>
+                  )}
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={selectedEmployee.currentPassword || selectedEmployee.initialPassword || "123456"}
+                    readOnly
+                    className="flex-1 p-3 border border-gray-300 rounded-lg bg-white text-gray-800 font-mono text-sm"
+                  />
+                  <button
+                    onClick={() => {
+                      const password = selectedEmployee.currentPassword || selectedEmployee.initialPassword || "123456";
+                      navigator.clipboard.writeText(password);
+                      toast.success("Mot de passe copié dans le presse-papiers !");
+                    }}
+                    className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="Copier le mot de passe"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  {selectedEmployee.passwordChanged 
+                    ? "✓ Ce mot de passe a été modifié par l'employé depuis son espace personnel."
+                    : "⚠️ Ce mot de passe est le mot de passe initial. L'employé peut le modifier depuis son espace."}
+                </p>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-start gap-2">
+                  <Bell className="w-5 h-5 text-yellow-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-yellow-900 mb-1">Note importante</p>
+                    <p className="text-xs text-yellow-700">
+                      L'employé peut modifier son mot de passe depuis son espace personnel. 
+                      Une fois modifié, ce mot de passe initial ne sera plus valide.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section réinitialisation du mot de passe par l'admin */}
+              <div className="border-t border-blue-200 pt-4 mt-4">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Réinitialiser le mot de passe</h4>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="text-xs text-red-700 mb-3">
+                    Vous pouvez réinitialiser le mot de passe de cet employé. Le nouveau mot de passe sera défini sur "123456" par défaut.
+                  </p>
+                  <Button
+                    onClick={async () => {
+                      if (!selectedEmployee?.id || !companyData?.id) {
+                        toast.error("Erreur: Données manquantes.");
+                        return;
+                      }
+
+                      if (!window.confirm(`Êtes-vous sûr de vouloir réinitialiser le mot de passe de ${selectedEmployee.name} ? Le nouveau mot de passe sera "123456".`)) {
+                        return;
+                      }
+
+                      try {
+                        setActionLoading(true);
+                        const employeeRef = doc(db, "clients", companyData.id, "employees", selectedEmployee.id);
+                        await updateDoc(employeeRef, {
+                          currentPassword: "123456",
+                          initialPassword: "123456",
+                          passwordChanged: false,
+                        });
+
+                        // Mettre à jour l'état local
+                        setSelectedEmployee((prev) => ({
+                          ...prev,
+                          currentPassword: "123456",
+                          initialPassword: "123456",
+                          passwordChanged: false,
+                        }));
+
+                        // Mettre à jour la liste des employés
+                        setEmployees((prev) =>
+                          prev.map((emp) =>
+                            emp.id === selectedEmployee.id
+                              ? { ...emp, currentPassword: "123456", initialPassword: "123456", passwordChanged: false }
+                              : emp
+                          )
+                        );
+
+                        toast.success("Mot de passe réinitialisé avec succès ! Le nouveau mot de passe est '123456'.");
+                      } catch (error) {
+                        console.error("Erreur réinitialisation mot de passe:", error);
+                        toast.error("Erreur lors de la réinitialisation: " + error.message);
+                      } finally {
+                        setActionLoading(false);
+                      }
+                    }}
+                    disabled={actionLoading}
+                    icon={RefreshCw}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    {actionLoading ? "Réinitialisation..." : "Réinitialiser le mot de passe"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-4 pt-4 border-t border-gray-200">
         <Button
           onClick={() => {
-            // Mettre Ã  jour selectedEmployee avec les données les plus récentes
+            // Mettre à jour selectedEmployee avec les données les plus récentes
             const updatedEmployee = employees.find(emp => emp.id === selectedEmployee.id);
             if (updatedEmployee) {
               setSelectedEmployee(updatedEmployee);
@@ -2717,7 +2921,6 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
         >
           {selectedEmployee.contract ? "Voir Contrat" : "Créer Contrat"}
         </Button>
-
       </div>
     </div>
   )}
@@ -3791,6 +3994,113 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
                   onCsv={generateCSVReport}
                   disabled={actionLoading}
                 />
+              </Card>
+              
+              {/* Migration des employés existants */}
+              <Card>
+                <div className="p-6">
+                  <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Database className="w-5 h-5" />
+                    Migration des données
+                  </h2>
+                  <div className="space-y-4">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <p className="text-sm text-gray-700 mb-2">
+                        <strong>Mise à jour des informations de connexion</strong>
+                      </p>
+                      <p className="text-xs text-gray-600 mb-4">
+                        Cette fonction met à jour tous les employés existants pour ajouter les champs de mot de passe initial. 
+                        Les employés qui n'ont pas encore ces champs recevront le mot de passe par défaut "123456".
+                      </p>
+                      <Button
+                        onClick={async () => {
+                          if (!companyData?.id) {
+                            toast.error("Erreur: ID de l'entreprise manquant.");
+                            return;
+                          }
+                          
+                          try {
+                            setActionLoading(true);
+                            let updatedCount = 0;
+                            let skippedCount = 0;
+                            
+                            // Récupérer tous les employés
+                            const employeesRef = collection(db, "clients", companyData.id, "employees");
+                            const employeesSnapshot = await getDocs(employeesRef);
+                            
+                            if (employeesSnapshot.empty) {
+                              toast.info("Aucun employé à mettre à jour.");
+                              setActionLoading(false);
+                              return;
+                            }
+                            
+                            // Mettre à jour chaque employé qui n'a pas encore initialPassword
+                            let batch = writeBatch(db);
+                            let batchCount = 0;
+                            
+                            for (const docSnap of employeesSnapshot.docs) {
+                              const employeeData = docSnap.data();
+                              
+                              // Vérifier si l'employé a déjà initialPassword
+                              if (!employeeData.hasOwnProperty('initialPassword')) {
+                                const employeeRef = doc(db, "clients", companyData.id, "employees", docSnap.id);
+                                batch.update(employeeRef, {
+                                  initialPassword: "123456",
+                                  currentPassword: employeeData.currentPassword || "123456",
+                                  passwordChanged: employeeData.passwordChanged !== undefined ? employeeData.passwordChanged : false
+                                });
+                                batchCount++;
+                                updatedCount++;
+                                
+                                // Firestore limite les batches à 500 opérations
+                                if (batchCount >= 500) {
+                                  await batch.commit();
+                                  batch = writeBatch(db); // Créer un nouveau batch
+                                  batchCount = 0;
+                                }
+                              } else {
+                                skippedCount++;
+                              }
+                            }
+                            
+                            // Commit le reste des mises à jour
+                            if (batchCount > 0) {
+                              await batch.commit();
+                            }
+                            
+                            // Mettre à jour l'état local
+                            const updatedEmployees = employees.map(emp => {
+                              if (!emp.hasOwnProperty('initialPassword')) {
+                                return {
+                                  ...emp,
+                                  initialPassword: "123456",
+                                  currentPassword: emp.currentPassword || "123456",
+                                  passwordChanged: false
+                                };
+                              }
+                              return emp;
+                            });
+                            setEmployees(updatedEmployees);
+                            
+                            toast.success(
+                              `Migration terminée ! ${updatedCount} employé(s) mis à jour, ${skippedCount} déjà à jour.`
+                            );
+                          } catch (error) {
+                            console.error("Erreur migration employés:", error);
+                            toast.error(`Erreur lors de la migration: ${error.message}`);
+                          } finally {
+                            setActionLoading(false);
+                          }
+                        }}
+                        disabled={actionLoading}
+                        icon={RefreshCw}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        {actionLoading ? "Migration en cours..." : "Mettre à jour les employés existants"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </Card>
               <Card title="Badges Employes" className="mt-8">
                 <div className="mb-4 flex flex-col md:flex-row md:items-center gap-4">

@@ -4,7 +4,7 @@ import { db } from "../firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { FiLogOut, FiCalendar, FiFileText, FiAlertTriangle, FiCheck, FiBell, FiClock, FiEdit, FiDownload, FiEye, FiHome } from "react-icons/fi";
+import { FiLogOut, FiCalendar, FiFileText, FiAlertTriangle, FiCheck, FiBell, FiClock, FiEdit, FiDownload, FiEye, FiHome, FiUpload, FiX, FiUser, FiLock } from "react-icons/fi";
 import "../styles/sidebar.css";
 import { Line } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from "chart.js";
@@ -19,7 +19,7 @@ import { exportContractPDF } from '../utils/exportContractPDF';
 import { createRoot } from 'react-dom/client';
 import { displayDate, displayDateWithOptions, displayGeneratedAt, displayContractStartDate } from "../utils/displayUtils";
 import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, formatCFA, computeCompletePayroll } from "../utils/payrollCalculations";
-import MobileFooterNav from "../components/MobileFooterNav";
+import EmployeeMobileFooterNav from "../components/EmployeeMobileFooterNav";
 import { useDemo } from "../contexts/DemoContext";
 
 // Configurer pdfjs
@@ -40,7 +40,18 @@ const EmployeeDashboard = () => {
   const [editingProfile, setEditingProfile] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPoste, setNewPoste] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newDepartment, setNewDepartment] = useState("");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
   const [selectedPaySlip, setSelectedPaySlip] = useState(null);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
   const [sortByPaySlips, setSortByPaySlips] = useState("date");
   const [sortOrderPaySlips, setSortOrderPaySlips] = useState("desc");
   const [yearFilter, setYearFilter] = useState("Tous");
@@ -83,8 +94,10 @@ const EmployeeDashboard = () => {
             ...data,
             leaves: data.leaves || { balance: 25, requests: [], history: [] },
           });
-          setNewName(data.name);
-          setNewPoste(data.poste);
+          setNewName(data.name || "");
+          setNewPoste(data.poste || "");
+          setNewPhone(data.phone || "");
+          setNewDepartment(data.department || "");
           console.log("Données employé chargées:", data);
         } else {
           setErrorMessage("Données employé non trouvées.");
@@ -196,6 +209,61 @@ const EmployeeDashboard = () => {
     }
   };
 
+  // Handle photo selection
+  const handlePhotoSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Veuillez sélectionner une image valide (JPG, PNG, etc.)");
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("L'image est trop volumineuse. Taille maximale : 2 Mo");
+      return;
+    }
+
+    setSelectedPhoto(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPhotoPreview(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Remove photo selection
+  const handleRemovePhoto = () => {
+    setSelectedPhoto(null);
+    setPhotoPreview(null);
+  };
+
+  // Upload photo - Stocker en base64 dans Firestore (comme les logos)
+  const uploadPhoto = async (file) => {
+    try {
+      // Vérifier la taille du fichier (max 2 Mo pour base64)
+      if (file.size > 2 * 1024 * 1024) {
+        throw new Error("L'image est trop volumineuse. Taille maximale : 2 Mo");
+      }
+
+      // Convertir l'image en base64
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64String = reader.result;
+          resolve(base64String);
+        };
+        reader.onerror = () => {
+          reject(new Error("Erreur lors de la lecture du fichier"));
+        };
+        reader.readAsDataURL(file);
+      });
+    } catch (error) {
+      console.error("Erreur upload photo:", error);
+      throw new Error("Erreur lors de l'upload de la photo: " + error.message);
+    }
+  };
+
   // Update profile
   const updateProfile = async () => {
     if (!newName.trim() || !newPoste.trim()) {
@@ -204,23 +272,111 @@ const EmployeeDashboard = () => {
     }
 
     try {
+      setUploadingPhoto(true);
+      let profilePictureUrl = employeeData.profilePicture;
+
+      // Upload photo if selected
+      if (selectedPhoto) {
+        profilePictureUrl = await uploadPhoto(selectedPhoto);
+      }
+
+      // If no photo and no existing photo, use avatar generator
+      if (!profilePictureUrl) {
+        profilePictureUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(newName)}&background=3B82F6&color=orange&bold=true`;
+      }
+
       const employeeRef = doc(db, "clients", clientId, "employees", employeeId);
-      await updateDoc(employeeRef, {
-        name: newName,
-        poste: newPoste,
-        profilePicture: `https://ui-avatars.com/api/?name=${encodeURIComponent(newName)}&background=3B82F6&color=orange&bold=true`,
-      });
+      const updateData = {
+        name: newName.trim(),
+        poste: newPoste.trim(),
+        phone: newPhone.trim() || null,
+        department: newDepartment.trim() || null,
+        profilePicture: profilePictureUrl,
+      };
+
+      await updateDoc(employeeRef, updateData);
+      
       setEmployeeData((prev) => ({
         ...prev,
-        name: newName,
-        poste: newPoste,
-        profilePicture: `https://ui-avatars.com/api/?name=${encodeURIComponent(newName)}&background=3B82F6&color=orange&bold=true`,
+        ...updateData,
       }));
+      
       setEditingProfile(false);
-      toast.success("Profil mis à jour !");
+      setSelectedPhoto(null);
+      setPhotoPreview(null);
+      toast.success("Profil mis à jour avec succès !");
     } catch (error) {
       console.error("Erreur mise à jour profil :", error.message);
       toast.error("Erreur mise à jour profil : " + error.message);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  // Change password
+  const handleChangePassword = async () => {
+    // Validation
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError("Tous les champs sont requis.");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordError("Le mot de passe doit contenir au moins 6 caractères.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Les mots de passe ne correspondent pas.");
+      return;
+    }
+
+    try {
+      setChangingPassword(true);
+      setPasswordError("");
+
+      // Vérifier le mot de passe actuel
+      const employeeRef = doc(db, "clients", clientId, "employees", employeeId);
+      const employeeSnap = await getDoc(employeeRef);
+      
+      if (!employeeSnap.exists()) {
+        throw new Error("Employé non trouvé.");
+      }
+
+      const employeeData = employeeSnap.data();
+      const actualCurrentPassword = employeeData.currentPassword || employeeData.initialPassword || "123456";
+
+      if (currentPassword !== actualCurrentPassword) {
+        setPasswordError("Mot de passe actuel incorrect.");
+        setChangingPassword(false);
+        return;
+      }
+
+      // Mettre à jour le mot de passe
+      await updateDoc(employeeRef, {
+        currentPassword: newPassword,
+        passwordChanged: true,
+      });
+
+      // Mettre à jour l'état local
+      setEmployeeData((prev) => ({
+        ...prev,
+        currentPassword: newPassword,
+        passwordChanged: true,
+      }));
+
+      setShowChangePassword(false);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordError("");
+      toast.success("Mot de passe modifié avec succès !");
+    } catch (error) {
+      console.error("Erreur changement mot de passe:", error);
+      setPasswordError("Erreur lors du changement de mot de passe: " + error.message);
+      toast.error("Erreur lors du changement de mot de passe: " + error.message);
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -285,15 +441,27 @@ const EmployeeDashboard = () => {
   const paySlipHistory = useMemo(() => {
     if (!employeeData || !employeeData.payslips?.length) return [];
 
-    let history = employeeData.payslips.map((slip, index) => ({
-      ...slip, // Garder toutes les données originales
-      id: index,
-      year: new Date(slip.date).getFullYear(),
-      formattedDate: displayDateWithOptions(slip.date, { month: "numeric", day: "numeric" }),
-      netSalary: slip.salaryDetails?.netSalary || "Non disponible",
-      grossSalary: slip.salaryDetails?.grossSalary || "Non disponible",
-      hoursPerMonth: slip.salaryDetails?.hoursPerMonth || "N/A",
-    }));
+    let history = employeeData.payslips.map((slip, index) => {
+      // Calculer le net avec computeCompletePayroll comme dans ClientAdminDashboard
+      let netSalary = 0;
+      try {
+        const calc = computeCompletePayroll(slip);
+        netSalary = calc.netPay || 0;
+      } catch (error) {
+        console.error("Erreur calcul fiche de paie:", error);
+        netSalary = slip.netPay || slip.salaryDetails?.netSalary || 0;
+      }
+      
+      return {
+        ...slip, // Garder toutes les données originales
+        id: index,
+        year: new Date(slip.date || slip.generatedAt).getFullYear(),
+        formattedDate: displayDateWithOptions(slip.date || slip.generatedAt, { month: "numeric", day: "numeric" }),
+        netSalary: netSalary,
+        grossSalary: slip.remuneration?.total || slip.salaryDetails?.grossSalary || 0,
+        hoursPerMonth: slip.salaryDetails?.hoursPerMonth || "N/A",
+      };
+    });
 
     if (yearFilter !== "Tous") {
       history = history.filter((slip) => slip.year === Number(yearFilter));
@@ -301,8 +469,8 @@ const EmployeeDashboard = () => {
 
     history.sort((a, b) => {
       if (sortByPaySlips === "date") {
-        const dateA = new Date(a.date).getTime();
-        const dateB = new Date(b.date).getTime();
+        const dateA = new Date(a.date || a.generatedAt).getTime();
+        const dateB = new Date(b.date || b.generatedAt).getTime();
         return sortOrderPaySlips === "desc" ? dateB - dateA : dateA - dateB;
       }
       if (sortByPaySlips === "netSalary") {
@@ -320,7 +488,7 @@ const EmployeeDashboard = () => {
   // Available years for filter
   const availableYears = useMemo(() => {
     if (!employeeData || !employeeData.payslips?.length) return [];
-    const years = [...new Set(employeeData.payslips.map((slip) => new Date(slip.date).getFullYear()))].sort((a, b) => b - a);
+    const years = [...new Set(employeeData.payslips.map((slip) => new Date(slip.date || slip.generatedAt).getFullYear()))].sort((a, b) => b - a);
     return ["Tous", ...years];
   }, [employeeData]);
 
@@ -330,32 +498,37 @@ const EmployeeDashboard = () => {
     const filteredCount =
       yearFilter === "Tous"
         ? employeeData.payslips.length
-        : employeeData.payslips.filter((slip) => new Date(slip.date).getFullYear() === Number(yearFilter)).length;
+        : employeeData.payslips.filter((slip) => new Date(slip.date || slip.generatedAt).getFullYear() === Number(yearFilter)).length;
     return Math.ceil(filteredCount / itemsPerPage);
   }, [employeeData, yearFilter]);
 
-  // Calculs centralisés pour la fiche sélectionnée
+  // Calculs centralisés pour la fiche sélectionnée - Utiliser computeCompletePayroll comme dans ClientAdminDashboard
   const selectedPayrollCalc = useMemo(() => {
     if (!selectedPaySlip) return null;
-    return computeNetPay({
-      salaryDetails: selectedPaySlip.salaryDetails || {},
-      remuneration: selectedPaySlip.remuneration || {},
-      deductions: selectedPaySlip.deductions || {},
-      primes: selectedPaySlip.primes || [],
-      indemnites: selectedPaySlip.indemnites || []
-    });
+    return computeCompletePayroll(selectedPaySlip);
   }, [selectedPaySlip]);
 
   // Export payslips to CSV
   const exportPaySlipsToCSV = () => {
-    const rows = paySlipHistory.map((slip) => ({
-      Date: slip.formattedDate,
-      "Salaire Brut": slip.grossSalary,
-      "Salaire Net": slip.netSalary,
-      "Heures Travaillées": slip.hoursPerMonth,
-      URL: slip.url || "Non disponible",
-    }));
-    exportToCSV(rows, `fiches_paie_${employeeData.name}.csv`);
+    // Récupérer toutes les fiches de paie (pas seulement celles de la page actuelle)
+    const allPayslips = employeeData.payslips?.map((slip) => {
+      let netSalary = 0;
+      try {
+        const calc = computeCompletePayroll(slip);
+        netSalary = calc.netPay || 0;
+      } catch (error) {
+        netSalary = slip.netPay || slip.salaryDetails?.netSalary || 0;
+      }
+      
+      return {
+        Date: displayDateWithOptions(slip.date || slip.generatedAt, { month: "numeric", day: "numeric" }),
+        Période: slip.payPeriod || 'N/A',
+        "Salaire Net": formatCFA(netSalary),
+        URL: slip.url || "Non disponible",
+      };
+    }) || [];
+    
+    exportToCSV(allPayslips, `fiches_paie_${employeeData.name}.csv`);
     toast.success("Historique des fiches de paie exporté !");
   };
 
@@ -492,8 +665,8 @@ const EmployeeDashboard = () => {
 
   return (
     <div className="min-h-screen flex bg-gray-50">
-      {/* Sidebar - Cachée sur mobile */}
-      <aside className="w-72 bg-gradient-to-b from-blue-50 to-white border-r border-blue-100 flex-shrink-0 hidden md:block shadow-lg sidebar-scroll overflow-y-auto">
+      {/* Sidebar - Cachée sur mobile/tablette, visible uniquement sur desktop (lg et plus) */}
+      <aside className="w-72 bg-gradient-to-b from-blue-50 to-white border-r border-blue-100 flex-shrink-0 hidden lg:block shadow-lg sidebar-scroll overflow-y-auto">
         {/* Header avec avatar et infos */}
         <div className="p-6 border-b border-blue-100 bg-gradient-to-r from-blue-600 to-blue-700">
           <div className="flex items-center space-x-4">
@@ -593,7 +766,7 @@ const EmployeeDashboard = () => {
       </aside>
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-h-screen w-full">
-        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-y-auto pb-20 md:pb-6 animate-fade-in main-content-scroll">
+        <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-6 overflow-y-auto pb-24 lg:pb-6 animate-fade-in main-content-scroll">
       <ToastContainer
         position="top-right"
         autoClose={3000}
@@ -608,14 +781,16 @@ const EmployeeDashboard = () => {
       />
       <ReactTooltip id="tooltip" place="top" effect="solid" />
       
-      {/* Mobile Page Title */}
-      <div className="md:hidden mb-4 pt-2">
+      {/* Mobile/Tablet Page Title - Caché sur desktop */}
+      <div className="lg:hidden mb-4 pt-2 px-4">
         <h1 className="text-xl font-bold text-gray-900">
           {activeTab === "dashboard" && "Tableau de bord"}
           {activeTab === "leaves" && "Mes Congés"}
           {activeTab === "payslips" && "Mes Fiches de Paie"}
           {activeTab === "profile" && "Mon Profil"}
           {activeTab === "notifications" && "Notifications"}
+          {activeTab === "contract" && "Mon Contrat"}
+          {activeTab === "overtime" && "Heures Supplémentaires"}
         </h1>
       </div>
 
@@ -682,86 +857,305 @@ const EmployeeDashboard = () => {
         )}
 
         {activeTab === "profile" && (
-          <Card title="Profil" className="animate-slide-in">
+          <Card title="Mon Profil" className="animate-slide-in">
             {editingProfile ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Nom
-                  </label>
-                  <input
-                    type="text"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    className="w-full p-3 border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800 placeholder-gray-500"
-                    placeholder="Entrez votre nom"
-                  />
+              <div className="space-y-6">
+                {/* Photo de profil */}
+                <div className="flex flex-col items-center gap-4">
+                  <div className="relative">
+                    <img
+                      src={photoPreview || employeeData.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(employeeData.name)}&background=3B82F6&color=orange&bold=true`}
+                      alt="Photo de profil"
+                      className="w-32 h-32 rounded-full object-cover border-4 border-blue-200 shadow-lg"
+                    />
+                    {photoPreview && (
+                      <button
+                        onClick={handleRemovePhoto}
+                        className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors"
+                        title="Supprimer la photo"
+                      >
+                        <FiX className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-center gap-2">
+                    <label className="cursor-pointer bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
+                      <FiUpload className="w-4 h-4" />
+                      {selectedPhoto ? "Changer la photo" : "Choisir une photo"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoSelect}
+                        className="hidden"
+                        disabled={uploadingPhoto}
+                      />
+                    </label>
+                    <p className="text-xs text-gray-500">JPG, PNG (max 2 Mo)</p>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Poste
-                  </label>
-                  <input
-                    type="text"
-                    value={newPoste}
-                    onChange={(e) => setNewPoste(e.target.value)}
-                    className="w-full p-3 border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800 placeholder-gray-500"
-                    placeholder="Entrez votre poste"
-                  />
+
+                {/* Informations personnelles */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nom complet <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      className="w-full p-3 border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800 placeholder-gray-500"
+                      placeholder="Votre nom complet"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Poste <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newPoste}
+                      onChange={(e) => setNewPoste(e.target.value)}
+                      className="w-full p-3 border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800 placeholder-gray-500"
+                      placeholder="Votre poste"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Téléphone
+                    </label>
+                    <input
+                      type="tel"
+                      value={newPhone}
+                      onChange={(e) => setNewPhone(e.target.value)}
+                      className="w-full p-3 border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800 placeholder-gray-500"
+                      placeholder="+237 6XX XXX XXX"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Département
+                    </label>
+                    <input
+                      type="text"
+                      value={newDepartment}
+                      onChange={(e) => setNewDepartment(e.target.value)}
+                      className="w-full p-3 border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800 placeholder-gray-500"
+                      placeholder="Votre département"
+                    />
+                  </div>
                 </div>
-                <div className="flex gap-4">
-                  <Button onClick={updateProfile} icon={FiCheck}>
-                    Enregistrer
+
+                {/* Informations non modifiables */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Informations non modifiables</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="text-gray-600">Email:</span>
+                      <span className="ml-2 font-medium text-gray-800">{employeeData.email}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Matricule:</span>
+                      <span className="ml-2 font-medium text-gray-800">{employeeData.matricule || "N/A"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Boutons d'action */}
+                <div className="flex gap-4 pt-4 border-t border-gray-200">
+                  <Button 
+                    onClick={updateProfile} 
+                    icon={FiCheck}
+                    disabled={uploadingPhoto}
+                    className="flex-1"
+                  >
+                    {uploadingPhoto ? "Enregistrement..." : "Enregistrer les modifications"}
                   </Button>
                   <Button
-                    onClick={() => setEditingProfile(false)}
+                    onClick={() => {
+                      setEditingProfile(false);
+                      setSelectedPhoto(null);
+                      setPhotoPreview(null);
+                      // Réinitialiser les valeurs
+                      setNewName(employeeData.name || "");
+                      setNewPoste(employeeData.poste || "");
+                      setNewPhone(employeeData.phone || "");
+                      setNewDepartment(employeeData.department || "");
+                    }}
                     variant="ghost"
-                    icon={FiAlertTriangle}
+                    icon={FiX}
                   >
                     Annuler
                   </Button>
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col sm:flex-row items-center gap-6">
-                <img
-                  src={employeeData.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(employeeData.name)}&background=3B82F6&color=orange&bold=true`}
-                  alt={`Avatar de ${employeeData.name}`}
-                  className="w-24 h-24 rounded-full shadow-sm"
-                />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
-                  <div>
-                    <p className="text-sm text-gray-600">Nom</p>
-                    <p className="text-lg font-medium text-gray-800">
-                      {employeeData.name}
-                    </p>
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row items-center gap-6">
+                  <div className="relative">
+                    <img
+                      src={employeeData.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(employeeData.name)}&background=3B82F6&color=orange&bold=true`}
+                      alt={`Avatar de ${employeeData.name}`}
+                      className="w-32 h-32 rounded-full object-cover border-4 border-blue-200 shadow-lg"
+                    />
+                    <div className="absolute bottom-0 right-0 bg-green-400 border-4 border-white rounded-full w-4 h-4"></div>
                   </div>
+                  <div className="flex-1 w-full">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-1">{employeeData.name}</h2>
+                    <p className="text-lg text-gray-600 mb-2">{employeeData.poste}</p>
+                    {employeeData.department && (
+                      <p className="text-sm text-gray-500">{employeeData.department}</p>
+                    )}
+                  </div>
+                  <Button
+                    onClick={() => setEditingProfile(true)}
+                    icon={FiEdit}
+                    className="mt-4 sm:mt-0"
+                  >
+                    Modifier mon profil
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t border-gray-200">
                   <div>
-                    <p className="text-sm text-gray-600">Email</p>
+                    <p className="text-sm text-gray-600 mb-1">Email</p>
                     <p className="text-lg font-medium text-gray-800">
                       {employeeData.email}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600">Rôle</p>
+                    <p className="text-sm text-gray-600 mb-1">Téléphone</p>
                     <p className="text-lg font-medium text-gray-800">
-                      {employeeData.role}
+                      {employeeData.phone || "Non renseigné"}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600">Poste</p>
+                    <p className="text-sm text-gray-600 mb-1">Matricule</p>
                     <p className="text-lg font-medium text-gray-800">
-                      {employeeData.poste}
+                      {employeeData.matricule || "N/A"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Département</p>
+                    <p className="text-lg font-medium text-gray-800">
+                      {employeeData.department || "Non renseigné"}
                     </p>
                   </div>
                 </div>
-                <Button
-                  onClick={() => setEditingProfile(true)}
-                  icon={FiEdit}
-                  className="mt-4 sm:mt-0"
-                >
-                  Modifier
-                </Button>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
+                  <div className="flex items-start gap-3">
+                    <FiUser className="w-5 h-5 text-blue-600 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-900 mb-1">Photo pour le badge</p>
+                      <p className="text-xs text-blue-700">
+                        La photo que vous uploadez sera utilisée pour votre badge d'employé. 
+                        Assurez-vous qu'elle soit claire et professionnelle.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section changement de mot de passe */}
+                <div className="border-t border-gray-200 pt-6 mt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Sécurité</h3>
+                      <p className="text-sm text-gray-600">Gérez votre mot de passe de connexion</p>
+                    </div>
+                    <Button
+                      onClick={() => setShowChangePassword(!showChangePassword)}
+                      icon={showChangePassword ? FiX : FiLock}
+                      variant={showChangePassword ? "ghost" : "primary"}
+                    >
+                      {showChangePassword ? "Annuler" : "Changer le mot de passe"}
+                    </Button>
+                  </div>
+
+                  {showChangePassword && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Mot de passe actuel <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="password"
+                          value={currentPassword}
+                          onChange={(e) => {
+                            setCurrentPassword(e.target.value);
+                            setPasswordError("");
+                          }}
+                          className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800"
+                          placeholder="Entrez votre mot de passe actuel"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Nouveau mot de passe <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => {
+                            setNewPassword(e.target.value);
+                            setPasswordError("");
+                          }}
+                          className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800"
+                          placeholder="Au moins 6 caractères"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Confirmer le nouveau mot de passe <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => {
+                            setConfirmPassword(e.target.value);
+                            setPasswordError("");
+                          }}
+                          className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800"
+                          placeholder="Confirmez le nouveau mot de passe"
+                        />
+                      </div>
+
+                      {passwordError && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                          <p className="text-sm text-red-800">{passwordError}</p>
+                        </div>
+                      )}
+
+                      <div className="flex gap-4">
+                        <Button
+                          onClick={handleChangePassword}
+                          icon={FiCheck}
+                          disabled={changingPassword}
+                          className="flex-1"
+                        >
+                          {changingPassword ? "Modification..." : "Modifier le mot de passe"}
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setShowChangePassword(false);
+                            setCurrentPassword("");
+                            setNewPassword("");
+                            setConfirmPassword("");
+                            setPasswordError("");
+                          }}
+                          variant="ghost"
+                          icon={FiX}
+                        >
+                          Annuler
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </Card>
@@ -912,39 +1306,93 @@ const EmployeeDashboard = () => {
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                 <h3 className="text-lg font-medium text-gray-700">Historique des fiches de paie</h3>
+                <div className="flex flex-col sm:flex-row gap-3 items-center">
+                  {availableYears.length > 1 && (
+                    <select
+                      value={yearFilter}
+                      onChange={(e) => {
+                        setYearFilter(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="p-2 border border-gray-200 rounded-lg bg-white text-gray-800 text-sm"
+                    >
+                      {availableYears.map((year) => (
+                        <option key={year} value={year}>
+                          {year}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <Button onClick={exportPaySlipsToCSV} icon={FiDownload} variant="ghost">
                     Exporter CSV
                   </Button>
                 </div>
+              </div>
+              {paySlipHistory.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">Aucune fiche de paie disponible.</p>
+              ) : (
+                <>
                   <div className="overflow-x-auto hide-scrollbar">
-                  <table className="w-full table-auto">
-                    <thead>
+                    <table className="w-full table-auto">
+                      <thead className="bg-gray-50">
                         <tr>
-                        <th>Date</th>
-                        <th>Salaire Net</th>
-                        <th>Actions</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Date</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Période</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Salaire Net</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Actions</th>
                         </tr>
                       </thead>
-                    <tbody>
+                      <tbody>
                         {paySlipHistory.map((slip) => (
-                        <tr key={slip.id}>
-                          <td>{slip.formattedDate}</td>
-                          <td>{slip.netSalary !== "Non disponible" ? `${slip.netSalary} FCFA` : "N/A"}</td>
-                          <td>
-                            <Button onClick={() => setSelectedPaySlip(slip)} icon={FiEye} variant="ghost">Voir</Button>
-                              {slip.url ? (
-                              <a href={slip.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 ml-2">Télécharger</a>
-                              ) : (
-                              <span className="text-gray-400 ml-2">PDF non dispo</span>
-                              )}
+                          <tr key={slip.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                            <td className="py-3 px-4 text-sm text-gray-800">{slip.formattedDate}</td>
+                            <td className="py-3 px-4 text-sm text-gray-600">{slip.payPeriod || 'N/A'}</td>
+                            <td className="py-3 px-4 text-sm font-medium text-gray-900">{formatCFA(slip.netSalary || 0)}</td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2">
+                                <Button onClick={() => setSelectedPaySlip(slip)} icon={FiEye} variant="ghost" className="text-xs">Voir</Button>
+                                {slip.url ? (
+                                  <a href={slip.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 text-sm">
+                                    <FiDownload className="inline w-4 h-4 mr-1" />
+                                    PDF
+                                  </a>
+                                ) : (
+                                  <span className="text-gray-400 text-sm">PDF non dispo</span>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                {/* Pagination si besoin */}
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="flex justify-center items-center gap-2 mt-4">
+                      <Button
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                        variant="ghost"
+                        className="text-sm"
+                      >
+                        Précédent
+                      </Button>
+                      <span className="text-sm text-gray-600">
+                        Page {currentPage} sur {totalPages}
+                      </span>
+                      <Button
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                        variant="ghost"
+                        className="text-sm"
+                      >
+                        Suivant
+                      </Button>
                     </div>
+                  )}
+                </>
+              )}
+            </div>
               {/* Modale détails fiche de paie */}
         {selectedPaySlip && (
           <div className="fixed inset-0 bg-gray-900/80 flex justify-center items-center z-50">
@@ -957,100 +1405,177 @@ const EmployeeDashboard = () => {
                       <div className="bg-blue-50 p-4 rounded-lg">
                         <h3 className="text-lg font-semibold text-blue-900 mb-3">Informations de l'Employé</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                            <p className="text-sm text-gray-600">Nom: {employeeData.name}</p>
-                            <p className="text-sm text-gray-600">Matricule: {employeeData.matricule || 'N/A'}</p>
-                            <p className="text-sm text-gray-600">Poste: {employeeData.poste}</p>
-                            <p className="text-sm text-gray-600">Catégorie: {employeeData.professionalCategory || 'N/A'}</p>
-                            <p className="text-sm text-gray-600">Numéro CNPS: {employeeData.cnpsNumber || 'N/A'}</p>
-                            <p className="text-sm text-gray-600">Email: {employeeData.email || 'N/A'}</p>
-                    </div>
-                    </div>
-                    </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Nom complet</p>
+                            <p className="font-medium">{employeeData.name}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Matricule</p>
+                            <p className="font-medium">{employeeData.matricule || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Poste</p>
+                            <p className="font-medium">{employeeData.poste}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Département</p>
+                            <p className="font-medium">{employeeData.department || 'N/A'}</p>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Informations de la fiche de paie */}
                       <div className="bg-gray-50 p-4 rounded-lg">
                         <h3 className="text-lg font-semibold text-gray-900 mb-3">Informations de la Fiche de Paie</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                            <p className="text-sm text-gray-600">Période: {selectedPaySlip.payPeriod || selectedPaySlip.formattedDate || selectedPaySlip.date || 'N/A'}</p>
+                          <div>
+                            <p className="text-sm text-gray-600">Période</p>
+                            <p className="font-medium">{selectedPaySlip.payPeriod || selectedPaySlip.formattedDate || selectedPaySlip.date || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Date de génération</p>
+                            <p className="font-medium">{displayGeneratedAt(selectedPaySlip.generatedAt)}</p>
+                          </div>
                         </div>
-                  <div>
-                            <p className="text-sm text-gray-600">Généré le: {displayGeneratedAt(selectedPaySlip.generatedAt)}</p>
-                        </div>
-                    </div>
-                  </div>
+                      </div>
+
                       {/* Rémunération */}
-                      <h3 className="font-semibold mt-4">Rémunération</h3>
-                      <table className="w-full border-collapse">
-                        <tbody>
-                          <tr className="border-b border-blue-100">
-                            <td className="py-2 px-4">Salaire de base</td>
-                            <td className="py-2 px-4">{(selectedPaySlip.salaryDetails?.baseSalary || 0).toLocaleString()} FCFA</td>
-                          </tr>
-                          <tr className="border-b border-blue-100">
-                            <td className="py-2 px-4">Taux journalier</td>
-                            <td className="py-2 px-4">{(selectedPaySlip.salaryDetails?.dailyRate || 0).toLocaleString()} FCFA</td>
-                          </tr>
-                          <tr className="border-b border-blue-100">
-                            <td className="py-2 px-4">Taux horaire</td>
-                            <td className="py-2 px-4">{(selectedPaySlip.salaryDetails?.hourlyRate || 0).toLocaleString()} FCFA</td>
-                          </tr>
-                          <tr className="border-b border-blue-100">
-                            <td className="py-2 px-4">Indemnité transport</td>
-                            <td className="py-2 px-4">{(selectedPaySlip.salaryDetails?.transportAllowance || 0).toLocaleString()} FCFA</td>
-                          </tr>
-                          <tr className="border-b border-blue-100">
-                            <td className="py-2 px-4">Jours travaillés</td>
-                            <td className="py-2 px-4">{selectedPaySlip.remuneration?.workedDays || 0}</td>
-                          </tr>
-                          <tr className="border-b border-blue-100">
-                            <td className="py-2 px-4">Heures supplémentaires</td>
-                            <td className="py-2 px-4">{(selectedPaySlip.remuneration?.overtime || 0).toLocaleString()} FCFA</td>
-                          </tr>
-                          <tr className="border-b border-blue-100 bg-blue-50">
-                            <td className="py-2 px-4 font-semibold">TOTAL RÉMUNÉRATION</td>
-                            <td className="py-2 px-4 font-semibold">{(selectedPaySlip.remuneration?.total || 0).toLocaleString()} FCFA</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                      {/* Déductions */}
-                      <h3 className="font-semibold mt-4">Déductions</h3>
-                      <table className="w-full border-collapse">
-                        <tbody>
-                          <tr className="border-b border-blue-100">
-                            <td className="py-2 px-4">PVIS</td>
-                            <td className="py-2 px-4">{formatCFA(selectedPayrollCalc?.roundedDeductions.pvis)} FCFA</td>
-                          </tr>
-                          <tr className="border-b border-blue-100">
-                            <td className="py-2 px-4">IRPP</td>
-                            <td className="py-2 px-4">{formatCFA(selectedPayrollCalc?.roundedDeductions.irpp)} FCFA</td>
-                          </tr>
-                          <tr className="border-b border-blue-100">
-                            <td className="py-2 px-4">CAC</td>
-                            <td className="py-2 px-4">{formatCFA(selectedPayrollCalc?.roundedDeductions.cac)} FCFA</td>
-                          </tr>
-                          <tr className="border-b border-blue-100">
-                            <td className="py-2 px-4">CFC</td>
-                            <td className="py-2 px-4">{formatCFA(selectedPayrollCalc?.roundedDeductions.cfc)} FCFA</td>
-                          </tr>
-                          <tr className="border-b border-blue-100">
-                            <td className="py-2 px-4">RAV</td>
-                            <td className="py-2 px-4">{formatCFA(selectedPayrollCalc?.roundedDeductions.rav)} FCFA</td>
-                          </tr>
-                          <tr className="border-b border-blue-100">
-                            <td className="py-2 px-4">TDL</td>
-                            <td className="py-2 px-4">{formatCFA(selectedPayrollCalc?.roundedDeductions.tdl)} FCFA</td>
-                          </tr>
-                          <tr className="border-b border-blue-100 bg-red-50">
-                            <td className="py-2 px-4 font-semibold">TOTAL DÉDUCTIONS</td>
-                            <td className="py-2 px-4 font-semibold">{formatCFA(selectedPayrollCalc?.deductionsTotal)} FCFA</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                      {/* Net à payer */}
                       <div className="bg-green-50 p-4 rounded-lg">
-                        <h3 className="font-bold text-lg">NET À PAYER: {formatCFA(selectedPayrollCalc?.netPay || 0)} FCFA</h3>
+                        <h3 className="text-lg font-semibold text-green-900 mb-3">Rémunération</h3>
+                        {selectedPayrollCalc ? (
+                          <>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                <p className="text-sm text-gray-600">Salaire de base</p>
+                                <p className="font-medium text-lg">
+                                  {selectedPaySlip.salaryDetails?.baseSalary?.toLocaleString()} XAF
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-gray-600">Jours travaillés</p>
+                                <p className="font-medium">{selectedPaySlip.remuneration?.workedDays || 0} jours</p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-gray-600">Heures supplémentaires</p>
+                                <p className="font-medium">{selectedPaySlip.remuneration?.overtime?.toLocaleString() || 0} XAF</p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-gray-600">SBT (Taxable)</p>
+                                <p className="font-medium text-lg text-green-700">
+                                  {selectedPayrollCalc.sbt?.toLocaleString() || 0} XAF
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-gray-600">SBC (Cotisable)</p>
+                                <p className="font-medium text-lg text-green-700">
+                                  {selectedPayrollCalc.sbc?.toLocaleString() || 0} XAF
+                                </p>
+                              </div>
+                            </div>
+                            {/* Primes */}
+                            <div className="mt-4">
+                              <h4 className="font-semibold text-green-800 mb-1">Primes</h4>
+                              {(selectedPaySlip.primes && selectedPaySlip.primes.length > 0) ? (
+                                <table className="w-full text-sm mb-2">
+                                  <thead>
+                                    <tr>
+                                      <th className="text-left">Type</th>
+                                      <th className="text-left">Montant</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {selectedPaySlip.primes.map((prime, idx) => (
+                                      <tr key={idx}>
+                                        <td>{prime.label || prime.type}</td>
+                                        <td>{Number(prime.montant || prime.amount || 0).toLocaleString()} XAF</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              ) : (
+                                <p className="text-gray-500">Aucune prime</p>
+                              )}
+                            </div>
+                            {/* Indemnités */}
+                            <div className="mt-2">
+                              <h4 className="font-semibold text-green-800 mb-1">Indemnités</h4>
+                              {(selectedPaySlip.indemnites && selectedPaySlip.indemnites.length > 0) ? (
+                                <table className="w-full text-sm">
+                                  <thead>
+                                    <tr>
+                                      <th className="text-left">Type</th>
+                                      <th className="text-left">Montant</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {selectedPaySlip.indemnites.map((ind, idx) => (
+                                      <tr key={idx}>
+                                        <td>{ind.label || ind.type}</td>
+                                        <td>{Number(ind.montant || ind.amount || 0).toLocaleString()} XAF</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              ) : (
+                                <p className="text-gray-500">Aucune indemnité</p>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-gray-500">Calcul en cours...</p>
+                        )}
+                      </div>
+
+                      {/* Déductions */}
+                      <div className="bg-red-50 p-4 rounded-lg">
+                        <h3 className="text-lg font-semibold text-red-900 mb-3">Déductions</h3>
+                        {selectedPayrollCalc ? (
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                              <p className="text-sm text-gray-600">PVID</p>
+                              <p className="font-medium">{formatCFA(selectedPayrollCalc.deductions?.pvid || 0)}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">IRPP</p>
+                              <p className="font-medium">{formatCFA(selectedPayrollCalc.deductions?.irpp || 0)}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">CAC</p>
+                              <p className="font-medium">{formatCFA(selectedPayrollCalc.deductions?.cac || 0)}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">CFC</p>
+                              <p className="font-medium">{formatCFA(selectedPayrollCalc.deductions?.cfc || 0)}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">RAV</p>
+                              <p className="font-medium">{formatCFA(selectedPayrollCalc.deductions?.rav || 0)}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">TDL</p>
+                              <p className="font-medium">{formatCFA(selectedPayrollCalc.deductions?.tdl || 0)}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">Total déductions</p>
+                              <p className="font-medium text-lg text-red-700">
+                                {formatCFA(selectedPayrollCalc.deductions?.total || selectedPayrollCalc.deductionsTotal || 0)}
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-gray-500">Calcul en cours...</p>
+                        )}
+                      </div>
+
+                      {/* Net à payer */}
+                      <div className="bg-purple-50 p-6 rounded-lg border-2 border-purple-200">
+                        <div className="text-center">
+                          <h3 className="text-xl font-bold text-purple-900 mb-2">NET À PAYER</h3>
+                          <p className="text-3xl font-bold text-purple-700">
+                            {formatCFA(selectedPayrollCalc?.netPay || 0)}
+                          </p>
                         </div>
+                      </div>
                       {/* Boutons d'action en bas */}
                       <div className="flex justify-center gap-4 mt-8">
                         <Button onClick={() => setSelectedPaySlip(null)} variant="outline">Fermer</Button>
@@ -1073,7 +1598,7 @@ const EmployeeDashboard = () => {
                                 employer={employerData}
                                 salaryDetails={selectedPaySlip.salaryDetails}
                                 remuneration={selectedPaySlip.remuneration}
-                                deductions={selectedPaySlip.deductions}
+                                deductions={selectedPayrollCalc?.deductions || selectedPaySlip.deductions}
                                 payPeriod={selectedPaySlip.payPeriod}
                                 generatedAt={selectedPaySlip.generatedAt}
                                 primes={selectedPaySlip.primes}
@@ -1282,9 +1807,10 @@ const EmployeeDashboard = () => {
       </div>
       
       {/* Mobile Footer Navigation */}
-      <MobileFooterNav 
+      <EmployeeMobileFooterNav 
         activeTab={activeTab} 
         setActiveTab={setActiveTab}
+        notificationCount={employeeData?.notifications?.filter(n => !n.read)?.length || 0}
         handleLogout={handleLogout}
       />
     </div>
@@ -1320,6 +1846,8 @@ const Button = ({
     primary: `bg-blue-400 text-white hover:bg-blue-500`,
     danger: `bg-red-400 text-white hover:bg-red-500`,
     ghost: `text-gray-600 hover:bg-gray-200`,
+    outline: `border-2 border-gray-300 text-gray-700 hover:bg-gray-50`,
+    success: `bg-green-600 text-white hover:bg-green-700`,
   };
 
   return (

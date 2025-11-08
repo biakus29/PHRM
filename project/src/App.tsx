@@ -1296,93 +1296,7 @@ function App() {
         </div>
       </section>
 
-      {/* Articles Récents Section */}
-      {recentPosts.length > 0 && (
-        <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white relative overflow-hidden">
-          <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <div className="flex items-center justify-center mb-4">
-                <BookOpen className="w-12 h-12 text-phrm-dark animate-bounce" />
-              </div>
-              <h2 className="text-4xl font-bold text-gray-900 mb-4 animate-fade-in-up">
-                Articles Récents
-              </h2>
-              <p className="text-xl text-gray-600 animate-fade-in-up animation-delay-200">
-                Découvrez nos dernières publications sur la gestion RH
-              </p>
-            </div>
-
-            {loadingPosts ? (
-              <div className="flex justify-center items-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-phrm-dark"></div>
-              </div>
-            ) : (
-              <>
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
-                  {recentPosts.slice(0, 6).map((post, index) => (
-                    <article
-                      key={post.id}
-                      className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 border border-gray-100 overflow-hidden group animate-fade-in-up"
-                      style={{ animationDelay: `${index * 100}ms` }}
-                    >
-                      <div className="p-6 space-y-4">
-                        <div className="flex items-center gap-3 text-xs text-gray-500">
-                          <div className="flex items-center gap-1.5 bg-blue-50 px-3 py-1 rounded-full">
-                            <Calendar className="w-3 h-3 text-blue-600" />
-                            <span className="text-blue-700 font-medium">
-                              {formatDate(post.createdAt)}
-                            </span>
-                          </div>
-                          {post.likes > 0 && (
-                            <div className="flex items-center gap-1.5 bg-red-50 px-3 py-1 rounded-full">
-                              <Heart className="w-3 h-3 text-red-600 fill-current" />
-                              <span className="text-red-700 font-medium">
-                                {post.likes}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        
-                        <h3 className="text-xl font-bold text-gray-900 group-hover:text-phrm-dark transition-colors duration-300 line-clamp-2">
-                          {post.title}
-                        </h3>
-                        
-                        <div 
-                          className="text-gray-600 text-sm leading-relaxed line-clamp-3"
-                          dangerouslySetInnerHTML={{ 
-                            __html: truncateText(post.content?.replace(/\n/g, ' ') || '', 150)
-                          }}
-                        />
-                        
-                        <a
-                          href="https://phrmapp.com/blog"
-                          className="inline-flex items-center gap-2 text-phrm-dark font-semibold hover:gap-3 transition-all duration-300 group-hover:text-blue-700"
-                        >
-                          Lire la suite
-                          <ArrowRight className="w-4 h-4" />
-                        </a>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-
-                <div className="text-center animate-fade-in-up animation-delay-300">
-                  <a
-                    href="https://phrmapp.com/blog"
-                    className="inline-flex items-center gap-2 bg-phrm-dark text-white px-8 py-4 rounded-lg hover:bg-phrm-dark/90 transition-all transform hover:scale-105 shadow-lg font-semibold text-lg"
-                  >
-                    <BookOpen className="w-5 h-5" />
-                    Voir tous les articles
-                    <ArrowRight className="w-5 h-5" />
-                  </a>
-                </div>
-              </>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* Blog Section */}
+      {/* Blog Section - Toujours visible */}
       <section id="blog" className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-blue-50 to-white relative overflow-hidden">
         {/* Background Elements */}
         <div className="pointer-events-none absolute inset-0 opacity-20">
@@ -1487,6 +1401,92 @@ function App() {
           </div>
         </div>
       </section>
+
+      {/* Articles Récents Section */}
+      {recentPosts.length > 0 && (
+        <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white relative overflow-hidden">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-12">
+              <div className="flex items-center justify-center mb-4">
+                <BookOpen className="w-12 h-12 text-phrm-dark animate-bounce" />
+              </div>
+              <h2 className="text-4xl font-bold text-gray-900 mb-4 animate-fade-in-up">
+                Articles Récents
+              </h2>
+              <p className="text-xl text-gray-600 animate-fade-in-up animation-delay-200">
+                Découvrez nos dernières publications sur la gestion RH
+              </p>
+            </div>
+
+            {loadingPosts ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-phrm-dark"></div>
+              </div>
+            ) : (
+              <>
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+                  {recentPosts.slice(0, 6).map((post, index) => (
+                    <article
+                      key={post.id}
+                      className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 border border-gray-100 overflow-hidden group animate-fade-in-up"
+                      style={{ animationDelay: `${index * 100}ms` }}
+                    >
+                      <div className="p-6 space-y-4">
+                        <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <div className="flex items-center gap-1.5 bg-blue-50 px-3 py-1 rounded-full">
+                            <Calendar className="w-3 h-3 text-blue-600" />
+                            <span className="text-blue-700 font-medium">
+                              {formatDate(post.createdAt)}
+                            </span>
+                          </div>
+                          {post.likes > 0 && (
+                            <div className="flex items-center gap-1.5 bg-red-50 px-3 py-1 rounded-full">
+                              <Heart className="w-3 h-3 text-red-600 fill-current" />
+                              <span className="text-red-700 font-medium">
+                                {post.likes}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <h3 className="text-xl font-bold text-gray-900 group-hover:text-phrm-dark transition-colors duration-300 line-clamp-2">
+                          {post.title}
+                        </h3>
+                        
+                        <div 
+                          className="text-gray-600 text-sm leading-relaxed line-clamp-3"
+                          dangerouslySetInnerHTML={{ 
+                            __html: truncateText(post.content?.replace(/\n/g, ' ') || '', 150)
+                          }}
+                        />
+                        
+                        <a
+                          href="https://phrmapp.com/blog"
+                          className="inline-flex items-center gap-2 text-phrm-dark font-semibold hover:gap-3 transition-all duration-300 group-hover:text-blue-700"
+                        >
+                          Lire la suite
+                          <ArrowRight className="w-4 h-4" />
+                        </a>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="text-center animate-fade-in-up animation-delay-300">
+                  <a
+                    href="https://phrmapp.com/blog"
+                    className="inline-flex items-center gap-2 bg-phrm-dark text-white px-8 py-4 rounded-lg hover:bg-phrm-dark/90 transition-all transform hover:scale-105 shadow-lg font-semibold text-lg"
+                  >
+                    <BookOpen className="w-5 h-5" />
+                    Voir tous les articles
+                    <ArrowRight className="w-5 h-5" />
+                  </a>
+                </div>
+              </>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Pricing Section */}
       {/* <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-blue-50 to-white">

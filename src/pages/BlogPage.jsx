@@ -333,9 +333,10 @@ const BlogPage = () => {
                 <div className="absolute -bottom-1 -right-1 sm:-bottom-2 sm:-right-2 bg-green-500 w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-white animate-pulse-glow"></div>
               </div>
               <div className="text-center sm:text-left flex-1">
+                <h3>directeur executif</h3>
                 <p className="text-blue-200 text-xs sm:text-sm mb-1 font-semibold animate-fade-in-up animation-delay-400">Paul Valentin Ndoko</p>
                 <p className="text-blue-100 text-sm sm:text-base animate-fade-in-up animation-delay-500">
-                  Partageant son expertise et ses connaissances en gestion des ressources humaines
+                  Partage son expertise et ses connaissances en gestion des ressources humaines
                 </p>
               </div>
             </div>
