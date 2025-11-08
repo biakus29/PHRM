@@ -15,6 +15,8 @@ module.exports = {
         '128': '32rem',
       },
       colors: {
+        'phrm-dark': '#1E40AF', // Bleu foncé PHRM
+        'phrm-light': '#DBEAFE', // Bleu clair PHRM
         primary: {
           DEFAULT: '#3B82F6', // Bleu principal
           50: '#EFF6FF', // Bleu ciel très clair

@@ -27,7 +27,7 @@ function getValue(obj, path) {
   return path.split('.').reduce((acc, part) => acc && acc[part], obj);
 }
 
-const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, payPeriod, generatedAt, primes, indemnites, template = 'eneo', auto = false, onExported, isDemoAccount: isDemoProp }) => {
+const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, payPeriod, generatedAt, primes, indemnites, template = 'eneo', auto = false, onExported }) => {
   // Templates disponibles (alignés avec modeletemplate.js)
   const TEMPLATE_OPTIONS = [
     { value: 'eneo', label: 'ENEO (officiel)' },
@@ -37,17 +37,8 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
     { value: 'enterprise', label: 'Enterprise' },
   ];
 
-  // Détection mode démo (robuste si rendu hors DemoProvider)
-  let isDemoAccount = Boolean(isDemoProp);
-  try {
-    if (isDemoProp === undefined) {
-      const ctx = useDemo();
-      isDemoAccount = Boolean(ctx?.isDemoAccount);
-    }
-  } catch (_) {
-    // rendu hors provider: considérer comme non-démo ou utiliser prop si fournie
-    isDemoAccount = Boolean(isDemoProp);
-  }
+  // Détection mode démo
+  const { isDemoAccount } = useDemo();
 
   // État local pour le modèle sélectionné dans ce composant
   const initialTemplate = (template || salaryDetails?.selectedTemplate || remuneration?.selectedTemplate || 'eneo');

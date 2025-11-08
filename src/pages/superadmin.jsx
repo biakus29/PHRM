@@ -40,11 +40,13 @@ import {
   FiRefreshCw,
   FiSearch,
   FiSettings,
+  FiBook,
 } from "react-icons/fi";
 import { buildCommonOptions } from "../utils/chartConfig";
 import SuperadminJobsPanel from "../components/SuperadminJobsPanel";
 import SuperadminApplicationsPanel from "../components/SuperadminApplicationsPanel";
 import FiscalSettings from "../components/FiscalSettings";
+import BlogManagement from "../components/BlogManagement";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -485,6 +487,7 @@ const SuperAdminDashboard = () => {
               { id: "clients", label: "Clients", icon: FiUsers },
               { id: "jobs", label: "Offres à valider", icon: FiEdit },
               { id: "applications", label: "Candidatures", icon: FiUsers },
+              { id: "blog", label: "Blog", icon: FiBook },
               { id: "stats", label: "Statistiques", icon: FiBarChart2 },
               { id: "settings", label: "Paramètres Fiscaux", icon: FiSettings },
             ].map((section) => (
@@ -539,6 +542,7 @@ const SuperAdminDashboard = () => {
               {activeSection === "stats" && "Statistiques"}
               {activeSection === "jobs" && "Offres à valider"}
               {activeSection === "applications" && "Candidatures"}
+              {activeSection === "blog" && "Gestion du Blog"}
               {activeSection === "settings" && "Paramètres Fiscaux & CNPS"}
             </h1>
             <p className="text-gray-600 text-sm animate-scale-in">
@@ -548,6 +552,7 @@ const SuperAdminDashboard = () => {
               {activeSection === "stats" && "Analyse des données d'utilisation"}
               {activeSection === "jobs" && "Validez et publiez les offres soumises par les clients"}
               {activeSection === "applications" && "Consultez les candidatures et répondez par email"}
+              {activeSection === "blog" && "Créez et gérez les articles du blog"}
               {activeSection === "settings" && "Configuration des taux CNPS, fiscaux et barèmes"}
             </p>
           </div>
@@ -811,6 +816,10 @@ const SuperAdminDashboard = () => {
 
         {activeSection === "applications" && (
           <SuperadminApplicationsPanel />
+        )}
+
+        {activeSection === "blog" && (
+          <BlogManagement />
         )}
 
         {activeSection === "clients" && (

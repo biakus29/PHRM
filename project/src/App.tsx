@@ -1,5 +1,7 @@
-import { Users, TrendingUp, CheckCircle, BarChart3, CreditCard, UserCheck, Scale, Smartphone, Mail, Phone, MapPin, Clock, Facebook, Twitter, Linkedin, MessageCircle, Shield, Zap, Target, Award, Globe, Download, LogOut, Headphones } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import { Users, TrendingUp, CheckCircle, BarChart3, CreditCard, UserCheck, Scale, Smartphone, Mail, Phone, MapPin, Clock, Facebook, Twitter, Linkedin, MessageCircle, Shield, Zap, Target, Award, Globe, Download, LogOut, Headphones, BookOpen, ArrowRight } from 'lucide-react';
+import * as React from 'react';
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 
 type TruncatedTextProps = {
   text: string;
@@ -87,12 +89,13 @@ function App() {
               <a href="#features" className="text-gray-700 hover:text-phrm-dark transition-colors">Fonctionnalités</a>
             <a href="#pricing" className="text-gray-700 hover:text-phrm-dark transition-colors">Tarifs</a>
             <a href="#testimonials" className="text-gray-700 hover:text-phrm-dark transition-colors">Témoignages</a>
+            <Link to="/blog" className="text-gray-700 hover:text-phrm-dark transition-colors">Blog</Link>
             <a href="#faq" className="text-gray-700 hover:text-phrm-dark transition-colors">FAQ</a>
               <a href="#contact" className="text-gray-700 hover:text-phrm-dark transition-colors">Contact</a>
             </div>
           <div className="flex items-center space-x-3 md:space-x-4">
-            <a href="https://phrmapp.com/demo-signup" className="hidden md:inline-flex bg-phrm-dark text-white px-4 md:px-6 py-2 rounded-lg hover:brightness-90 transition-colors">
-              Essai gratuit 24h
+            <a href="https://phrmapp.com/demo" className="hidden md:inline-flex bg-phrm-dark text-white px-4 md:px-6 py-2 rounded-lg hover:brightness-90 transition-colors">
+              Essai gratuit 
             </a>
             <button
               className="lg:hidden text-gray-700 hover:text-phrm-dark transition-colors"
@@ -119,29 +122,45 @@ function App() {
           <div className="px-4 sm:px-6 lg:px-8 pb-4 bg-white/95 backdrop-blur-md shadow">
             <div className="flex flex-col space-y-3">
               {[
-                { href: '#about', label: 'À propos' },
-                { href: '#features', label: 'Fonctionnalités' },
-                { href: '#testimonials', label: 'Témoignages' },
-                { href: '#faq', label: 'FAQ' },
-                { href: '#contact', label: 'Contact' },
-              ].map((link) => (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  className="text-gray-800 hover:text-phrm-dark py-2"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  {link.label}
-                </a>
-              ))}
+                { href: '#about', label: 'À propos', isLink: false },
+                { href: '#features', label: 'Fonctionnalités', isLink: false },
+                { href: '#testimonials', label: 'Témoignages', isLink: false },
+                { href: '/blog', label: 'Blog', isLink: true },
+                { href: '#faq', label: 'FAQ', isLink: false },
+                { href: '#contact', label: 'Contact', isLink: false },
+              ].map((link) => 
+                link.isLink ? (
+                  <Link
+                    key={link.href}
+                    to={link.href}
+                    className="text-gray-800 hover:text-phrm-dark py-2"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                ) : (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    className="text-gray-800 hover:text-phrm-dark py-2"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    {link.label}
+                  </a>
+                )
+              )}
               
-              {/* Bouton Essai gratuit pour mobile */}
+              {/* Bouton Voir la démo pour mobile */}
               <a 
-                href="https://phrmapp.com/demo-signup" 
-                className="bg-phrm-dark text-white px-4 py-2 rounded-lg hover:brightness-90 transition-colors text-center mt-3"
-                onClick={() => setMobileOpen(false)}
+                href="https://phrmapp.com/demo"
+                className="bg-phrm-dark text-white px-4 py-2 rounded-lg hover:brightness-90 transition-colors text-center mt-3 block"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setMobileOpen(false);
+                  window.location.href = 'https://phrmapp.com/demo';
+                }}
               >
-                Essai gratuit 24h
+                Voir la démo
               </a>
               
               {/* Bouton de déconnexion pour mobile/tablette */}
@@ -174,8 +193,8 @@ function App() {
                 Solution complète RH : conformité Paie-pays; Recrutement, Background check, Conseil, Libre-service Employés.
               </p>
             <div className="flex flex-col sm:flex-row gap-4 animate-fade-in-up animation-delay-400">
-              <a href="https://phrmapp.com/demo-signup" className="bg-phrm-dark text-white px-8 py-4 rounded-lg hover:brightness-90 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl inline-block text-center">
-                  Démarrer
+              <a href="https://phrmapp.com/register-client" className="bg-phrm-dark text-white px-8 py-4 rounded-lg hover:brightness-90 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl inline-block text-center">
+                  S'inscrire 
                 </a>
               <a href="https://phrmapp.com/demo" className="border-2 border-phrm-dark text-phrm-dark px-8 py-4 rounded-lg hover:bg-phrm-light transition-all transform hover:scale-105">
                   Voir la démo
@@ -1228,6 +1247,112 @@ function App() {
         </div>
       </section>
 
+      {/* Blog Section */}
+      <section id="blog" className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-blue-50 to-white relative overflow-hidden">
+        {/* Background Elements */}
+        <div className="pointer-events-none absolute inset-0 opacity-20">
+          <div className="absolute -top-24 -left-24 w-96 h-96 bg-phrm-dark/10 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute -bottom-24 -right-24 w-[28rem] h-[28rem] bg-blue-400/10 rounded-full blur-3xl animate-pulse animation-delay-200"></div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="text-center mb-12">
+            <div className="flex items-center justify-center mb-4">
+              <BookOpen className="w-12 h-12 text-phrm-dark animate-bounce" />
+            </div>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4 animate-fade-in-up">
+              Blog PHRM
+            </h2>
+            <p className="text-xl text-gray-600 animate-fade-in-up animation-delay-200">
+              Découvrez nos dernières actualités et articles sur la gestion RH
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+            {/* Carte Blog 1 */}
+            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 group animate-fade-in-up">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center mb-4 group-hover:animate-bounce">
+                <BookOpen className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-phrm-dark transition-colors duration-300">
+                Actualités RH
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Restez informé des dernières tendances et actualités dans le domaine des ressources humaines au Cameroun.
+              </p>
+              <Link 
+                to="/blog" 
+                className="inline-flex items-center gap-2 text-phrm-dark font-semibold hover:gap-3 transition-all duration-300 group-hover:text-blue-700"
+              >
+                Lire les articles
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+            </div>
+
+            {/* Carte Blog 2 */}
+            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 group animate-fade-in-up animation-delay-100">
+              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center mb-4 group-hover:animate-bounce">
+                <Target className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-phrm-dark transition-colors duration-300">
+                Conseils & Astuces
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Des conseils pratiques et des astuces pour optimiser votre gestion des ressources humaines.
+              </p>
+              <Link 
+                to="/blog" 
+                className="inline-flex items-center gap-2 text-phrm-dark font-semibold hover:gap-3 transition-all duration-300 group-hover:text-green-700"
+              >
+                Découvrir
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+            </div>
+
+            {/* Carte Blog 3 */}
+            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 group animate-fade-in-up animation-delay-200 md:col-span-2 lg:col-span-1">
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center mb-4 group-hover:animate-bounce">
+                <Award className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-phrm-dark transition-colors duration-300">
+                Expertise PHRM
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Partage d'expertise et de connaissances par notre équipe de spécialistes en gestion RH.
+              </p>
+              <Link 
+                to="/blog" 
+                className="inline-flex items-center gap-2 text-phrm-dark font-semibold hover:gap-3 transition-all duration-300 group-hover:text-purple-700"
+              >
+                En savoir plus
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+            </div>
+          </div>
+
+          {/* CTA Principal */}
+          <div className="text-center animate-fade-in-up animation-delay-300">
+            <div className="bg-gradient-to-r from-phrm-dark to-blue-700 rounded-2xl p-8 md:p-12 text-white shadow-2xl">
+              <h3 className="text-2xl md:text-3xl font-bold mb-4">
+                Explorez notre blog
+              </h3>
+              <p className="text-blue-100 mb-8 text-lg max-w-2xl mx-auto">
+                Découvrez des articles régulièrement mis à jour sur la gestion des ressources humaines, 
+                la conformité CNPS, et bien plus encore.
+              </p>
+              <Link 
+                to="/blog"
+                className="inline-flex items-center gap-2 bg-white text-phrm-dark px-8 py-4 rounded-lg hover:bg-phrm-light transition-all transform hover:scale-105 shadow-lg font-semibold text-lg"
+              >
+                <BookOpen className="w-5 h-5" />
+                Accéder au blog
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Pricing Section */}
       {/* <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-blue-50 to-white">
         <div className="max-w-7xl mx-auto">
@@ -1470,7 +1595,7 @@ function App() {
                 <Mail className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-white mb-4">Email</h3>
-              <p className="text-blue-200 mb-4">contact@phrm.cm</p>
+              <p className="text-blue-400 mb-4">contact@phrm.cm</p>
               <p className="text-sm text-blue-300">Réponse sous 24h</p>
             </div>
 
@@ -1479,7 +1604,7 @@ function App() {
                 <Phone className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-white mb-4">Téléphone</h3>
-              <p className="text-blue-200 mb-4">+237 6 XX XX XX XX</p>
+              <p className="text-blue-400 mb-4">+237 6 XX XX XX XX</p>
               <p className="text-sm text-blue-300">Lun - Ven: 8h00 - 18h00</p>
             </div>
 
@@ -1488,7 +1613,7 @@ function App() {
                 <MapPin className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-white mb-4">Adresse</h3>
-              <p className="text-blue-200 mb-4">Douala, Cameroun</p>
+              <p className="text-blue-400 mb-4">YaoundéCameroun</p>
               <p className="text-sm text-blue-300">Bureau principal</p>
             </div>
           </div>
@@ -1550,8 +1675,8 @@ function App() {
             <div>
               <h4 className="font-semibold mb-4">Entreprise</h4>
               <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-white transition-colors">À propos</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
+                <li><a href="#about" className="hover:text-white transition-colors">À propos</a></li>
+                <li><Link to="/blog" className="hover:text-white transition-colors">Blog</Link></li>
                 <li><a href="#" className="hover:text-white transition-colors">Carrières</a></li>
               </ul>
             </div>

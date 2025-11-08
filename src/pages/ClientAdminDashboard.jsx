@@ -83,7 +83,6 @@ import { INDEMNITIES, BONUSES } from "../utils/payrollLabels";
  
 import { removeUndefined } from "../utils/objectUtils";
 import PaySlipGenerator from "../components/PaySlipGenerator";
-import { useDemo } from "../contexts/DemoContext";
 import { calculateSeniorityPrime } from "../utils/seniorityUtils";
 import { generateOfferLetterPDF } from "../utils/pdfTemplates/offerTemplateCameroon";
 import { subscribeEmployees, addEmployee as svcAddEmployee, updateEmployee as svcUpdateEmployee, updateEmployeeContract as svcUpdateEmployeeContract, updateEmployeePayslips as svcUpdateEmployeePayslips, updateEmployeeBaseSalary as svcUpdateEmployeeBaseSalary, deleteEmployee as svcDeleteEmployee, updateEmployeeBadge as svcUpdateEmployeeBadge } from "../services/employees";
@@ -102,6 +101,7 @@ import ContractManagementPage from "./ContractManagementPage";
 import { VILLES_CAMEROUN, QUARTIERS_PAR_VILLE } from "../utils/constants";
 import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, computeGrossTotal, computeSBT, computeSBC, validateDeductions, formatCFA, computePVID, computeStatutoryDeductions, computeCompletePayroll } from "../utils/payrollCalculations";
 import ContractGenerator from "../components/ContractGenerator";
+import { useDemo } from "../contexts/DemoContext";
 import DemoBanner from "../components/DemoBanner";
 import PaySlip from "../components/PaySlip";
 import Button from "../components/Button";
@@ -136,7 +136,6 @@ ChartJS.register(
 const CompanyAdminDashboard = () => {
   // Hook pour les données démo
   const { isDemoAccount, demoData, isExpired } = useDemo();
-  const navigate = useNavigate();
   
   const [activeTab, setActiveTab] = useState("overview");
   // Sidebar state supports: "fullyOpen" | "minimized" | "hidden"
@@ -175,7 +174,6 @@ const CompanyAdminDashboard = () => {
   hasTrialPeriod: false,
   trialPeriodDuration: "",
     matricule: "",
-    department: "",
     // Nouveaux champs pour les informations personnelles
     dateOfBirth: "",
     lieuNaissance: "",
@@ -336,6 +334,7 @@ const CompanyAdminDashboard = () => {
 
   const [paySlipData, setPaySlipData] = useState(null);
   const [logoData, setLogoData] = useState(null);
+  const navigate = useNavigate();
   const [paySlipModal, setPaySlipModal] = useState({
   open: false,
   employee: null,       // Employé sélectionné
@@ -655,14 +654,8 @@ const addEmployee = async (e) => {
       throw new Error("ID de l'entreprise manquant.");
     }
     
-    // Si c'est un compte démo, appliquer les limitations (max 2 employés)
+    // Si c'est un compte démo, ajouter dans Firestore avec flag temporaire
     if (isDemoAccount) {
-      const currentCount = Array.isArray(employees) ? employees.length : 0;
-      if (currentCount >= 2 && !newEmployee.id) {
-        toast.info("Mode démo: vous avez atteint la limite de 2 employés. Passez en Pro pour ajouter plus d'employés.");
-        setActionLoading(false);
-        return;
-      }
       const seniorityData = calculateSeniorityPrime(
         { seniority: newEmployee.seniority || 0 },
         Number(newEmployee.baseSalary) || 0
@@ -742,7 +735,7 @@ const addEmployee = async (e) => {
         contractFile: null,
         department: newEmployee.department || '',
       };
-      await svcUpdateEmployee(db, companyData.id, newEmployee.id, removeUndefined(employeeData));
+      await svcUpdateEmployee(db, companyData.id, newEmployee.id, employeeData);
       employeeId = newEmployee.id;
       toast.success("Employé modifié avec succès !");
     } else {
@@ -763,9 +756,9 @@ const addEmployee = async (e) => {
         adminUid: auth.currentUser?.uid || null,
         payslips: [],
         createdAt: new Date().toISOString(),
-        department: newEmployee.department || "",
+        department: newEmployee.department,
       };
-      employeeId = await svcAddEmployee(db, companyData.id, removeUndefined(employeeData));
+      employeeId = await svcAddEmployee(db, companyData.id, employeeData);
       toast.success("Employé ajouté avec succès !");
     }
     // Préparer les données pour le modal de choix de documents
@@ -3584,7 +3577,6 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
                           // Pass the chosen template so export uses the right PDF model
                           template={(selectedPaySlipTemplate || selectedPaySlip?.salaryDetails?.selectedTemplate || selectedPaySlip?.remuneration?.selectedTemplate || 'eneo')}
                           auto={true}
-                          isDemoAccount={isDemoAccount}
                           onExported={() => {
                             console.log('[ExportPaySlip] onExported callback déclenché');
                             setTimeout(() => {

@@ -17,6 +17,7 @@ import PublicJobDetail from "./pages/PublicJobDetail";
 import PublicApply from "./pages/PublicApply";
 import CandidateProfile from "./pages/CandidateProfile";
 import CandidateApplications from "./pages/CandidateApplications";
+import BlogPage from "./pages/BlogPage";
 import { FiscalSettingsProvider } from "./contexts/FiscalSettingsContext";
 import { DemoProvider } from "./contexts/DemoContext";
 import DemoBanner from "./components/DemoBanner";
@@ -56,6 +57,7 @@ function App() {
             <Route path="/postuler/:jobId" element={<PublicApply />} />
             <Route path="/candidat/profil" element={<CandidateProfile />} />
             <Route path="/candidat/mes-candidatures" element={<CandidateApplications />} />
+            <Route path="/blog" element={<BlogPage />} />
             <Route path="/" element={<ClientAdminLogin />} />
           </Routes>
         </BrowserRouter>
