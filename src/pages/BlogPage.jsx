@@ -16,13 +16,30 @@ import { Heart, Calendar, User, BookOpen, TrendingUp } from "lucide-react";
 const BlogPage = () => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [likedPosts, setLikedPosts] = useState(new Set());
   const [superAdminInfo, setSuperAdminInfo] = useState({
     name: "Super Admin",
     photo: "/directeur.jpg",
   });
 
+  // S'assurer que loading passe à false après un délai maximum
   useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (loading) {
+        setLoading(false);
+        if (posts.length === 0 && !error) {
+          setError(null); // Pas d'erreur, juste pas d'articles
+        }
+      }
+    }, 10000); // 10 secondes maximum
+
+    return () => clearTimeout(timeout);
+  }, [loading, posts.length, error]);
+
+  useEffect(() => {
+    let unsubscribe = null;
+    
     // Récupérer les informations du super admin
     const fetchSuperAdminInfo = async () => {
       try {
@@ -49,37 +66,60 @@ const BlogPage = () => {
         }
       } catch (error) {
         console.error("Erreur lors du chargement des infos admin:", error);
+        // Ne pas bloquer l'affichage si les infos admin échouent
       }
     };
 
-    fetchSuperAdminInfo();
-
-    // Récupérer les articles depuis Firestore
-    const q = query(collection(db, "blogPosts"), orderBy("createdAt", "desc"));
-    
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const postsData = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setPosts(postsData);
-        setLoading(false);
-      },
-      (error) => {
-        console.error("Erreur lors du chargement des articles:", error);
-        setLoading(false);
-      }
-    );
-
     // Récupérer les likes de l'utilisateur (stockés dans localStorage)
-    const savedLikes = localStorage.getItem("blogLikes");
-    if (savedLikes) {
-      setLikedPosts(new Set(JSON.parse(savedLikes)));
+    try {
+      const savedLikes = localStorage.getItem("blogLikes");
+      if (savedLikes) {
+        setLikedPosts(new Set(JSON.parse(savedLikes)));
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement des likes:", error);
     }
 
-    return () => unsubscribe();
+    // Récupérer les articles depuis Firestore
+    try {
+      const q = query(collection(db, "blogPosts"), orderBy("createdAt", "desc"));
+      
+      unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          try {
+            const postsData = snapshot.docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            }));
+            setPosts(postsData);
+            setLoading(false);
+            setError(null);
+          } catch (error) {
+            console.error("Erreur lors du traitement des articles:", error);
+            setLoading(false);
+            setError("Erreur lors du chargement des articles");
+          }
+        },
+        (error) => {
+          console.error("Erreur lors du chargement des articles:", error);
+          setLoading(false);
+          setError("Impossible de charger les articles. Veuillez réessayer plus tard.");
+        }
+      );
+    } catch (error) {
+      console.error("Erreur lors de l'initialisation de la requête:", error);
+      setLoading(false);
+      setError("Erreur de connexion. Veuillez réessayer plus tard.");
+    }
+
+    fetchSuperAdminInfo();
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, []);
 
   const handleLike = async (postId) => {
@@ -126,13 +166,35 @@ const BlogPage = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex justify-center items-center bg-gradient-to-br from-blue-50 via-white to-blue-50 px-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Chargement du blog...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex justify-center items-center bg-gradient-to-br from-blue-50 via-white to-blue-50 px-4">
+        <div className="text-center max-w-md">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+            <h2 className="text-xl font-bold text-red-800 mb-2">Erreur de chargement</h2>
+            <p className="text-red-600 mb-4">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Réessayer
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50" style={{ minHeight: '100vh', backgroundColor: '#eff6ff' }}>
       {/* Hero Section avec informations du super admin */}
       <section className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 text-white py-12 sm:py-16 lg:py-20 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
         {/* Background Elements */}

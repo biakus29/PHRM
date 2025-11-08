@@ -1,7 +1,6 @@
 import { Users, TrendingUp, CheckCircle, BarChart3, CreditCard, UserCheck, Scale, Smartphone, Mail, Phone, MapPin, Clock, Facebook, Twitter, Linkedin, MessageCircle, Shield, Zap, Target, Award, Globe, Download, LogOut, Headphones, BookOpen, ArrowRight } from 'lucide-react';
 import * as React from 'react';
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 
 type TruncatedTextProps = {
   text: string;
@@ -89,7 +88,7 @@ function App() {
               <a href="#features" className="text-gray-700 hover:text-phrm-dark transition-colors">Fonctionnalités</a>
             <a href="#pricing" className="text-gray-700 hover:text-phrm-dark transition-colors">Tarifs</a>
             <a href="#testimonials" className="text-gray-700 hover:text-phrm-dark transition-colors">Témoignages</a>
-            <Link to="/blog" className="text-gray-700 hover:text-phrm-dark transition-colors">Blog</Link>
+            <a href="https://phrmapp.com/blog" className="text-gray-700 hover:text-phrm-dark transition-colors">Blog</a>
             <a href="#faq" className="text-gray-700 hover:text-phrm-dark transition-colors">FAQ</a>
               <a href="#contact" className="text-gray-700 hover:text-phrm-dark transition-colors">Contact</a>
             </div>
@@ -122,33 +121,22 @@ function App() {
           <div className="px-4 sm:px-6 lg:px-8 pb-4 bg-white/95 backdrop-blur-md shadow">
             <div className="flex flex-col space-y-3">
               {[
-                { href: '#about', label: 'À propos', isLink: false },
-                { href: '#features', label: 'Fonctionnalités', isLink: false },
-                { href: '#testimonials', label: 'Témoignages', isLink: false },
-                { href: '/blog', label: 'Blog', isLink: true },
-                { href: '#faq', label: 'FAQ', isLink: false },
-                { href: '#contact', label: 'Contact', isLink: false },
-              ].map((link) => 
-                link.isLink ? (
-                  <Link
-                    key={link.href}
-                    to={link.href}
-                    className="text-gray-800 hover:text-phrm-dark py-2"
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    {link.label}
-                  </Link>
-                ) : (
-                  <a
-                    key={link.href}
-                    href={link.href}
-                    className="text-gray-800 hover:text-phrm-dark py-2"
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    {link.label}
-                  </a>
-                )
-              )}
+                { href: '#about', label: 'À propos' },
+                { href: '#features', label: 'Fonctionnalités' },
+                { href: '#testimonials', label: 'Témoignages' },
+                { href: '/blog', label: 'Blog' },
+                { href: '#faq', label: 'FAQ' },
+                { href: '#contact', label: 'Contact' },
+              ].map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  className="text-gray-800 hover:text-phrm-dark py-2"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {link.label}
+                </a>
+              ))}
               
               {/* Bouton Voir la démo pour mobile */}
               <a 
@@ -1280,13 +1268,13 @@ function App() {
               <p className="text-gray-600 mb-6">
                 Restez informé des dernières tendances et actualités dans le domaine des ressources humaines au Cameroun.
               </p>
-              <Link 
-                to="/blog" 
+              <a 
+                href="/blog" 
                 className="inline-flex items-center gap-2 text-phrm-dark font-semibold hover:gap-3 transition-all duration-300 group-hover:text-blue-700"
               >
                 Lire les articles
                 <ArrowRight className="w-5 h-5" />
-              </Link>
+              </a>
             </div>
 
             {/* Carte Blog 2 */}
@@ -1300,13 +1288,13 @@ function App() {
               <p className="text-gray-600 mb-6">
                 Des conseils pratiques et des astuces pour optimiser votre gestion des ressources humaines.
               </p>
-              <Link 
-                to="/blog" 
+              <a 
+                href="/blog" 
                 className="inline-flex items-center gap-2 text-phrm-dark font-semibold hover:gap-3 transition-all duration-300 group-hover:text-green-700"
               >
                 Découvrir
                 <ArrowRight className="w-5 h-5" />
-              </Link>
+              </a>
             </div>
 
             {/* Carte Blog 3 */}
@@ -1320,13 +1308,13 @@ function App() {
               <p className="text-gray-600 mb-6">
                 Partage d'expertise et de connaissances par notre équipe de spécialistes en gestion RH.
               </p>
-              <Link 
-                to="/blog" 
+              <a 
+                href="/blog" 
                 className="inline-flex items-center gap-2 text-phrm-dark font-semibold hover:gap-3 transition-all duration-300 group-hover:text-purple-700"
               >
                 En savoir plus
                 <ArrowRight className="w-5 h-5" />
-              </Link>
+              </a>
             </div>
           </div>
 
@@ -1340,14 +1328,14 @@ function App() {
                 Découvrez des articles régulièrement mis à jour sur la gestion des ressources humaines, 
                 la conformité CNPS, et bien plus encore.
               </p>
-              <Link 
-                to="/blog"
+              <a 
+                href="/blog"
                 className="inline-flex items-center gap-2 bg-white text-phrm-dark px-8 py-4 rounded-lg hover:bg-phrm-light transition-all transform hover:scale-105 shadow-lg font-semibold text-lg"
               >
                 <BookOpen className="w-5 h-5" />
                 Accéder au blog
                 <ArrowRight className="w-5 h-5" />
-              </Link>
+              </a>
             </div>
           </div>
         </div>
@@ -1676,7 +1664,7 @@ function App() {
               <h4 className="font-semibold mb-4">Entreprise</h4>
               <ul className="space-y-2 text-sm text-gray-400">
                 <li><a href="#about" className="hover:text-white transition-colors">À propos</a></li>
-                <li><Link to="/blog" className="hover:text-white transition-colors">Blog</Link></li>
+                <li><a href="/blog" className="hover:text-white transition-colors">Blog</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Carrières</a></li>
               </ul>
             </div>
