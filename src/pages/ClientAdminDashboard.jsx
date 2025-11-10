@@ -116,6 +116,7 @@ import BadgeStudio from "../components/BadgeStudio";
 import Card from "../components/Card";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { formatDateOfBirthInput, validateDateOfBirth, convertFrenchDateToISO, ensureEmployeeFields } from "../utils/dateHelpers";
+import { generateInternalEmail, generateUniqueInternalEmail } from "../utils/emailUtils";
 import EmployeeSelector from "../components/EmployeeSelector";
 import LogoUploader from "../components/LogoUploader";
 import EmployeeForm from "../components/EmployeeForm";
@@ -669,6 +670,43 @@ const addEmployee = async (e) => {
         Number(newEmployee.baseSalary) || 0
       );
       
+      // Générer un email interne pour l'employé (mode démo)
+      let internalEmail = null;
+      try {
+        internalEmail = generateInternalEmail(
+          newEmployee.name,
+          companyData.email || demoData?.originalEmail,
+          companyData.name || demoData?.companyName
+        );
+        
+        // Vérifier si l'email interne existe déjà dans Firestore
+        const checkEmailExists = async (email) => {
+          try {
+            const clientsSnapshot = await getDocs(collection(db, "clients"));
+            for (const clientDoc of clientsSnapshot.docs) {
+              const employeeQuery = query(
+                collection(db, "clients", clientDoc.id, "employees"),
+                where("internalEmail", "==", email)
+              );
+              const employeeSnapshot = await getDocs(employeeQuery);
+              if (!employeeSnapshot.empty) {
+                return true;
+              }
+            }
+            return false;
+          } catch (error) {
+            console.warn("Erreur lors de la vérification de l'email:", error);
+            return false;
+          }
+        };
+
+        // Générer un email unique si nécessaire
+        internalEmail = await generateUniqueInternalEmail(internalEmail, checkEmailExists);
+        console.log("Email interne généré pour l'employé (démo):", internalEmail);
+      } catch (emailError) {
+        console.warn("Erreur lors de la génération de l'email interne (démo):", emailError);
+      }
+      
       // Créer l'employé avec flag temporaire
       const employeeData = {
         ...newEmployee,
@@ -682,7 +720,23 @@ const addEmployee = async (e) => {
         initialPassword: newEmployee.initialPassword || "123456", // Mot de passe initial par défaut
         currentPassword: newEmployee.initialPassword || "123456", // Mot de passe actuel (identique à l'initial au départ)
         passwordChanged: false, // Indicateur si le mot de passe a été changé
+        // Email interne de l'entreprise
+        internalEmail: internalEmail || null,
       };
+      
+      // Créer un compte Firebase Auth pour l'employé avec l'email interne (mode démo)
+      if (internalEmail) {
+        try {
+          const password = newEmployee.initialPassword || "123456";
+          const userCredential = await createUserWithEmailAndPassword(auth, internalEmail, password);
+          employeeData.authUid = userCredential.user.uid;
+          console.log("Compte Firebase Auth créé pour l'employé (démo) avec l'email interne:", internalEmail);
+        } catch (authError) {
+          if (authError.code !== 'auth/email-already-in-use') {
+            console.warn("Impossible de créer un compte Firebase Auth pour l'employé (démo):", authError.message);
+          }
+        }
+      }
       
       // Sauvegarder dans Firestore
       await svcAddEmployee(db, companyData.id, employeeData);
@@ -757,6 +811,45 @@ const addEmployee = async (e) => {
         { seniority: newEmployee.seniority || 0 },
         Number(newEmployee.baseSalary) || 0
       );
+      // Générer un email interne pour l'employé
+      let internalEmail = null;
+      try {
+        internalEmail = generateInternalEmail(
+          newEmployee.name,
+          companyData.email,
+          companyData.name
+        );
+        
+        // Vérifier si l'email interne existe déjà dans Firestore
+        const checkEmailExists = async (email) => {
+          try {
+            // Vérifier dans tous les clients
+            const clientsSnapshot = await getDocs(collection(db, "clients"));
+            for (const clientDoc of clientsSnapshot.docs) {
+              const employeeQuery = query(
+                collection(db, "clients", clientDoc.id, "employees"),
+                where("internalEmail", "==", email)
+              );
+              const employeeSnapshot = await getDocs(employeeQuery);
+              if (!employeeSnapshot.empty) {
+                return true;
+              }
+            }
+            return false;
+          } catch (error) {
+            console.warn("Erreur lors de la vérification de l'email:", error);
+            return false;
+          }
+        };
+
+        // Générer un email unique si nécessaire
+        internalEmail = await generateUniqueInternalEmail(internalEmail, checkEmailExists);
+        console.log("Email interne généré pour l'employé:", internalEmail);
+      } catch (emailError) {
+        console.warn("Erreur lors de la génération de l'email interne:", emailError);
+        // Continuer sans email interne si la génération échoue
+      }
+
       const employeeData = {
         ...newEmployee,
         seniorityYears: seniorityData.years,
@@ -773,29 +866,52 @@ const addEmployee = async (e) => {
         initialPassword: newEmployee.initialPassword || "123456", // Mot de passe initial par défaut
         currentPassword: newEmployee.initialPassword || "123456", // Mot de passe actuel (identique à l'initial au départ)
         passwordChanged: false, // Indicateur si le mot de passe a été changé
+        // Email interne de l'entreprise
+        internalEmail: internalEmail || null,
       };
       
-      // Créer un compte Firebase Auth pour l'employé (si possible)
+      // Créer un compte Firebase Auth pour l'employé avec l'email interne
       let authUid = null;
-      try {
-        const password = newEmployee.initialPassword || "123456";
-        const userCredential = await createUserWithEmailAndPassword(auth, newEmployee.email, password);
-        authUid = userCredential.user.uid;
-        employeeData.authUid = authUid; // Stocker l'UID Firebase Auth
-        console.log("Compte Firebase Auth créé pour l'employé:", authUid);
-      } catch (authError) {
-        // Si l'email est déjà utilisé, ce n'est pas grave (l'employé peut déjà avoir un compte)
-        if (authError.code === 'auth/email-already-in-use') {
-          console.log("L'email est déjà utilisé pour Firebase Auth, continuer sans créer de compte");
-        } else {
-          console.warn("Impossible de créer un compte Firebase Auth pour l'employé:", authError.message);
-          // Continuer quand même - l'employé pourra utiliser la méthode legacy
+      if (internalEmail) {
+        try {
+          const password = newEmployee.initialPassword || "123456";
+          const userCredential = await createUserWithEmailAndPassword(auth, internalEmail, password);
+          authUid = userCredential.user.uid;
+          employeeData.authUid = authUid; // Stocker l'UID Firebase Auth
+          console.log("Compte Firebase Auth créé pour l'employé avec l'email interne:", internalEmail, authUid);
+          toast.success(`Compte créé avec l'email interne: ${internalEmail}`);
+        } catch (authError) {
+          // Si l'email est déjà utilisé, ce n'est pas grave (l'employé peut déjà avoir un compte)
+          if (authError.code === 'auth/email-already-in-use') {
+            console.log("L'email interne est déjà utilisé pour Firebase Auth, continuer sans créer de compte");
+            toast.warning("L'email interne existe déjà, l'employé pourra utiliser son email personnel pour se connecter");
+          } else {
+            console.warn("Impossible de créer un compte Firebase Auth pour l'employé:", authError.message);
+            toast.warning("Impossible de créer le compte Firebase Auth, l'employé utilisera la méthode de connexion standard");
+            // Continuer quand même - l'employé pourra utiliser la méthode legacy
+          }
+        }
+      } else {
+        // Si pas d'email interne, essayer avec l'email fourni
+        try {
+          const password = newEmployee.initialPassword || "123456";
+          const userCredential = await createUserWithEmailAndPassword(auth, newEmployee.email, password);
+          authUid = userCredential.user.uid;
+          employeeData.authUid = authUid;
+          console.log("Compte Firebase Auth créé pour l'employé avec l'email fourni:", newEmployee.email, authUid);
+        } catch (authError) {
+          if (authError.code === 'auth/email-already-in-use') {
+            console.log("L'email est déjà utilisé pour Firebase Auth, continuer sans créer de compte");
+          } else {
+            console.warn("Impossible de créer un compte Firebase Auth pour l'employé:", authError.message);
+          }
         }
       }
       
       employeeId = await svcAddEmployee(db, companyData.id, employeeData);
       toast.success("Employé ajouté avec succès !");
     }
+    
     // Préparer les données pour le modal de choix de documents
     const today = new Date().toISOString().split('T')[0];
     const preparedContractDoc = {
@@ -919,6 +1035,325 @@ const addEmployee = async (e) => {
     setActionLoading(false);
   }
 };
+
+// Mettre à jour tous les emails internes existants vers le nouveau format
+const updateExistingInternalEmails = async () => {
+  if (!companyData?.id) {
+    toast.error("ID de l'entreprise manquant.");
+    return;
+  }
+
+  setActionLoading(true);
+  try {
+    // Filtrer les employés qui ont déjà un email interne (à mettre à jour)
+    const employeesWithInternalEmail = employees.filter(
+      emp => emp.internalEmail && emp.name
+    );
+
+    if (employeesWithInternalEmail.length === 0) {
+      toast.info("Aucun employé avec email interne à mettre à jour.");
+      setActionLoading(false);
+      return;
+    }
+
+    // Demander confirmation
+    if (!window.confirm(
+      `Vous allez mettre à jour ${employeesWithInternalEmail.length} email(s) interne(s) vers le nouveau format (nom@nomentreprise.com).\n\n` +
+      `Les anciens comptes Firebase Auth seront conservés mais les nouveaux emails seront créés.\n\n` +
+      `Continuer ?`
+    )) {
+      setActionLoading(false);
+      return;
+    }
+
+    // Fonction pour vérifier si un email existe déjà
+    const checkEmailExists = async (email, excludeEmployeeId = null) => {
+      try {
+        const clientsSnapshot = await getDocs(collection(db, "clients"));
+        for (const clientDoc of clientsSnapshot.docs) {
+          const employeeQuery = query(
+            collection(db, "clients", clientDoc.id, "employees"),
+            where("internalEmail", "==", email)
+          );
+          const employeeSnapshot = await getDocs(employeeQuery);
+          for (const empDoc of employeeSnapshot.docs) {
+            // Ignorer l'employé actuel si spécifié
+            if (excludeEmployeeId && empDoc.id === excludeEmployeeId) {
+              continue;
+            }
+            return true;
+          }
+        }
+        return false;
+      } catch (error) {
+        console.warn("Erreur lors de la vérification de l'email:", error);
+        return false;
+      }
+    };
+
+    let successCount = 0;
+    let errorCount = 0;
+    let skippedCount = 0;
+    const errors = [];
+
+    // Traiter chaque employé
+    for (const employee of employeesWithInternalEmail) {
+      try {
+        // Générer le nouvel email interne avec le nouveau format
+        let newInternalEmail = generateInternalEmail(
+          employee.name,
+          companyData.email,
+          companyData.name
+        );
+
+        // Vérifier si le nouvel email est différent de l'ancien
+        if (newInternalEmail === employee.internalEmail) {
+          skippedCount++;
+          continue; // L'email est déjà au bon format
+        }
+
+        // Générer un email unique si nécessaire (en excluant l'employé actuel)
+        newInternalEmail = await generateUniqueInternalEmail(
+          newInternalEmail, 
+          (email) => checkEmailExists(email, employee.id)
+        );
+
+        // Vérifier d'abord si un compte Firebase Auth existe déjà avec ce nouvel email
+        // en cherchant dans Firestore les employés qui ont déjà cet email interne
+        let authUid = employee.authUid || null;
+        let existingAuthUid = null;
+        
+        try {
+          // Chercher si un autre employé a déjà cet email interne
+          const clientsSnapshot = await getDocs(collection(db, "clients"));
+          for (const clientDoc of clientsSnapshot.docs) {
+            const employeeQuery = query(
+              collection(db, "clients", clientDoc.id, "employees"),
+              where("internalEmail", "==", newInternalEmail)
+            );
+            const employeeSnapshot = await getDocs(employeeQuery);
+            
+            for (const empDoc of employeeSnapshot.docs) {
+              // Ignorer l'employé actuel
+              if (empDoc.id !== employee.id) {
+                const empData = empDoc.data();
+                if (empData.authUid) {
+                  existingAuthUid = empData.authUid;
+                  console.log(`Un compte Firebase Auth existe déjà pour ${newInternalEmail} (employé: ${empData.name})`);
+                  break;
+                }
+              }
+            }
+            if (existingAuthUid) break;
+          }
+        } catch (error) {
+          console.warn("Erreur lors de la vérification de l'email existant:", error);
+        }
+
+        // Si un compte existe déjà, utiliser son authUid
+        if (existingAuthUid) {
+          authUid = existingAuthUid;
+          console.log(`Utilisation du compte Firebase Auth existant pour ${employee.name}: ${newInternalEmail}`);
+        } else {
+          // Sinon, essayer de créer un nouveau compte Firebase Auth
+          const password = employee.initialPassword || employee.currentPassword || "123456";
+          
+          try {
+            const userCredential = await createUserWithEmailAndPassword(auth, newInternalEmail, password);
+            authUid = userCredential.user.uid;
+            console.log(`Nouveau compte Firebase Auth créé pour ${employee.name}: ${newInternalEmail}`);
+          } catch (authError) {
+            if (authError.code === 'auth/email-already-in-use') {
+              console.log(`L'email ${newInternalEmail} est déjà utilisé pour Firebase Auth (mais pas trouvé dans Firestore)`);
+              // Ne pas créer de compte, garder l'ancien authUid si disponible
+              // L'email interne sera quand même mis à jour dans Firestore
+            } else {
+              console.warn(`Impossible de créer un compte Firebase Auth pour ${employee.name}:`, authError.message);
+              // Continuer avec l'ancien authUid si disponible
+            }
+          }
+        }
+
+        // Mettre à jour l'employé dans Firestore
+        const updateData = {
+          internalEmail: newInternalEmail,
+        };
+        
+        if (authUid) {
+          updateData.authUid = authUid;
+        }
+
+        await svcUpdateEmployee(db, companyData.id, employee.id, updateData);
+
+        // Mettre à jour localement
+        const updatedEmployees = employees.map(emp => 
+          emp.id === employee.id 
+            ? { ...emp, internalEmail: newInternalEmail, authUid: authUid || emp.authUid }
+            : emp
+        );
+        setEmployees(updatedEmployees);
+
+        successCount++;
+      } catch (error) {
+        console.error(`Erreur lors de la mise à jour de l'email pour ${employee.name}:`, error);
+        errorCount++;
+        errors.push(`${employee.name}: ${error.message}`);
+      }
+    }
+
+    // Afficher le résultat
+    if (successCount > 0) {
+      toast.success(
+        `✅ ${successCount} email${successCount > 1 ? 's' : ''} interne${successCount > 1 ? 's' : ''} mis${successCount > 1 ? '' : ''} à jour avec succès !`
+      );
+    }
+    
+    if (skippedCount > 0) {
+      toast.info(
+        `ℹ️ ${skippedCount} email${skippedCount > 1 ? 's' : ''} déjà au bon format, ignoré${skippedCount > 1 ? 's' : ''}.`
+      );
+    }
+    
+    if (errorCount > 0) {
+      toast.warning(
+        `⚠️ ${errorCount} erreur${errorCount > 1 ? 's' : ''} lors de la mise à jour. Voir la console pour plus de détails.`
+      );
+      console.error("Erreurs détaillées:", errors);
+    }
+
+  } catch (error) {
+    console.error("Erreur lors de la mise à jour des emails internes:", error);
+    toast.error(`Erreur lors de la mise à jour des emails internes : ${error.message}`);
+  } finally {
+    setActionLoading(false);
+  }
+};
+
+// Générer des emails internes pour les employés existants qui n'en ont pas
+const generateInternalEmailsForExistingEmployees = async () => {
+  if (!companyData?.id) {
+    toast.error("ID de l'entreprise manquant.");
+    return;
+  }
+
+  setActionLoading(true);
+  try {
+    // Filtrer les employés qui n'ont pas d'email interne
+    const employeesWithoutInternalEmail = employees.filter(
+      emp => !emp.internalEmail && emp.name
+    );
+
+    if (employeesWithoutInternalEmail.length === 0) {
+      toast.info("Tous les employés ont déjà un email interne.");
+      setActionLoading(false);
+      return;
+    }
+
+    // Fonction pour vérifier si un email existe déjà
+    const checkEmailExists = async (email) => {
+      try {
+        const clientsSnapshot = await getDocs(collection(db, "clients"));
+        for (const clientDoc of clientsSnapshot.docs) {
+          const employeeQuery = query(
+            collection(db, "clients", clientDoc.id, "employees"),
+            where("internalEmail", "==", email)
+          );
+          const employeeSnapshot = await getDocs(employeeQuery);
+          if (!employeeSnapshot.empty) {
+            return true;
+          }
+        }
+        return false;
+      } catch (error) {
+        console.warn("Erreur lors de la vérification de l'email:", error);
+        return false;
+      }
+    };
+
+    let successCount = 0;
+    let errorCount = 0;
+    const errors = [];
+
+    // Traiter chaque employé
+    for (const employee of employeesWithoutInternalEmail) {
+      try {
+        // Générer l'email interne
+        let internalEmail = generateInternalEmail(
+          employee.name,
+          companyData.email,
+          companyData.name
+        );
+
+        // Générer un email unique si nécessaire
+        internalEmail = await generateUniqueInternalEmail(internalEmail, checkEmailExists);
+
+        // Créer le compte Firebase Auth
+        let authUid = null;
+        const password = employee.initialPassword || employee.currentPassword || "123456";
+        
+        try {
+          const userCredential = await createUserWithEmailAndPassword(auth, internalEmail, password);
+          authUid = userCredential.user.uid;
+          console.log(`Compte Firebase Auth créé pour ${employee.name}: ${internalEmail}`);
+        } catch (authError) {
+          if (authError.code === 'auth/email-already-in-use') {
+            console.log(`L'email ${internalEmail} est déjà utilisé pour Firebase Auth`);
+            // Continuer quand même, on mettra à jour l'email interne
+          } else {
+            console.warn(`Impossible de créer un compte Firebase Auth pour ${employee.name}:`, authError.message);
+            // Continuer quand même
+          }
+        }
+
+        // Mettre à jour l'employé dans Firestore
+        const updateData = {
+          internalEmail: internalEmail,
+        };
+        
+        if (authUid) {
+          updateData.authUid = authUid;
+        }
+
+        await svcUpdateEmployee(db, companyData.id, employee.id, updateData);
+
+        // Mettre à jour localement
+        const updatedEmployees = employees.map(emp => 
+          emp.id === employee.id 
+            ? { ...emp, internalEmail, authUid: authUid || emp.authUid }
+            : emp
+        );
+        setEmployees(updatedEmployees);
+
+        successCount++;
+      } catch (error) {
+        console.error(`Erreur lors de la génération de l'email pour ${employee.name}:`, error);
+        errorCount++;
+        errors.push(`${employee.name}: ${error.message}`);
+      }
+    }
+
+    // Afficher le résultat
+    if (successCount > 0) {
+      toast.success(
+        `✅ ${successCount} email${successCount > 1 ? 's' : ''} interne${successCount > 1 ? 's' : ''} généré${successCount > 1 ? 's' : ''} avec succès !`
+      );
+    }
+    
+    if (errorCount > 0) {
+      toast.warning(
+        `⚠️ ${errorCount} erreur${errorCount > 1 ? 's' : ''} lors de la génération. Voir la console pour plus de détails.`
+      );
+      console.error("Erreurs détaillées:", errors);
+    }
+
+  } catch (error) {
+    console.error("Erreur lors de la génération des emails internes:", error);
+    toast.error(`Erreur lors de la génération des emails internes : ${error.message}`);
+  } finally {
+    setActionLoading(false);
+  }
+};
+
 const saveContract = async (contractData) => {
   setActionLoading(true);
   try {
@@ -2507,11 +2942,33 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
             <span className="hidden sm:inline">Exporter</span>
             <span className="sm:hidden">Export</span>
           </Button>
+          
+          <Button 
+            onClick={generateInternalEmailsForExistingEmployees}
+            disabled={actionLoading}
+            className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Générer des emails internes pour les employés existants"
+          >
+            <Key className="w-4 h-4" />
+            <span className="hidden sm:inline">Créer Emails Internes</span>
+            <span className="sm:hidden">Emails</span>
+          </Button>
+          
+          <Button 
+            onClick={updateExistingInternalEmails}
+            disabled={actionLoading}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Mettre à jour les emails internes existants vers le nouveau format (nom@nomentreprise.com)"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span className="hidden sm:inline">Mettre à Jour Emails</span>
+            <span className="sm:hidden">MàJ</span>
+          </Button>
         </div>
       </div>
       
       {/* Statistiques rapides */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mt-6">
         <div className="bg-blue-50 rounded-lg p-3 text-center">
           <p className="text-2xl font-bold text-blue-600">{employees.length}</p>
           <p className="text-xs text-blue-600">Total</p>
@@ -2527,6 +2984,10 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
         <div className="bg-purple-50 rounded-lg p-3 text-center">
           <p className="text-2xl font-bold text-purple-600">{new Set(employees.map(emp => emp.department).filter(Boolean)).size}</p>
           <p className="text-xs text-purple-600">Départements</p>
+        </div>
+        <div className="bg-orange-50 rounded-lg p-3 text-center">
+          <p className="text-2xl font-bold text-orange-600">{employees.filter(emp => !emp.internalEmail && emp.name).length}</p>
+          <p className="text-xs text-orange-600">Sans Email Interne</p>
         </div>
       </div>
     </div>
@@ -2767,25 +3228,149 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
             </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email de connexion</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email personnel (optionnel)
+                </label>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
-                    value={selectedEmployee.email || ""}
+                    value={selectedEmployee.email || "Non renseigné"}
                     readOnly
                     className="flex-1 p-3 border border-gray-300 rounded-lg bg-white text-gray-800 font-mono text-sm"
                   />
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(selectedEmployee.email || "");
-                      toast.success("Email copié dans le presse-papiers !");
-                    }}
-                    className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="Copier l'email"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
+                  {selectedEmployee.email && (
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(selectedEmployee.email || "");
+                        toast.success("Email copié dans le presse-papiers !");
+                      }}
+                      className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      title="Copier l'email"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Email personnel de l'employé (peut être utilisé pour la connexion)
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email interne de l'entreprise
+                  {selectedEmployee.internalEmail ? (
+                    <span className="ml-2 text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
+                      ✓ Actif
+                    </span>
+                  ) : (
+                    <span className="ml-2 text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded">
+                      ⚠ Non généré
+                    </span>
+                  )}
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={selectedEmployee.internalEmail || "Aucun email interne généré"}
+                    readOnly
+                    className={`flex-1 p-3 border rounded-lg font-mono text-sm ${
+                      selectedEmployee.internalEmail
+                        ? "border-green-300 bg-green-50 text-gray-800"
+                        : "border-gray-300 bg-gray-50 text-gray-500"
+                    }`}
+                  />
+                  {selectedEmployee.internalEmail ? (
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(selectedEmployee.internalEmail || "");
+                        toast.success("Email interne copié dans le presse-papiers !");
+                      }}
+                      className="p-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                      title="Copier l'email interne"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={async () => {
+                        if (!selectedEmployee?.id || !companyData?.id) {
+                          toast.error("Erreur: Données manquantes.");
+                          return;
+                        }
+                        // Générer un email interne pour cet employé spécifique
+                        try {
+                          const checkEmailExists = async (email) => {
+                            try {
+                              const clientsSnapshot = await getDocs(collection(db, "clients"));
+                              for (const clientDoc of clientsSnapshot.docs) {
+                                const employeeQuery = query(
+                                  collection(db, "clients", clientDoc.id, "employees"),
+                                  where("internalEmail", "==", email)
+                                );
+                                const employeeSnapshot = await getDocs(employeeQuery);
+                                if (!employeeSnapshot.empty) {
+                                  return true;
+                                }
+                              }
+                              return false;
+                            } catch (error) {
+                              console.warn("Erreur lors de la vérification de l'email:", error);
+                              return false;
+                            }
+                          };
+
+                          let internalEmail = generateInternalEmail(
+                            selectedEmployee.name,
+                            companyData.email,
+                            companyData.name
+                          );
+                          internalEmail = await generateUniqueInternalEmail(internalEmail, checkEmailExists);
+
+                          const password = selectedEmployee.initialPassword || selectedEmployee.currentPassword || "123456";
+                          let authUid = null;
+
+                          try {
+                            const userCredential = await createUserWithEmailAndPassword(auth, internalEmail, password);
+                            authUid = userCredential.user.uid;
+                          } catch (authError) {
+                            if (authError.code !== 'auth/email-already-in-use') {
+                              console.warn("Impossible de créer un compte Firebase Auth:", authError.message);
+                            }
+                          }
+
+                          const updateData = { internalEmail };
+                          if (authUid) updateData.authUid = authUid;
+
+                          await svcUpdateEmployee(db, companyData.id, selectedEmployee.id, updateData);
+                          
+                          // Mettre à jour localement
+                          const updatedEmployees = employees.map(emp => 
+                            emp.id === selectedEmployee.id 
+                              ? { ...emp, internalEmail, authUid: authUid || emp.authUid }
+                              : emp
+                          );
+                          setEmployees(updatedEmployees);
+                          setSelectedEmployee({ ...selectedEmployee, internalEmail, authUid: authUid || selectedEmployee.authUid });
+                          
+                          toast.success(`Email interne généré : ${internalEmail}`);
+                        } catch (error) {
+                          console.error("Erreur lors de la génération de l'email interne:", error);
+                          toast.error(`Erreur : ${error.message}`);
+                        }
+                      }}
+                      className="p-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                      title="Générer un email interne"
+                    >
+                      <Key className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  {selectedEmployee.internalEmail 
+                    ? "Email interne généré automatiquement. L'employé peut se connecter avec cet email ou son email personnel."
+                    : "Cliquez sur le bouton pour générer un email interne pour cet employé."}
+                </p>
               </div>
               
               <div>

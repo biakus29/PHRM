@@ -57,7 +57,9 @@ service cloud.firestore {
     // Clients et sous-collections
     match /clients/{clientId} {
       // Lecture: si authentifié ET (super admin OU admin du client)
-      allow read: if request.auth != null && (isSuperAdmin() || isClientAdmin(clientId));
+      // OU si non authentifié (pour permettre la recherche d'employés lors de la connexion)
+      allow read: if (request.auth != null && (isSuperAdmin() || isClientAdmin(clientId))) 
+                  || request.auth == null; // Permet la lecture pour chercher les employés
       // Écriture: si authentifié ET (super admin OU admin du client)
       allow write: if request.auth != null && (isSuperAdmin() || isClientAdmin(clientId));
 
@@ -65,9 +67,9 @@ service cloud.firestore {
       match /employees/{employeeId} {
         // Lecture: 
         // - Si authentifié ET (super admin OU admin du client OU l'employé lui-même)
-        // - OU si non authentifié (pour permettre la connexion legacy - À AMÉLIORER)
+        // - OU si non authentifié (pour permettre la connexion sans Firebase Auth)
         allow read: if (request.auth != null && (isSuperAdmin() || isClientAdmin(clientId) || isEmployee(clientId, employeeId))) 
-                    || request.auth == null; // TEMPORAIRE: Permet la connexion legacy
+                    || request.auth == null; // Permet la lecture pour la connexion des employés
         
         // Écriture: seulement si authentifié ET (super admin OU admin du client OU l'employé lui-même pour certaines opérations)
         allow create, update: if request.auth != null && (isSuperAdmin() || isClientAdmin(clientId) || 
@@ -93,7 +95,8 @@ service cloud.firestore {
     // Paramètres système
     match /systemSettings/{document=**} {
       // Lecture: authentifié (pour les calculs de paie)
-      allow read: if request.auth != null;
+      // OU lecture publique pour permettre les calculs même sans authentification
+      allow read: if true; // Public read pour les paramètres fiscaux (utilisés dans les calculs)
       // Écriture: seulement super admin
       allow write: if isSuperAdmin();
     }

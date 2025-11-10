@@ -1730,7 +1730,7 @@ function App() {
                 <Mail className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-white mb-4">Email</h3>
-              <p className="text-blue-400 mb-4">contact@phrm.cm</p>
+              <p className="text-blue-400 mb-4">sarphrm17@gmail.com</p>
               <p className="text-sm text-blue-300">Réponse sous 24h</p>
             </div>
 
@@ -1739,7 +1739,7 @@ function App() {
                 <Phone className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-white mb-4">Téléphone</h3>
-              <p className="text-blue-400 mb-4">+237 6 XX XX XX XX</p>
+              <p className="text-blue-400 mb-4">+237 6 91313674</p>
               <p className="text-sm text-blue-300">Lun - Ven: 8h00 - 18h00</p>
             </div>
 
