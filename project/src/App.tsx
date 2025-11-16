@@ -43,11 +43,15 @@ const TruncatedText: React.FC<TruncatedTextProps> = ({ text, maxChars = 380 }) =
 };
 
 function App() {
-  const [aboutTab, setAboutTab] = useState<'presentation' | 'role' | 'mission' | 'objectifs' | 'recrutement'>('presentation');
+  const [aboutTab, setAboutTab] = useState<'presentation' | 'role' | 'mission' | 'objectifs' | 'recrutement' | 'formations'>('presentation');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [aboutAutoplay, setAboutAutoplay] = useState(true);
   const [recentPosts, setRecentPosts] = useState<any[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
+  const [formations, setFormations] = useState<any[]>([]);
+  const [loadingFormations, setLoadingFormations] = useState(true);
+  const [selectedFormation, setSelectedFormation] = useState<any | null>(null);
+  const [showFormationModal, setShowFormationModal] = useState(false);
   
   // Données simulées pour les statistiques réelles
   const [realTimeStats, setRealTimeStats] = useState({
@@ -60,12 +64,13 @@ function App() {
 
   useEffect(() => {
     if (!aboutAutoplay) return;
-    const order: Array<'presentation' | 'role' | 'mission' | 'objectifs' | 'recrutement'> = [
+    const order: Array<'presentation' | 'role' | 'mission' | 'objectifs' | 'recrutement' | 'formations'> = [
       'presentation',
       'role',
       'mission',
       'objectifs',
       'recrutement',
+      'formations',
     ];
     const interval = setInterval(() => {
       setAboutTab((current) => {
@@ -103,6 +108,42 @@ function App() {
     fetchRecentPosts();
   }, []);
 
+  // Charger les formations publiques (actives) depuis Firestore
+  useEffect(() => {
+    const fetchFormations = async () => {
+      try {
+        setLoadingFormations(true);
+        const q = query(
+          collection(db, 'formations'),
+          limit(200)
+        );
+        const snap = await getDocs(q);
+        const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const activeRows = rows.filter((r: any) => {
+          const v = r.isActive;
+          // Par défaut on affiche si non explicitement désactivé
+          return !(v === false || v === 'false' || v === 0 || v === '0');
+        });
+        const getDateVal = (v: any) => {
+          if (!v) return 0;
+          try {
+            const dt = v.toDate ? v.toDate() : new Date(v);
+            return dt?.getTime?.() || 0;
+          } catch {
+            return 0;
+          }
+        };
+        activeRows.sort((a: any, b: any) => getDateVal(b.updatedAt || b.createdAt) - getDateVal(a.updatedAt || a.createdAt));
+        setFormations(activeRows);
+      } catch (e) {
+        console.error('Erreur chargement formations:', e);
+      } finally {
+        setLoadingFormations(false);
+      }
+    };
+    fetchFormations();
+  }, []);
+
   // Simulation de données en temps réel
   useEffect(() => {
     const interval = setInterval(() => {
@@ -137,6 +178,61 @@ function App() {
   };
   return (
     <div className="min-h-screen bg-gradient-to-br from-phrm-light via-white to-phrm-light">
+      {showFormationModal && selectedFormation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-gray-100">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="text-xl font-semibold text-phrm-dark">{selectedFormation.title || 'Détail de la formation'}</h3>
+              <button
+                onClick={() => {
+                  setShowFormationModal(false);
+                  setSelectedFormation(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className={`px-2 py-0.5 text-xs rounded-full ${((selectedFormation.type || '').toLowerCase() === 'initiale') ? 'bg-indigo-100 text-indigo-700' : 'bg-purple-100 text-purple-700'}`}>
+                  {(selectedFormation.type || '').toString().toLowerCase() === 'initiale' ? 'Formation initiale' : 'Formation continue'}
+                </span>
+                <span className="text-xs text-gray-500">
+                  MAJ : {formatDate(selectedFormation.updatedAt || selectedFormation.createdAt)}
+                </span>
+              </div>
+              <p className="text-sm text-gray-600">
+                <span className="font-medium">Durée :</span> {selectedFormation.duree || 'Non précisée'}
+              </p>
+              <div>
+                <h4 className="text-sm font-semibold text-gray-800 mb-1">Description</h4>
+                <p className="text-sm text-gray-700 whitespace-pre-line">{(selectedFormation.description || '').toString()}</p>
+              </div>
+              {Array.isArray(selectedFormation.prerequis) && selectedFormation.prerequis.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-800 mb-1">Prérequis</h4>
+                  <ul className="list-disc pl-5 space-y-1 text-sm text-gray-700">
+                    {selectedFormation.prerequis.map((p: any, idx: number) => (
+                      <li key={idx}>{p}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {Array.isArray(selectedFormation.contenu) && selectedFormation.contenu.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-800 mb-1">Contenu de la formation</h4>
+                  <ul className="list-disc pl-5 space-y-1 text-sm text-gray-700">
+                    {selectedFormation.contenu.map((c: any, idx: number) => (
+                      <li key={idx}>{c}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {/* Navigation */}
       <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-md shadow-sm z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
@@ -373,6 +469,7 @@ function App() {
                 { id: 'mission', label: 'Mission' },
                 { id: 'objectifs', label: 'Objectifs' },
                 { id: 'recrutement', label: 'Recrutement' },
+                { id: 'formations', label: 'Formations' },
               ].map((t) => (
                 <button
                   key={t.id}
@@ -394,6 +491,45 @@ function App() {
                   "Créé en novembre 2025, PHRM est un regroupement de Professionnels en gestion des RH dont l’objectif à l’origine était : l’Audit des RH, le Conseil en RH, le recrutement total ou partiel, la paie, le coaching linguistique individuel ou d’équipe. Pour le compte des entreprises et autres acteurs économiques, nous aidons à aligner leur politique de recrutement sur la stratégie globale de l’entreprise. Aujourd’hui, nous intégrons à nos activités le placement du personnel, permettant aux chercheurs d’emplois d’entrer en contact avec les secteurs d’activité de l’Économie Nationale."
                 }
               />
+            </div>
+          )}
+          {aboutTab === 'formations' && (
+            <div className="space-y-6">
+              <h3 className="text-2xl font-bold text-gray-900">Formations</h3>
+              {loadingFormations ? (
+                <div className="text-gray-600">Chargement…</div>
+              ) : formations.length === 0 ? (
+                <div className="text-gray-600">Aucune formation disponible pour le moment.</div>
+              ) : (
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {formations.map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedFormation(f);
+                        setShowFormationModal(true);
+                      }}
+                      className="text-left bg-white rounded-xl p-5 shadow hover:shadow-lg transition-all border border-gray-100 focus:outline-none focus:ring-2 focus:ring-phrm-dark"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={`px-2 py-0.5 text-xs rounded-full ${((f.type || '').toLowerCase() === 'initiale') ? 'bg-indigo-100 text-indigo-700' : 'bg-purple-100 text-purple-700'}`}>
+                          {(f.type || '').toString().toLowerCase() === 'initiale' ? 'Initiale' : 'Continue'}
+                        </span>
+                        {f.isActive === false ? (
+                          <span className="text-xs text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full">Inactive</span>
+                        ) : null}
+                      </div>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-1">{f.title || 'Sans titre'}</h4>
+                      <p className="text-sm text-gray-500 mb-3">{f.duree || 'Durée non précisée'}</p>
+                      <p className="text-gray-700 text-sm">{truncateText((f.description || '').toString(), 140)}</p>
+                      <div className="mt-3 text-xs text-gray-400">
+                        MAJ: {formatDate(f.updatedAt || f.createdAt)}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {aboutTab === 'role' && (
@@ -427,11 +563,11 @@ function App() {
             </div>
           )}
           {aboutTab === 'recrutement' && (
-            <div className="space-y-6">
-              <h3 className="text-2xl font-bold text-gray-900">Recrutement</h3>
+            <div className="bg-white rounded-2xl p-6 md:p-8 shadow-xl border border-gray-100 animate-fade-in-up md:max-w-3xl md:mx-auto">
+              <h3 className="text-2xl font-bold text-phrm-dark mb-3">Recrutement</h3>
               <div className="prose prose-phrm max-w-none">
                 <p>Notre plateforme facilite l'intégration des nouveaux employés avec des processus de recrutement automatisés et personnalisables. Nous aidons les entreprises à attirer, évaluer et intégrer les meilleurs talents.</p>
-                <ul className="space-y-2">
+                <ul className="list-disc pl-5 space-y-1 text-gray-700">
                   <li>Gestion des offres d'emploi et des candidatures</li>
                   <li>Suivi des entretiens et évaluations</li>
                   <li>Intégration des nouveaux employés</li>

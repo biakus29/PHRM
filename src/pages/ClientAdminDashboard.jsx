@@ -155,6 +155,8 @@ const CompanyAdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  // Demandes professionnelles (admin)
+  const [requestProFilter, setRequestProFilter] = useState("Tous");
 
   const [newEmployee, setNewEmployee] = useState({
   name: "",
@@ -211,6 +213,31 @@ const CompanyAdminDashboard = () => {
   const [showBadgeForm, setShowBadgeForm] = useState(false);
   const [employeeForBadge, setEmployeeForBadge] = useState(null);
   const [employeeDetailTab, setEmployeeDetailTab] = useState("info"); // "info" ou "credentials"
+
+  // Agréger les demandes professionnelles de tous les employés
+  const professionalRequestsAdmin = useMemo(() => {
+    const rows = [];
+    for (const emp of employees || []) {
+      const list = Array.isArray(emp.professionalRequests) ? emp.professionalRequests : [];
+      for (const r of list) {
+        rows.push({
+          id: r.id || `${emp.id}_${rows.length}`,
+          employeeId: emp.id,
+          employeeName: emp.name || emp.email || emp.id,
+          createdAt: r.createdAt,
+          createdAtDisplay: displayDate ? displayDate(r.createdAt) : (r.createdAt || ""),
+          type: r.type || "",
+          subject: r.subject || "",
+          description: r.description || "",
+          status: r.status || "En attente",
+          attachments: r.attachments || [],
+          _raw: r,
+        });
+      }
+    }
+    const filtered = requestProFilter === "Tous" ? rows : rows.filter(r => r.status === requestProFilter);
+    return filtered.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }, [employees, requestProFilter]);
   
   // Ajout des hooks pour suggestions
   const [allResidences, setAllResidences] = useState([]);
@@ -1406,6 +1433,34 @@ const saveContract = async (contractData) => {
     }
   }, [companyData, employees, isDemoAccount]);
 
+  // Gérer les demandes professionnelles (Accepter / Refuser)
+  const handleProfessionalRequestAction = useCallback(async (employeeId, requestId, action) => {
+    try {
+      setActionLoading(true);
+      const employee = employees.find((e) => e.id === employeeId);
+      if (!employee) {
+        toast.error("Employé introuvable");
+        return;
+      }
+      const list = Array.isArray(employee.professionalRequests) ? employee.professionalRequests : [];
+      const idx = list.findIndex(r => r.id === requestId);
+      const indexToUpdate = idx >= 0 ? idx : list.findIndex((r) => r === requestId);
+      if (indexToUpdate < 0) {
+        toast.error("Demande introuvable");
+        return;
+      }
+      const updated = [...list];
+      updated[indexToUpdate] = { ...updated[indexToUpdate], status: action };
+      await updateEmployee(employeeId, { professionalRequests: updated });
+      toast.success(`Demande ${action.toLowerCase()}e`);
+    } catch (e) {
+      console.error("[handleProfessionalRequestAction]", e);
+      toast.error("Erreur lors de la mise à jour de la demande");
+    } finally {
+      setActionLoading(false);
+    }
+  }, [employees, updateEmployee]);
+
   // Gérer les demandes de congé
   const handleLeaveRequest = useCallback(async (employeeId, requestIndex, action) => {
     const employee = employees.find((emp) => emp.id === employeeId);
@@ -2332,6 +2387,7 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
                 {activeTab === "reports" && "📈 Rapports"}
                 {activeTab === "notifications" && "🔔 Notifications"}
                 {activeTab === "settings" && "⚙️ Paramètres"}
+                {activeTab === "requests-pro" && "📥 Demandes Professionnelles"}
               </h1>
               
               {/* Boutons d'action mobile */}
@@ -2431,6 +2487,14 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
                     >
                       <Download className="w-5 h-5 text-white mb-1" />
                       <span className="text-xs text-white font-medium">Export</span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab("requests-pro")}
+                      className="flex flex-col items-center p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 hover:scale-105 backdrop-blur-sm"
+                    >
+                      <FileText className="w-5 h-5 text-white mb-1" />
+                      <span className="text-xs text-white font-medium">Demandes pro</span>
                     </button>
                   </div>
                 </div>
@@ -2904,6 +2968,110 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
               </Card>
             </div>
           )}
+
+          {activeTab === "requests-pro" && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h1 className="text-3xl font-bold text-gray-900">Demandes Professionnelles</h1>
+                <div>
+                  <select
+                    value={requestProFilter}
+                    onChange={(e) => setRequestProFilter(e.target.value)}
+                    className="p-2 border border-gray-200 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  >
+                    <option value="Tous">Tous les statuts</option>
+                    <option value="En attente">En attente</option>
+                    <option value="Approuvé">Approuvé</option>
+                    <option value="Refusé">Refusé</option>
+                    <option value="En cours">En cours de traitement</option>
+                  </select>
+                </div>
+              </div>
+
+              <Card>
+                {professionalRequestsAdmin.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employé</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sujet</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pièces jointes</th>
+                          <th className="px-4 py-3"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {professionalRequestsAdmin.map((r) => (
+                          <tr key={`${r.employeeId}_${r.id}`} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{r.createdAtDisplay}</td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{r.employeeName}</td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{r.type}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600">{r.subject}</td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                r.status === "En attente"
+                                  ? "bg-yellow-100 text-yellow-800"
+                                  : r.status === "Approuvé"
+                                  ? "bg-green-100 text-green-800"
+                                  : r.status === "Refusé"
+                                  ? "bg-red-100 text-red-800"
+                                  : "bg-blue-100 text-blue-800"
+                              }`}>
+                                {r.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                              {r.attachments?.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {r.attachments.map((f, idx) => (
+                                    <a key={idx} href={f.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 text-xs underline">
+                                      {f.name?.length > 18 ? `${f.name.slice(0,15)}...` : f.name}
+                                    </a>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400">Aucune PJ</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm">
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  onClick={() => handleProfessionalRequestAction(r.employeeId, r.id, "Approuvé")}
+                                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded"
+                                  disabled={actionLoading || r.status === "Approuvé"}
+                                >
+                                  <Check className="w-4 h-4" />
+                                  Approuver
+                                </Button>
+                                <Button
+                                  onClick={() => handleProfessionalRequestAction(r.employeeId, r.id, "Refusé")}
+                                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded"
+                                  disabled={actionLoading || r.status === "Refusé"}
+                                >
+                                  <XCircle className="w-4 h-4" />
+                                  Refuser
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 bg-gray-50 rounded-lg">
+                    <div className="mx-auto h-12 w-12 text-gray-400">📭</div>
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">Aucune demande</h3>
+                    <p className="mt-1 text-sm text-gray-500">Aucune demande professionnelle à afficher.</p>
+                  </div>
+                )}
+              </Card>
+            </div>
+          )}
+
 {activeTab === "employees" && (
   <div className="space-y-6">
     {/* En-tête amélioré avec actions rapides */}

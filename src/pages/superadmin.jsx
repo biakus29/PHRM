@@ -45,14 +45,13 @@ import {
   FiBook,
   FiBookOpen,
   FiList,
-  FiInbox,
 } from "react-icons/fi";
 import { buildCommonOptions } from "../utils/chartConfig";
 import SuperadminJobsPanel from "../components/SuperadminJobsPanel";
 import SuperadminApplicationsPanel from "../components/SuperadminApplicationsPanel";
 import FiscalSettings from "../components/FiscalSettings";
 import BlogManagement from "../components/BlogManagement";
-import ProfessionalRequestsPanel from "../components/ProfessionalRequestsPanel";
+import Modal from "../components/Modal";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -78,7 +77,12 @@ const SuperAdminDashboard = () => {
     isActive: true
   });
   const [editingFormationId, setEditingFormationId] = useState(null);
-  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+  // Filtres & recherche formations
+  const [formationSearch, setFormationSearch] = useState("");
+  const [formationTypeFilter, setFormationTypeFilter] = useState("Tous"); // Tous | initiale | continue
+  const [formationStatusFilter, setFormationStatusFilter] = useState("Tous"); // Tous | Actives | Inactives
+  const [formationSort, setFormationSort] = useState("recent"); // recent | titre
+  const [showFormationModal, setShowFormationModal] = useState(false);
   const navigate = useNavigate();
 
   // Charger les formations
@@ -97,42 +101,41 @@ const SuperAdminDashboard = () => {
     return () => unsubscribe();
   }, [isSuperAdmin]);
 
-  // Compter les demandes en attente
-  const countPendingRequests = async () => {
-    try {
-      const clientsSnapshot = await getDocs(collection(db, "clients"));
-      let count = 0;
-
-      for (const clientDoc of clientsSnapshot.docs) {
-        const clientId = clientDoc.id;
-        const employeesSnapshot = await getDocs(
-          collection(db, "clients", clientId, "employees")
-        );
-
-        for (const employeeDoc of employeesSnapshot.docs) {
-          const employeeData = employeeDoc.data();
-          const employeeRequests = employeeData.professionalRequests || [];
-          count += employeeRequests.filter(r => r.status === "En attente").length;
-        }
-      }
-
-      setPendingRequestsCount(count);
-    } catch (error) {
-      console.error("Erreur lors du comptage des demandes en attente :", error);
+  // Dérivés UI pour formations: recherche, filtres, tri et stats
+  const filteredFormations = useMemo(() => {
+    const q = (formationSearch || "").toLowerCase().trim();
+    let list = Array.isArray(formations) ? [...formations] : [];
+    if (q) {
+      list = list.filter(f =>
+        (f.title || "").toLowerCase().includes(q) ||
+        (f.description || "").toLowerCase().includes(q)
+      );
     }
-  };
+    if (formationTypeFilter !== "Tous") {
+      list = list.filter(f => (f.type || "").toLowerCase() === formationTypeFilter.toLowerCase());
+    }
+    if (formationStatusFilter !== "Tous") {
+      const active = formationStatusFilter === "Actives";
+      list = list.filter(f => !!f.isActive === active);
+    }
+    if (formationSort === "titre") {
+      list.sort((a,b) => (a.title || "").localeCompare(b.title || ""));
+    } else {
+      // recent
+      const getDate = (f) => new Date(f.updatedAt || f.createdAt || 0).getTime();
+      list.sort((a,b) => getDate(b) - getDate(a));
+    }
+    return list;
+  }, [formations, formationSearch, formationTypeFilter, formationStatusFilter, formationSort]);
 
-  // Mettre à jour le compteur périodiquement
-  useEffect(() => {
-    const interval = setInterval(() => {
-      countPendingRequests();
-    }, 30000); // Toutes les 30 secondes
-
-    // Premier chargement
-    countPendingRequests();
-
-    return () => clearInterval(interval);
-  }, []);
+  const formationStats = useMemo(() => {
+    const total = formations.length || 0;
+    const actives = formations.filter(f => f.isActive).length;
+    const inactives = total - actives;
+    const initiale = formations.filter(f => (f.type || "").toLowerCase() === "initiale").length;
+    const continueCnt = formations.filter(f => (f.type || "").toLowerCase() === "continue").length;
+    return { total, actives, inactives, initiale, continueCnt };
+  }, [formations]);
 
   // Vérification de l'authentification et du rôle
   useEffect(() => {
@@ -258,6 +261,7 @@ const SuperAdminDashboard = () => {
         contenu: [],
         isActive: true
       });
+      setShowFormationModal(false);
       
       setTimeout(() => setSuccessMessage(""), 3000);
     } catch (error) {
@@ -277,7 +281,7 @@ const SuperAdminDashboard = () => {
       isActive: formation.isActive
     });
     setEditingFormationId(formation.id);
-    setActiveSection("gestion-formations");
+    setShowFormationModal(true);
   };
   
   const handleDeleteFormation = async (formationId) => {
@@ -612,34 +616,24 @@ const SuperAdminDashboard = () => {
   // Rendu du formulaire d'ajout/édition de formation
   const renderFormationForm = () => (
     <Card title={editingFormationId ? "Modifier la formation" : "Ajouter une formation"}>
-      <form onSubmit={handleAddFormation} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Titre</label>
-          <input
-            type="text"
-            className="w-full p-2 border rounded-md"
-            value={newFormation.title}
-            onChange={(e) => setNewFormation({...newFormation, title: e.target.value})}
-            required
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-          <textarea
-            className="w-full p-2 border rounded-md"
-            rows="3"
-            value={newFormation.description}
-            onChange={(e) => setNewFormation({...newFormation, description: e.target.value})}
-            required
-          />
-        </div>
-        
-        <div className="grid grid-cols-2 gap-4">
+      <form onSubmit={handleAddFormation} className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Titre <span className="text-red-500">*</span></label>
+            <input
+              type="text"
+              className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+              placeholder="Ex: Initiation à la Paie"
+              value={newFormation.title}
+              onChange={(e) => setNewFormation({...newFormation, title: e.target.value})}
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">Nom court et clair, visible dans la liste.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Type <span className="text-red-500">*</span></label>
             <select
-              className="w-full p-2 border rounded-md"
+              className="w-full p-2 border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
               value={newFormation.type}
               onChange={(e) => setNewFormation({...newFormation, type: e.target.value})}
               required
@@ -648,63 +642,85 @@ const SuperAdminDashboard = () => {
               <option value="continue">Formation continue</option>
             </select>
           </div>
-          
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Description <span className="text-red-500">*</span></label>
+          <textarea
+            className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+            rows="4"
+            placeholder="Objectifs, public cible, résultats attendus..."
+            value={newFormation.description}
+            onChange={(e) => setNewFormation({...newFormation, description: e.target.value})}
+            required
+          />
+          <p className="text-xs text-gray-500 mt-1">Décrivez brièvement le contenu et les objectifs de la formation.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Durée</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Durée <span className="text-red-500">*</span></label>
             <input
               type="text"
-              className="w-full p-2 border rounded-md"
-              placeholder="Ex: 2 jours, 1 semaine..."
+              className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+              placeholder="Ex: 2 jours, 1 semaine"
               value={newFormation.duree}
               onChange={(e) => setNewFormation({...newFormation, duree: e.target.value})}
               required
             />
           </div>
+
+          <div className="flex items-center gap-2 pt-6">
+            <input
+              type="checkbox"
+              id="isActive"
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              checked={newFormation.isActive}
+              onChange={(e) => setNewFormation({...newFormation, isActive: e.target.checked})}
+            />
+            <label htmlFor="isActive" className="text-sm text-gray-700">Formation active (visible)</label>
+          </div>
         </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Prérequis (un par ligne)</label>
-          <textarea
-            className="w-full p-2 border rounded-md"
-            rows="3"
-            value={newFormation.prerequis.join('\n')}
-            onChange={(e) => setNewFormation({
-              ...newFormation,
-              prerequis: e.target.value.split('\n').filter(p => p.trim() !== '')
-            })}
-            placeholder="Un prérequis par ligne"
-          />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Prérequis</label>
+            <textarea
+              className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+              rows="4"
+              placeholder="Un prérequis par ligne (ex: Notions de paie)"
+              value={newFormation.prerequis.join('\n')}
+              onChange={(e) => setNewFormation({
+                ...newFormation,
+                prerequis: e.target.value.split('\n').filter(p => p.trim() !== '')
+              })}
+            />
+            {newFormation.prerequis.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {newFormation.prerequis.map((p, i) => (
+                  <span key={i} className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded">{p}</span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Contenu (un point par ligne) <span className="text-red-500">*</span></label>
+            <textarea
+              className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+              rows="6"
+              placeholder="Ex: Introduction\nRéglementation\nCas pratiques"
+              value={newFormation.contenu.join('\n')}
+              onChange={(e) => setNewFormation({
+                ...newFormation,
+                contenu: e.target.value.split('\n').filter(c => c.trim() !== '')
+              })}
+              required
+            />
+          </div>
         </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Contenu de la formation (un point par ligne)</label>
-          <textarea
-            className="w-full p-2 border rounded-md"
-            rows="5"
-            value={newFormation.contenu.join('\n')}
-            onChange={(e) => setNewFormation({
-              ...newFormation,
-              contenu: e.target.value.split('\n').filter(c => c.trim() !== '')
-            })}
-            placeholder="Un point par ligne"
-            required
-          />
-        </div>
-        
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            id="isActive"
-            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            checked={newFormation.isActive}
-            onChange={(e) => setNewFormation({...newFormation, isActive: e.target.checked})}
-          />
-          <label htmlFor="isActive" className="ml-2 block text-sm text-gray-700">
-            Formation active
-          </label>
-        </div>
-        
-        <div className="flex justify-end space-x-3 pt-4">
+
+        <div className="flex justify-end gap-3 pt-2">
           <button
             type="button"
             onClick={() => {
@@ -737,29 +753,86 @@ const SuperAdminDashboard = () => {
   // Rendu de la liste des formations
   const renderFormationsList = () => (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <h2 className="text-xl font-bold text-gray-900">Gestion des formations</h2>
-        <button
-          onClick={() => {
-            setEditingFormationId(null);
-            setNewFormation({
-              title: "",
-              description: "",
-              type: "initiale",
-              duree: "",
-              prerequis: [],
-              contenu: [],
-              isActive: true
-            });
-            setActiveSection("gestion-formations");
-          }}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          <FiPlus className="-ml-1 mr-2 h-5 w-5" />
-          Nouvelle formation
-        </button>
+        <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+          <div className="relative flex-1 min-w-[220px]">
+            <input
+              type="text"
+              placeholder="Rechercher une formation..."
+              value={formationSearch}
+              onChange={(e) => setFormationSearch(e.target.value)}
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 w-full transition-colors"
+            />
+            <FiSearch className="absolute left-3 top-2.5 text-gray-400" />
+          </div>
+          <select
+            value={formationTypeFilter}
+            onChange={(e) => setFormationTypeFilter(e.target.value)}
+            className="p-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+          >
+            <option value="Tous">Tous les types</option>
+            <option value="initiale">Initiale</option>
+            <option value="continue">Continue</option>
+          </select>
+          <select
+            value={formationStatusFilter}
+            onChange={(e) => setFormationStatusFilter(e.target.value)}
+            className="p-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+          >
+            <option value="Tous">Tous les statuts</option>
+            <option value="Actives">Actives</option>
+            <option value="Inactives">Inactives</option>
+          </select>
+          <select
+            value={formationSort}
+            onChange={(e) => setFormationSort(e.target.value)}
+            className="p-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+          >
+            <option value="recent">Plus récentes</option>
+            <option value="titre">Par titre (A→Z)</option>
+          </select>
+          <button
+            onClick={() => {
+              setEditingFormationId(null);
+              setNewFormation({
+                title: "",
+                description: "",
+                type: "initiale",
+                duree: "",
+                prerequis: [],
+                contenu: [],
+                isActive: true
+              });
+              setShowFormationModal(true);
+            }}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <FiPlus className="-ml-1 mr-2 h-5 w-5" />
+            Nouvelle
+          </button>
+        </div>
       </div>
-      
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Card>
+          <p className="text-xs text-gray-500">Total</p>
+          <p className="text-2xl font-bold text-blue-600">{formationStats.total}</p>
+        </Card>
+        <Card>
+          <p className="text-xs text-gray-500">Actives</p>
+          <p className="text-2xl font-bold text-green-600">{formationStats.actives}</p>
+        </Card>
+        <Card>
+          <p className="text-xs text-gray-500">Inactives</p>
+          <p className="text-2xl font-bold text-red-600">{formationStats.inactives}</p>
+        </Card>
+        <Card>
+          <p className="text-xs text-gray-500">Types</p>
+          <p className="text-sm text-gray-700">Initiale: {formationStats.initiale} • Continue: {formationStats.continueCnt}</p>
+        </Card>
+      </div>
+
       {formations.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg shadow">
           <FiBookOpen className="mx-auto h-12 w-12 text-gray-400" />
@@ -778,6 +851,7 @@ const SuperAdminDashboard = () => {
                   contenu: [],
                   isActive: true
                 });
+                setShowFormationModal(true);
               }}
               className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
@@ -786,34 +860,41 @@ const SuperAdminDashboard = () => {
             </button>
           </div>
         </div>
+      ) : filteredFormations.length === 0 ? (
+        <div className="text-center py-10 bg-white rounded-lg border">
+          <p className="text-sm text-gray-600">Aucun résultat pour vos filtres/recherche.</p>
+        </div>
       ) : (
         <div className="bg-white shadow overflow-hidden sm:rounded-md">
           <ul className="divide-y divide-gray-200">
-            {formations.map((formation) => (
+            {filteredFormations.map((formation) => (
               <li key={formation.id} className={!formation.isActive ? "bg-gray-50" : ""}>
                 <div className="px-4 py-4 flex items-center sm:px-6">
                   <div className="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between">
                     <div className="truncate">
-                      <div className="flex text-sm">
+                      <div className="flex items-center gap-2 text-sm">
                         <p className="font-medium text-blue-600 truncate">{formation.title}</p>
-                        <p className="ml-1 flex-shrink-0 font-normal text-gray-500">
-                          ({formation.type === 'initiale' ? 'Formation initiale' : 'Formation continue'})
-                        </p>
+                        <span className={`px-2 py-0.5 text-xs rounded-full ${formation.type === 'initiale' ? 'bg-indigo-100 text-indigo-700' : 'bg-purple-100 text-purple-700'}`}>
+                          {formation.type === 'initiale' ? 'Initiale' : 'Continue'}
+                        </span>
                         {!formation.isActive && (
-                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                             Inactive
                           </span>
                         )}
                       </div>
-                      <div className="mt-2 flex">
-                        <div className="flex items-center text-sm text-gray-500">
-                          <FiClock className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
+                      <div className="mt-2 flex items-center gap-4 text-sm text-gray-500">
+                        <div className="flex items-center">
+                          <FiClock className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400" />
                           <p>{formation.duree}</p>
                         </div>
+                        {(formation.updatedAt || formation.createdAt) && (
+                          <p>MAJ: {new Date(formation.updatedAt || formation.createdAt).toLocaleDateString()}</p>
+                        )}
                       </div>
                     </div>
                     <div className="mt-4 flex-shrink-0 sm:mt-0 sm:ml-5">
-                      <div className="flex space-x-3">
+                      <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
                           onClick={() => handleEditFormation(formation)}
@@ -901,13 +982,6 @@ const SuperAdminDashboard = () => {
               { id: "gestion-utilisateurs", label: "Utilisateurs", icon: FiUsers },
               { id: "gestion-roles", label: "Rôles et permissions", icon: FiShield },
               { id: "gestion-formations", label: "Formations", icon: FiBookOpen },
-              { 
-                id: "demandes", 
-                label: "Demandes employés", 
-                icon: FiInbox, 
-                badge: pendingRequestsCount > 0 ? pendingRequestsCount : null,
-                badgeColor: "bg-red-500 text-white"
-              },
               { id: "statistiques", label: "Statistiques", icon: FiBarChart2 },
               { id: "parametres-fiscaux", label: "Paramètres fiscaux", icon: FiSettings },
               { id: "gestion-blog", label: "Gestion du blog", icon: FiBook },
@@ -925,14 +999,7 @@ const SuperAdminDashboard = () => {
                   }`}
                   aria-label={`Naviguer vers ${section.label}`}
                 >
-                  <div className="relative">
-                    <section.icon className="h-5 w-5" />
-                    {section.badge !== null && (
-                      <span className={`absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center text-xs rounded-full ${section.badgeColor}`}>
-                        {section.badge}
-                      </span>
-                    )}
-                  </div>
+                  <section.icon className="h-5 w-5" />
                   <span>{section.label}</span>
                 </button>
               </li>
@@ -969,7 +1036,6 @@ const SuperAdminDashboard = () => {
               {activeSection === "gestion-utilisateurs" && "Utilisateurs"}
               {activeSection === "gestion-roles" && "Rôles et permissions"}
               {activeSection === "gestion-formations" && "Gestion des formations"}
-              {activeSection === "demandes" && "Demandes des employés"}
               {activeSection === "statistiques" && "Statistiques"}
               {activeSection === "parametres-fiscaux" && "Paramètres fiscaux"}
               {activeSection === "gestion-blog" && "Gestion du blog"}
@@ -980,7 +1046,6 @@ const SuperAdminDashboard = () => {
               {activeSection === "gestion-utilisateurs" && "Liste des utilisateurs"}
               {activeSection === "gestion-roles" && "Gestion des rôles et permissions"}
               {activeSection === "gestion-formations" && "Gestion des formations"}
-              {activeSection === "demandes" && "Gérez les demandes des employés"}
               {activeSection === "statistiques" && "Analyse des données d'utilisation"}
               {activeSection === "parametres-fiscaux" && "Configuration des taux CNPS, fiscaux et barèmes"}
               {activeSection === "gestion-blog" && "Créez et gérez les articles du blog"}
@@ -1039,14 +1104,14 @@ const SuperAdminDashboard = () => {
         {activeSection === "gestion-formations" && (
           <div className="space-y-6">
             <h1 className="text-2xl font-bold text-gray-900">Gestion des formations</h1>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
+            <div className="grid grid-cols-1 gap-6">
+              <div>
                 {renderFormationsList()}
               </div>
-              <div>
-                {renderFormationForm()}
-              </div>
             </div>
+            <Modal isOpen={showFormationModal} onClose={() => { setShowFormationModal(false); setEditingFormationId(null); }}>
+              {renderFormationForm()}
+            </Modal>
           </div>
         )}
 
@@ -1133,13 +1198,6 @@ const SuperAdminDashboard = () => {
                 </div>
               </Card>
             )}
-          </div>
-        )}
-
-        {activeSection === "demandes" && (
-          <div className="space-y-6">
-            <h1 className="text-2xl font-bold text-gray-900">Gestion des demandes</h1>
-            <ProfessionalRequestsPanel />
           </div>
         )}
 
@@ -1269,11 +1327,11 @@ const SuperAdminDashboard = () => {
           <SuperadminApplicationsPanel />
         )}
 
-        {activeSection === "blog" && (
+        {activeSection === "gestion-blog" && (
           <BlogManagement />
         )}
 
-        {activeSection === "clients" && (
+        {activeSection === "gestion-clients" && (
           <Card>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
               <h2 className="text-xl font-bold text-gray-900">Liste des clients</h2>
@@ -1405,7 +1463,7 @@ const SuperAdminDashboard = () => {
           </Card>
         )}
 
-        {activeSection === "stats" && (
+        {activeSection === "statistiques" && (
           <Card>
             <h2 className="text-xl font-bold mb-6 text-gray-900">
               Statistiques d'utilisation
@@ -1445,8 +1503,20 @@ const SuperAdminDashboard = () => {
           </Card>
         )}
 
-        {activeSection === "settings" && (
+        {activeSection === "parametres-fiscaux" && (
           <FiscalSettings />
+        )}
+
+        {activeSection === "gestion-utilisateurs" && (
+          <Card title="Gestion des utilisateurs">
+            <p className="text-gray-600">Cette section permettra de gérer les comptes administrateurs et super-admins. (WIP)</p>
+          </Card>
+        )}
+
+        {activeSection === "gestion-roles" && (
+          <Card title="Rôles et permissions">
+            <p className="text-gray-600">Cette section permettra de configurer les rôles et permissions. (WIP)</p>
+          </Card>
         )}
       </main>
     </div>
