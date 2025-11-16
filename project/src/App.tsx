@@ -427,13 +427,17 @@ function App() {
             </div>
           )}
           {aboutTab === 'recrutement' && (
-            <div className="bg-white rounded-2xl p-6 md:p-8 shadow-xl border border-gray-100 animate-fade-in-up md:max-w-3xl md:mx-auto">
-              <h3 className="text-2xl font-bold text-phrm-dark mb-3">Recrutement total et partiel / Placement</h3>
-              <TruncatedText
-                text={
-                  "Nous accompagnons les entreprises pour le recrutement total ou partiel et le placement du personnel. Notre équipe qualifie les candidats, organise les entretiens, conseille sur la sélection et sur l’intégration. Nous mettons en relation candidats et employeurs afin d’accélérer le retour à l’emploi et d’optimiser la qualité des recrutements."
-                }
-              />
+            <div className="space-y-6">
+              <h3 className="text-2xl font-bold text-gray-900">Recrutement</h3>
+              <div className="prose prose-phrm max-w-none">
+                <p>Notre plateforme facilite l'intégration des nouveaux employés avec des processus de recrutement automatisés et personnalisables. Nous aidons les entreprises à attirer, évaluer et intégrer les meilleurs talents.</p>
+                <ul className="space-y-2">
+                  <li>Gestion des offres d'emploi et des candidatures</li>
+                  <li>Suivi des entretiens et évaluations</li>
+                  <li>Intégration des nouveaux employés</li>
+                  <li>Automatisation des processus RH</li>
+                </ul>
+              </div>
             </div>
           )}
         </div>
@@ -455,7 +459,7 @@ function App() {
           {/* Grille des statistiques */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div className="text-center group hover:scale-110 transition-all duration-300 animate-fade-in-up">
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center group-hover:shadow-lg transition-all duration-300 border border-blue-200">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-full w-20 h-20 mx-auto mb-4 group-hover:shadow-lg transition-all duration-300 border border-blue-200">
                 <div className="flex flex-col items-center">
                   <TrendingUp className="w-5 h-5 text-blue-600 mb-1" />
                   <p className="text-2xl font-bold text-blue-600 animate-count-up">
@@ -470,7 +474,7 @@ function App() {
             </div>
 
             <div className="text-center group hover:scale-110 transition-all duration-300 animate-fade-in-up animation-delay-100">
-              <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center group-hover:shadow-lg transition-all duration-300 border border-green-200">
+              <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-full w-20 h-20 mx-auto mb-4 group-hover:shadow-lg transition-all duration-300 border border-green-200">
                 <div className="flex flex-col items-center">
                   <Users className="w-5 h-5 text-green-600 mb-1" />
                   <p className="text-2xl font-bold text-green-600 animate-count-up">
@@ -485,7 +489,7 @@ function App() {
             </div>
 
             <div className="text-center group hover:scale-110 transition-all duration-300 animate-fade-in-up animation-delay-200">
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center group-hover:shadow-lg transition-all duration-300 border border-purple-200">
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-full w-20 h-20 mx-auto mb-4 group-hover:shadow-lg transition-all duration-300 border border-purple-200">
                 <div className="flex flex-col items-center">
                   <Clock className="w-5 h-5 text-purple-600 mb-1" />
                   <p className="text-2xl font-bold text-purple-600 animate-count-up">
@@ -500,7 +504,7 @@ function App() {
             </div>
 
             <div className="text-center group hover:scale-110 transition-all duration-300 animate-fade-in-up animation-delay-300">
-              <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center group-hover:shadow-lg transition-all duration-300 border border-orange-200">
+              <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-full w-20 h-20 mx-auto mb-4 group-hover:shadow-lg transition-all duration-300 border border-orange-200">
                 <div className="flex flex-col items-center">
                   <Headphones className="w-5 h-5 text-orange-600 mb-1" />
                   <p className="text-2xl font-bold text-orange-600 animate-count-up">24/7</p>

@@ -11,6 +11,7 @@ import {
   getDocs,
   query,
   where,
+  addDoc,
 } from "firebase/firestore";
 import { createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { Bar } from "react-chartjs-2";
@@ -37,16 +38,21 @@ import {
   FiCheck,
   FiAlertTriangle,
   FiPlus,
+  FiClock,
   FiRefreshCw,
   FiSearch,
   FiSettings,
   FiBook,
+  FiBookOpen,
+  FiList,
+  FiInbox,
 } from "react-icons/fi";
 import { buildCommonOptions } from "../utils/chartConfig";
 import SuperadminJobsPanel from "../components/SuperadminJobsPanel";
 import SuperadminApplicationsPanel from "../components/SuperadminApplicationsPanel";
 import FiscalSettings from "../components/FiscalSettings";
 import BlogManagement from "../components/BlogManagement";
+import ProfessionalRequestsPanel from "../components/ProfessionalRequestsPanel";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -61,7 +67,72 @@ const SuperAdminDashboard = () => {
   const [user, setUser] = useState(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [formations, setFormations] = useState([]);
+  const [newFormation, setNewFormation] = useState({
+    title: "",
+    description: "",
+    type: "initiale", // 'initiale' ou 'continue'
+    duree: "",
+    prerequis: [],
+    contenu: [],
+    isActive: true
+  });
+  const [editingFormationId, setEditingFormationId] = useState(null);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const navigate = useNavigate();
+
+  // Charger les formations
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    
+    const formationsRef = collection(db, "formations");
+    const unsubscribe = onSnapshot(formationsRef, (snapshot) => {
+      const formationsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setFormations(formationsData);
+    });
+    
+    return () => unsubscribe();
+  }, [isSuperAdmin]);
+
+  // Compter les demandes en attente
+  const countPendingRequests = async () => {
+    try {
+      const clientsSnapshot = await getDocs(collection(db, "clients"));
+      let count = 0;
+
+      for (const clientDoc of clientsSnapshot.docs) {
+        const clientId = clientDoc.id;
+        const employeesSnapshot = await getDocs(
+          collection(db, "clients", clientId, "employees")
+        );
+
+        for (const employeeDoc of employeesSnapshot.docs) {
+          const employeeData = employeeDoc.data();
+          const employeeRequests = employeeData.professionalRequests || [];
+          count += employeeRequests.filter(r => r.status === "En attente").length;
+        }
+      }
+
+      setPendingRequestsCount(count);
+    } catch (error) {
+      console.error("Erreur lors du comptage des demandes en attente :", error);
+    }
+  };
+
+  // Mettre à jour le compteur périodiquement
+  useEffect(() => {
+    const interval = setInterval(() => {
+      countPendingRequests();
+    }, 30000); // Toutes les 30 secondes
+
+    // Premier chargement
+    countPendingRequests();
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Vérification de l'authentification et du rôle
   useEffect(() => {
@@ -156,6 +227,86 @@ const SuperAdminDashboard = () => {
   }, [navigate]);
 
   // Déconnexion
+  // Gestion des formations
+  const handleAddFormation = async (e) => {
+    e.preventDefault();
+    try {
+      const formationData = {
+        ...newFormation,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      if (editingFormationId) {
+        // Mise à jour d'une formation existante
+        await updateDoc(doc(db, "formations", editingFormationId), formationData);
+        setSuccessMessage("Formation mise à jour avec succès !");
+        setEditingFormationId(null);
+      } else {
+        // Création d'une nouvelle formation
+        await addDoc(collection(db, "formations"), formationData);
+        setSuccessMessage("Formation ajoutée avec succès !");
+      }
+      
+      // Réinitialiser le formulaire
+      setNewFormation({
+        title: "",
+        description: "",
+        type: "initiale",
+        duree: "",
+        prerequis: [],
+        contenu: [],
+        isActive: true
+      });
+      
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+      console.error("Erreur lors de l'ajout de la formation :", error);
+      setErrorMessage("Erreur lors de l'enregistrement de la formation : " + error.message);
+    }
+  };
+  
+  const handleEditFormation = (formation) => {
+    setNewFormation({
+      title: formation.title,
+      description: formation.description,
+      type: formation.type,
+      duree: formation.duree,
+      prerequis: [...formation.prerequis],
+      contenu: [...formation.contenu],
+      isActive: formation.isActive
+    });
+    setEditingFormationId(formation.id);
+    setActiveSection("gestion-formations");
+  };
+  
+  const handleDeleteFormation = async (formationId) => {
+    if (window.confirm("Êtes-vous sûr de vouloir supprimer cette formation ?")) {
+      try {
+        await deleteDoc(doc(db, "formations", formationId));
+        setSuccessMessage("Formation supprimée avec succès !");
+        setTimeout(() => setSuccessMessage(""), 3000);
+      } catch (error) {
+        console.error("Erreur lors de la suppression de la formation :", error);
+        setErrorMessage("Erreur lors de la suppression de la formation : " + error.message);
+      }
+    }
+  };
+  
+  const toggleFormationStatus = async (formation) => {
+    try {
+      await updateDoc(doc(db, "formations", formation.id), {
+        isActive: !formation.isActive,
+        updatedAt: new Date().toISOString()
+      });
+      setSuccessMessage(`Formation ${formation.isActive ? "désactivée" : "activée"} avec succès !`);
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour du statut de la formation :", error);
+      setErrorMessage("Erreur lors de la mise à jour du statut : " + error.message);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -458,6 +609,269 @@ const SuperAdminDashboard = () => {
     return null;
   }
 
+  // Rendu du formulaire d'ajout/édition de formation
+  const renderFormationForm = () => (
+    <Card title={editingFormationId ? "Modifier la formation" : "Ajouter une formation"}>
+      <form onSubmit={handleAddFormation} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Titre</label>
+          <input
+            type="text"
+            className="w-full p-2 border rounded-md"
+            value={newFormation.title}
+            onChange={(e) => setNewFormation({...newFormation, title: e.target.value})}
+            required
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <textarea
+            className="w-full p-2 border rounded-md"
+            rows="3"
+            value={newFormation.description}
+            onChange={(e) => setNewFormation({...newFormation, description: e.target.value})}
+            required
+          />
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+            <select
+              className="w-full p-2 border rounded-md"
+              value={newFormation.type}
+              onChange={(e) => setNewFormation({...newFormation, type: e.target.value})}
+              required
+            >
+              <option value="initiale">Formation initiale</option>
+              <option value="continue">Formation continue</option>
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Durée</label>
+            <input
+              type="text"
+              className="w-full p-2 border rounded-md"
+              placeholder="Ex: 2 jours, 1 semaine..."
+              value={newFormation.duree}
+              onChange={(e) => setNewFormation({...newFormation, duree: e.target.value})}
+              required
+            />
+          </div>
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Prérequis (un par ligne)</label>
+          <textarea
+            className="w-full p-2 border rounded-md"
+            rows="3"
+            value={newFormation.prerequis.join('\n')}
+            onChange={(e) => setNewFormation({
+              ...newFormation,
+              prerequis: e.target.value.split('\n').filter(p => p.trim() !== '')
+            })}
+            placeholder="Un prérequis par ligne"
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Contenu de la formation (un point par ligne)</label>
+          <textarea
+            className="w-full p-2 border rounded-md"
+            rows="5"
+            value={newFormation.contenu.join('\n')}
+            onChange={(e) => setNewFormation({
+              ...newFormation,
+              contenu: e.target.value.split('\n').filter(c => c.trim() !== '')
+            })}
+            placeholder="Un point par ligne"
+            required
+          />
+        </div>
+        
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            id="isActive"
+            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            checked={newFormation.isActive}
+            onChange={(e) => setNewFormation({...newFormation, isActive: e.target.checked})}
+          />
+          <label htmlFor="isActive" className="ml-2 block text-sm text-gray-700">
+            Formation active
+          </label>
+        </div>
+        
+        <div className="flex justify-end space-x-3 pt-4">
+          <button
+            type="button"
+            onClick={() => {
+              setEditingFormationId(null);
+              setNewFormation({
+                title: "",
+                description: "",
+                type: "initiale",
+                duree: "",
+                prerequis: [],
+                contenu: [],
+                isActive: true
+              });
+            }}
+            className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Annuler
+          </button>
+          <button
+            type="submit"
+            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            {editingFormationId ? "Mettre à jour" : "Ajouter"} la formation
+          </button>
+        </div>
+      </form>
+    </Card>
+  );
+
+  // Rendu de la liste des formations
+  const renderFormationsList = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-bold text-gray-900">Gestion des formations</h2>
+        <button
+          onClick={() => {
+            setEditingFormationId(null);
+            setNewFormation({
+              title: "",
+              description: "",
+              type: "initiale",
+              duree: "",
+              prerequis: [],
+              contenu: [],
+              isActive: true
+            });
+            setActiveSection("gestion-formations");
+          }}
+          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        >
+          <FiPlus className="-ml-1 mr-2 h-5 w-5" />
+          Nouvelle formation
+        </button>
+      </div>
+      
+      {formations.length === 0 ? (
+        <div className="text-center py-12 bg-white rounded-lg shadow">
+          <FiBookOpen className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900">Aucune formation disponible</h3>
+          <p className="mt-1 text-sm text-gray-500">Commencez par ajouter votre première formation.</p>
+          <div className="mt-6">
+            <button
+              onClick={() => {
+                setEditingFormationId(null);
+                setNewFormation({
+                  title: "",
+                  description: "",
+                  type: "initiale",
+                  duree: "",
+                  prerequis: [],
+                  contenu: [],
+                  isActive: true
+                });
+              }}
+              className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <FiPlus className="-ml-1 mr-2 h-5 w-5" />
+              Ajouter une formation
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white shadow overflow-hidden sm:rounded-md">
+          <ul className="divide-y divide-gray-200">
+            {formations.map((formation) => (
+              <li key={formation.id} className={!formation.isActive ? "bg-gray-50" : ""}>
+                <div className="px-4 py-4 flex items-center sm:px-6">
+                  <div className="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div className="truncate">
+                      <div className="flex text-sm">
+                        <p className="font-medium text-blue-600 truncate">{formation.title}</p>
+                        <p className="ml-1 flex-shrink-0 font-normal text-gray-500">
+                          ({formation.type === 'initiale' ? 'Formation initiale' : 'Formation continue'})
+                        </p>
+                        {!formation.isActive && (
+                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            Inactive
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-2 flex">
+                        <div className="flex items-center text-sm text-gray-500">
+                          <FiClock className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
+                          <p>{formation.duree}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex-shrink-0 sm:mt-0 sm:ml-5">
+                      <div className="flex space-x-3">
+                        <button
+                          type="button"
+                          onClick={() => handleEditFormation(formation)}
+                          className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          <FiEdit className="-ml-0.5 mr-2 h-4 w-4" />
+                          Modifier
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleFormationStatus(formation)}
+                          className={`inline-flex items-center px-3 py-1.5 border ${
+                            formation.isActive 
+                              ? 'border-red-300 text-red-700 bg-white hover:bg-red-50' 
+                              : 'border-green-300 text-green-700 bg-white hover:bg-green-50'
+                          } shadow-sm text-sm leading-4 font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+                        >
+                          {formation.isActive ? (
+                            <>
+                              <FiX className="-ml-0.5 mr-2 h-4 w-4" />
+                              Désactiver
+                            </>
+                          ) : (
+                            <>
+                              <FiCheck className="-ml-0.5 mr-2 h-4 w-4" />
+                              Activer
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteFormation(formation.id)}
+                          className="inline-flex items-center px-3 py-1.5 border border-red-300 shadow-sm text-sm leading-4 font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                        >
+                          <FiTrash2 className="-ml-0.5 mr-2 h-4 w-4" />
+                          Supprimer
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+
+  // Rendu du tableau de bord
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-gray-50 transition-colors duration-300">
       <aside
@@ -483,13 +897,20 @@ const SuperAdminDashboard = () => {
           <ul className="space-y-2">
             {[
               { id: "dashboard", label: "Tableau de bord", icon: FiHome },
-              { id: "licenses", label: "Licences", icon: FiShield },
-              { id: "clients", label: "Clients", icon: FiUsers },
-              { id: "jobs", label: "Offres à valider", icon: FiEdit },
-              { id: "applications", label: "Candidatures", icon: FiUsers },
-              { id: "blog", label: "Blog", icon: FiBook },
-              { id: "stats", label: "Statistiques", icon: FiBarChart2 },
-              { id: "settings", label: "Paramètres Fiscaux", icon: FiSettings },
+              { id: "gestion-clients", label: "Gestion des clients", icon: FiUsers },
+              { id: "gestion-utilisateurs", label: "Utilisateurs", icon: FiUsers },
+              { id: "gestion-roles", label: "Rôles et permissions", icon: FiShield },
+              { id: "gestion-formations", label: "Formations", icon: FiBookOpen },
+              { 
+                id: "demandes", 
+                label: "Demandes employés", 
+                icon: FiInbox, 
+                badge: pendingRequestsCount > 0 ? pendingRequestsCount : null,
+                badgeColor: "bg-red-500 text-white"
+              },
+              { id: "statistiques", label: "Statistiques", icon: FiBarChart2 },
+              { id: "parametres-fiscaux", label: "Paramètres fiscaux", icon: FiSettings },
+              { id: "gestion-blog", label: "Gestion du blog", icon: FiBook },
             ].map((section) => (
               <li key={section.id}>
                 <button
@@ -504,7 +925,14 @@ const SuperAdminDashboard = () => {
                   }`}
                   aria-label={`Naviguer vers ${section.label}`}
                 >
-                  <section.icon className="h-5 w-5" />
+                  <div className="relative">
+                    <section.icon className="h-5 w-5" />
+                    {section.badge !== null && (
+                      <span className={`absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center text-xs rounded-full ${section.badgeColor}`}>
+                        {section.badge}
+                      </span>
+                    )}
+                  </div>
                   <span>{section.label}</span>
                 </button>
               </li>
@@ -537,23 +965,25 @@ const SuperAdminDashboard = () => {
           <div>
             <h1 className="text-2xl font-bold text-gray-900 animate-scale-in">
               {activeSection === "dashboard" && "Tableau de bord"}
-              {activeSection === "licenses" && "Gestion des licences"}
-              {activeSection === "clients" && "Gestion des clients"}
-              {activeSection === "stats" && "Statistiques"}
-              {activeSection === "jobs" && "Offres à valider"}
-              {activeSection === "applications" && "Candidatures"}
-              {activeSection === "blog" && "Gestion du Blog"}
-              {activeSection === "settings" && "Paramètres Fiscaux & CNPS"}
+              {activeSection === "gestion-clients" && "Gestion des clients"}
+              {activeSection === "gestion-utilisateurs" && "Utilisateurs"}
+              {activeSection === "gestion-roles" && "Rôles et permissions"}
+              {activeSection === "gestion-formations" && "Gestion des formations"}
+              {activeSection === "demandes" && "Demandes des employés"}
+              {activeSection === "statistiques" && "Statistiques"}
+              {activeSection === "parametres-fiscaux" && "Paramètres fiscaux"}
+              {activeSection === "gestion-blog" && "Gestion du blog"}
             </h1>
             <p className="text-gray-600 text-sm animate-scale-in">
               {activeSection === "dashboard" && "Aperçu global de votre administration"}
-              {activeSection === "licenses" && "Gérez les licences de vos clients"}
-              {activeSection === "clients" && "Liste complète de vos clients"}
-              {activeSection === "stats" && "Analyse des données d'utilisation"}
-              {activeSection === "jobs" && "Validez et publiez les offres soumises par les clients"}
-              {activeSection === "applications" && "Consultez les candidatures et répondez par email"}
-              {activeSection === "blog" && "Créez et gérez les articles du blog"}
-              {activeSection === "settings" && "Configuration des taux CNPS, fiscaux et barèmes"}
+              {activeSection === "gestion-clients" && "Liste complète de vos clients"}
+              {activeSection === "gestion-utilisateurs" && "Liste des utilisateurs"}
+              {activeSection === "gestion-roles" && "Gestion des rôles et permissions"}
+              {activeSection === "gestion-formations" && "Gestion des formations"}
+              {activeSection === "demandes" && "Gérez les demandes des employés"}
+              {activeSection === "statistiques" && "Analyse des données d'utilisation"}
+              {activeSection === "parametres-fiscaux" && "Configuration des taux CNPS, fiscaux et barèmes"}
+              {activeSection === "gestion-blog" && "Créez et gérez les articles du blog"}
             </p>
           </div>
 
@@ -606,8 +1036,22 @@ const SuperAdminDashboard = () => {
           </div>
         )}
 
+        {activeSection === "gestion-formations" && (
+          <div className="space-y-6">
+            <h1 className="text-2xl font-bold text-gray-900">Gestion des formations</h1>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                {renderFormationsList()}
+              </div>
+              <div>
+                {renderFormationForm()}
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeSection === "dashboard" && (
-          <>
+          <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               {[
                 {
@@ -689,7 +1133,14 @@ const SuperAdminDashboard = () => {
                 </div>
               </Card>
             )}
-          </>
+          </div>
+        )}
+
+        {activeSection === "demandes" && (
+          <div className="space-y-6">
+            <h1 className="text-2xl font-bold text-gray-900">Gestion des demandes</h1>
+            <ProfessionalRequestsPanel />
+          </div>
         )}
 
         {activeSection === "licenses" && (

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { db } from "../firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { db, storage, ref, uploadBytes, getDownloadURL } from "../firebase";
+import { doc, getDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { FiLogOut, FiCalendar, FiFileText, FiAlertTriangle, FiCheck, FiBell, FiClock, FiEdit, FiDownload, FiEye, FiHome, FiUpload, FiX, FiUser, FiLock } from "react-icons/fi";
+import { FiLogOut, FiCalendar, FiFileText, FiAlertTriangle, FiCheck, FiBell, FiClock, FiEdit, FiDownload, FiEye, FiHome, FiUpload, FiX, FiUser, FiLock, FiSend, FiLoader, FiInbox, FiPaperclip } from "react-icons/fi";
 import "../styles/sidebar.css";
 import { Line } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from "chart.js";
@@ -15,9 +15,8 @@ import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
 import ExportPaySlip from '../compoments/ExportPaySlip';
-import { exportContractPDF } from '../utils/exportContractPDF';
 import { createRoot } from 'react-dom/client';
-import { displayDate, displayDateWithOptions, displayGeneratedAt, displayContractStartDate } from "../utils/displayUtils";
+import { displayDate, displayDateWithOptions, displayGeneratedAt, displayContractStartDate, displayContractEndDate } from "../utils/displayUtils";
 import { computeEffectiveDeductions, computeRoundedDeductions, computeNetPay, formatCFA, computeCompletePayroll } from "../utils/payrollCalculations";
 import EmployeeMobileFooterNav from "../components/EmployeeMobileFooterNav";
 import { useDemo } from "../contexts/DemoContext";
@@ -61,6 +60,18 @@ const EmployeeDashboard = () => {
   const itemsPerPage = 10;
   const [sortBy, setSortBy] = useState("date");
   const [statusFilter, setStatusFilter] = useState("Tous");
+  const [contractDocLoading, setContractDocLoading] = useState(false);
+  const [contractDocError, setContractDocError] = useState("");
+  const [employeeContractDoc, setEmployeeContractDoc] = useState(null);
+  const [requestType, setRequestType] = useState("");
+  const [requestSubject, setRequestSubject] = useState("");
+  const [requestDescription, setRequestDescription] = useState("");
+  const [requestStartDate, setRequestStartDate] = useState("");
+  const [requestEndDate, setRequestEndDate] = useState("");
+  const [requestFiles, setRequestFiles] = useState([]);
+  const [requestError, setRequestError] = useState("");
+  const [submittingRequest, setSubmittingRequest] = useState(false);
+  const [requestStatusFilter, setRequestStatusFilter] = useState("Tous");
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -82,7 +93,10 @@ const EmployeeDashboard = () => {
         const employeeSnap = await getDoc(employeeRef);
         if (employeeSnap.exists()) {
           const data = employeeSnap.data();
-          if (data.email !== email) {
+          const normalizedStateEmail = (email || "").trim().toLowerCase();
+          const personalEmail = (data.email || "").trim().toLowerCase();
+          const internalEmail = (data.internalEmail || "").trim().toLowerCase();
+          if (normalizedStateEmail && personalEmail !== normalizedStateEmail && internalEmail !== normalizedStateEmail) {
             setErrorMessage("Email invalide. Veuillez vous reconnecter.");
             toast.error("Email invalide. Veuillez vous reconnecter.");
             setLoading(false);
@@ -112,8 +126,75 @@ const EmployeeDashboard = () => {
       }
     };
 
+  
+
     fetchEmployeeData();
   }, [clientId, employeeId, email]);
+
+  // Load contract document from Firestore 'documents' collection (type 'contracts') for this employee
+  useEffect(() => {
+    const fetchContractDoc = async () => {
+      try {
+        if (!clientId) return;
+        // We need employee name to match when possible
+        const employeeName = (employeeData?.name || "").trim();
+        if (!employeeName) return;
+
+        setContractDocLoading(true);
+        setContractDocError("");
+
+        let foundDoc = null;
+
+        // First try precise query by companyId + type + employeeName (may require composite index)
+        try {
+          const qPrecise = query(
+            collection(db, "documents"),
+            where("companyId", "==", clientId),
+            where("type", "==", "contracts"),
+            where("employeeName", "==", employeeName)
+          );
+          const snapPrecise = await getDocs(qPrecise);
+          if (!snapPrecise.empty) {
+            const docs = snapPrecise.docs.map(d => ({ id: d.id, ...d.data() }));
+            // Pick the most recent by createdAt/date
+            docs.sort((a, b) => new Date((b.createdAt?.toDate ? b.createdAt.toDate() : b.createdAt) || b.date || 0) - new Date((a.createdAt?.toDate ? a.createdAt.toDate() : a.createdAt) || a.date || 0));
+            foundDoc = docs[0];
+          }
+        } catch (e) {
+          // Likely missing index; fall back below
+          console.warn("[EmployeeDashboard] Precise contract query failed, fallback to broader scan:", e?.code || e?.message || e);
+        }
+
+        if (!foundDoc) {
+          // Fallback: load all company contracts and filter locally
+          const qBroad = query(
+            collection(db, "documents"),
+            where("companyId", "==", clientId),
+            where("type", "==", "contracts")
+          );
+          const snapBroad = await getDocs(qBroad);
+          const allDocs = snapBroad.docs.map(d => ({ id: d.id, ...d.data() }));
+          const normalizedName = employeeName.toLowerCase();
+          let filtered = allDocs.filter(d => (String(d.employeeName || "").trim().toLowerCase() === normalizedName));
+          // If not found by name, try optional employeeId field if present
+          if (!filtered.length && employeeId) {
+            filtered = allDocs.filter(d => String(d.employeeId || "") === String(employeeId));
+          }
+          const sorted = (filtered.length ? filtered : allDocs).sort((a, b) => new Date((b.createdAt?.toDate ? b.createdAt.toDate() : b.createdAt) || b.date || 0) - new Date((a.createdAt?.toDate ? a.createdAt.toDate() : a.createdAt) || a.date || 0));
+          foundDoc = sorted[0] || null;
+        }
+
+        setEmployeeContractDoc(foundDoc);
+      } catch (error) {
+        console.error("[EmployeeDashboard] Erreur chargement contrat Documents:", error);
+        setContractDocError("Erreur de chargement du contrat dans Documents: " + error.message);
+      } finally {
+        setContractDocLoading(false);
+      }
+    };
+
+    fetchContractDoc();
+  }, [clientId, employeeId, employeeData?.name]);
 
   // Validate leave requests
   useEffect(() => {
@@ -206,6 +287,65 @@ const EmployeeDashboard = () => {
       console.error("Erreur heures sup :", error.code, error.message);
       setErrorMessage("Erreur heures sup : " + error.message);
       toast.error("Erreur heures sup : " + error.message);
+    }
+  };
+
+  // Professional requests handlers
+  const handleRequestFilesSelect = (e) => {
+    const files = Array.from(e.target.files || []);
+    setRequestFiles(files);
+  };
+
+  const removeRequestFile = (index) => {
+    setRequestFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const submitProfessionalRequest = async () => {
+    if (!employeeData || !requestType.trim() || !requestSubject.trim() || !requestDescription.trim()) {
+      setRequestError("Veuillez renseigner le type, le sujet et la description.");
+      toast.error("Veuillez renseigner le type, le sujet et la description.");
+      return;
+    }
+    try {
+      setSubmittingRequest(true);
+      setRequestError("");
+      const prefix = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      const attachments = [];
+      for (let i = 0; i < requestFiles.length; i++) {
+        const f = requestFiles[i];
+        const path = `clients/${clientId}/employees/${employeeId}/requests/${prefix}_${encodeURIComponent(f.name)}`;
+        const fileRef = ref(storage, path);
+        await uploadBytes(fileRef, f);
+        const url = await getDownloadURL(fileRef);
+        attachments.push({ name: f.name, url, size: f.size, type: f.type });
+      }
+      const newReq = {
+        id: `${Date.now()}_${Math.random().toString(36).slice(2,9)}`,
+        createdAt: new Date().toISOString(),
+        type: requestType.trim(),
+        subject: requestSubject.trim(),
+        description: requestDescription.trim(),
+        startDate: requestStartDate || null,
+        endDate: requestEndDate || null,
+        status: "En attente",
+        attachments,
+      };
+      const employeeRef = doc(db, "clients", clientId, "employees", employeeId);
+      const nextList = [...(employeeData.professionalRequests || []), newReq];
+      await updateDoc(employeeRef, { professionalRequests: nextList });
+      setEmployeeData((prev) => ({ ...prev, professionalRequests: nextList }));
+      setRequestType("");
+      setRequestSubject("");
+      setRequestDescription("");
+      setRequestStartDate("");
+      setRequestEndDate("");
+      setRequestFiles([]);
+      toast.success("Demande envoyée avec succès !");
+    } catch (error) {
+      setRequestError("Erreur lors de l'envoi de la demande: " + error.message);
+      toast.error("Erreur lors de l'envoi de la demande: " + error.message);
+    } finally {
+      setSubmittingRequest(false);
     }
   };
 
@@ -591,6 +731,24 @@ const EmployeeDashboard = () => {
     setPageNumber(1);
   };
 
+  // Professional requests list
+  const professionalRequestsList = useMemo(() => {
+    if (!employeeData?.professionalRequests) return [];
+    let list = employeeData.professionalRequests.map((r, index) => ({
+      id: r.id || index,
+      createdAt: r.createdAt,
+      createdAtDisplay: displayDate(r.createdAt),
+      type: r.type || "",
+      subject: r.subject || "",
+      status: r.status || "En attente",
+      attachments: r.attachments || [],
+    }));
+    if (requestStatusFilter !== "Tous") {
+      list = list.filter((r) => r.status === requestStatusFilter);
+    }
+    return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }, [employeeData, requestStatusFilter]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex justify-center items-center bg-gray-50">
@@ -646,6 +804,13 @@ const EmployeeDashboard = () => {
       icon: FiFileText, 
       description: "Contrat de travail",
       badge: employeeData?.contract ? "✓" : null
+    },
+    { 
+      id: "requests", 
+      label: "Demandes", 
+      icon: FiFileText, 
+      description: "Demandes professionnelles",
+      badge: employeeData?.professionalRequests?.filter(r => r.status === "En attente")?.length || 0
     },
     { 
       id: "overtime", 
@@ -760,7 +925,7 @@ const EmployeeDashboard = () => {
         <div className="p-4 border-t border-blue-100">
           <div className="text-center">
             <p className="text-xs text-gray-500">PHRM v2.0</p>
-            <p className="text-xs text-gray-400">© 2024 Tous droits réservés</p>
+            <p className="text-xs text-gray-400"> 2024 Tous droits réservés</p>
           </div>
         </div>
       </aside>
@@ -790,6 +955,7 @@ const EmployeeDashboard = () => {
           {activeTab === "profile" && "Mon Profil"}
           {activeTab === "notifications" && "Notifications"}
           {activeTab === "contract" && "Mon Contrat"}
+          {activeTab === "requests" && "Mes Demandes"}
           {activeTab === "overtime" && "Heures Supplémentaires"}
         </h1>
       </div>
@@ -1628,43 +1794,76 @@ const EmployeeDashboard = () => {
           )}
           {activeTab === "contract" && (
             <Card title="Contrat de travail" className="animate-slide-in">
-              {employeeData.contract ? (
+              {contractDocLoading ? (
+                <div className="p-6 text-gray-600">Chargement du contrat...</div>
+              ) : contractDocError ? (
+                <div className="bg-red-100 text-red-600 p-3 rounded">{contractDocError}</div>
+              ) : employeeContractDoc ? (
                 <div>
-                  <p><strong>Type :</strong> {employeeData.contract.contractType || "N/A"}</p>
-                  <p><strong>Date de début :</strong> {displayContractStartDate(employeeData.contract.startDate)}</p>
-                  <p><strong>Salaire de base :</strong> {employeeData.contract.baseSalary ? `${employeeData.contract.baseSalary} FCFA` : "N/A"}</p>
-                  <p><strong>Poste :</strong> {employeeData.contract.poste || employeeData.poste || "N/A"}</p>
-                  {/* ... autres infos ... */}
-                  {employeeData.contract.fileUrl && (
-                    <a href={employeeData.contract.fileUrl} download className="text-blue-600 hover:underline mt-2 block">
-                      Télécharger le contrat PDF
-                  </a>
-                )}
-                <Button
-                    onClick={() => {
-                      // Export PDF contrat
-                      const employerData = {
-                        companyName: employeeData.companyName || employeeData.employerName || 'N/A',
-                        address: employeeData.companyAddress || 'N/A',
-                        cnpsNumber: employeeData.companyCNPS || 'N/A',
-                        id: employeeData.companyId || '',
-                      };
-                      // Utiliser la fonction d'export unifiée
-                      exportContractPDF(employeeData, employerData, employeeData.contract);
-                    }}
-                    variant="success"
-                  >
-                    Exporter PDF
-                </Button>
-              </div>
+                  {/* en-tête minimal basé sur le document */}
+                  <p><strong>Employé :</strong> {employeeContractDoc.employeeName || employeeData?.name || "N/A"}</p>
+                  <p><strong>Poste :</strong> {employeeContractDoc.employeePosition || employeeData?.poste || "N/A"}</p>
+                  <p><strong>Date de début :</strong> {displayContractStartDate(employeeContractDoc.startDate)}</p>
+                  {employeeContractDoc.endDate && (
+                    <p><strong>Date de fin :</strong> {displayContractEndDate(employeeContractDoc.endDate)}</p>
+                  )}
+                  {typeof employeeContractDoc.trialPeriod !== 'undefined' && (
+                    <p><strong>Période d'essai :</strong> {employeeContractDoc.trialPeriod || 0} mois</p>
+                  )}
+                  <p><strong>Lieu de travail :</strong> {employeeContractDoc.workplace || employeeContractDoc.workPlace || "N/A"}</p>
+                  {typeof employeeContractDoc.baseSalary !== 'undefined' && (
+                    <p><strong>Salaire de base :</strong> {Number(employeeContractDoc.baseSalary || 0).toLocaleString()} FCFA</p>
+                  )}
+                  {typeof employeeContractDoc.totalSalary !== 'undefined' && (
+                    <p><strong>Salaire total :</strong> {Number(employeeContractDoc.totalSalary || 0).toLocaleString()} FCFA</p>
+                  )}
+
+                  {employeeContractDoc.fileUrl && (
+                    <a
+                      href={employeeContractDoc.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline mt-2 block"
+                    >
+                      Voir le contrat
+                    </a>
+                  )}
+
+                  {/* Aperçu dynamique de toutes les données du document contrat */}
+                  <div className="mt-6">
+                    <h3 className="font-semibold text-lg text-gray-900">Aperçu des données</h3>
+                    <p className="text-sm text-gray-600">Vérifiez que toutes les informations sont correctes.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
+                      {Object.entries(employeeContractDoc || {}).map(([key, value]) => (
+                        <div key={key} className="p-3 bg-gray-50 rounded border border-gray-200">
+                          <div className="text-xs text-gray-500">
+                            {key
+                              .replace(/([A-Z])/g, ' $1')
+                              .replace(/_/g, ' ')
+                              .replace(/-/g, ' ')
+                              .replace(/\s+/g, ' ')
+                              .trim()
+                              .replace(/^./, (s) => s.toUpperCase())}
+                          </div>
+                          <div className="text-sm text-gray-900 break-words">
+                            {Array.isArray(value)
+                              ? value.join(', ')
+                              : (typeof value === 'object' && value !== null)
+                                ? JSON.stringify(value)
+                                : (value ?? '-')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div>
-                  <p className="text-gray-500">Aucun contrat trouvé.</p>
-                  {/* Optionnel : bouton pour demander la création */}
-          </div>
+                  <p className="text-gray-500">Aucun contrat trouvé dans Documents.</p>
+                </div>
               )}
             </Card>
-        )}
+          )}
 
         {activeTab === "overtime" && (
           <Card title="Heures Supplémentaires" className="animate-slide-in">
@@ -1754,6 +1953,251 @@ const EmployeeDashboard = () => {
                   <p className="text-gray-600 text-sm">
                     Aucune demande d'heures supplémentaires.
                   </p>
+                )}
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {activeTab === "requests" && (
+          <Card title="Mes Demandes" className="animate-slide-in">
+            <div className="space-y-6">
+              {/* Formulaire de création de demande */}
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h3 className="text-lg font-medium text-blue-900 mb-4">Nouvelle Demande</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Type de demande <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={requestType}
+                      onChange={(e) => setRequestType(e.target.value)}
+                      className="w-full p-3 border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800"
+                    >
+                      <option value="">Sélectionnez un type</option>
+                      <option value="Absence">Absence</option>
+                      <option value="Remboursement">Remboursement</option>
+                      <option value="Matériel">Demande de matériel</option>
+                      <option value="Autre">Autre demande</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Sujet <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={requestSubject}
+                      onChange={(e) => setRequestSubject(e.target.value)}
+                      className="w-full p-3 border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800"
+                      placeholder="Sujet de la demande"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Description <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={requestDescription}
+                      onChange={(e) => setRequestDescription(e.target.value)}
+                      rows={4}
+                      className="w-full p-3 border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800"
+                      placeholder="Décrivez votre demande en détail..."
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Date de début
+                      </label>
+                      <input
+                        type="date"
+                        value={requestStartDate}
+                        onChange={(e) => setRequestStartDate(e.target.value)}
+                        className="w-full p-3 border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Date de fin
+                      </label>
+                      <input
+                        type="date"
+                        value={requestEndDate}
+                        onChange={(e) => setRequestEndDate(e.target.value)}
+                        className="w-full p-3 border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800"
+                        min={requestStartDate}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Pièces jointes (optionnel)
+                    </label>
+                    <div className="mt-1 flex items-center">
+                      <label className="cursor-pointer bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <span>Choisir des fichiers</span>
+                        <input
+                          type="file"
+                          className="sr-only"
+                          multiple
+                          onChange={handleRequestFilesSelect}
+                        />
+                      </label>
+                      <span className="ml-2 text-sm text-gray-500">
+                        {requestFiles.length > 0
+                          ? `${requestFiles.length} fichier(s) sélectionné(s)`
+                          : "Aucun fichier sélectionné"}
+                      </span>
+                    </div>
+                    {requestFiles.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {requestFiles.map((file, index) => (
+                          <div key={index} className="flex items-center justify-between text-sm text-gray-600">
+                            <span className="truncate max-w-xs">{file.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeRequestFile(index)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <FiX className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {requestError && (
+                    <div className="text-red-600 text-sm mt-2">
+                      {requestError}
+                    </div>
+                  )}
+
+                  <div className="pt-2">
+                    <Button
+                      onClick={submitProfessionalRequest}
+                      disabled={submittingRequest}
+                      icon={submittingRequest ? FiLoader : FiSend}
+                      className="w-full"
+                    >
+                      {submittingRequest ? "Envoi en cours..." : "Envoyer la demande"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Liste des demandes */}
+              <div>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+                  <h3 className="text-lg font-medium text-gray-700">
+                    Historique des demandes
+                  </h3>
+                  <div className="mt-2 sm:mt-0">
+                    <select
+                      value={requestStatusFilter}
+                      onChange={(e) => setRequestStatusFilter(e.target.value)}
+                      className="p-2 border border-gray-200 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    >
+                      <option value="Tous">Tous les statuts</option>
+                      <option value="En attente">En attente</option>
+                      <option value="Approuvé">Approuvé</option>
+                      <option value="Refusé">Refusé</option>
+                      <option value="En cours">En cours de traitement</option>
+                    </select>
+                  </div>
+                </div>
+
+                {professionalRequestsList.length > 0 ? (
+                  <div className="overflow-hidden border border-gray-200 rounded-lg">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Date
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Type
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Sujet
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Statut
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Pièces jointes
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {professionalRequestsList.map((request) => (
+                          <tr key={request.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                              {request.createdAtDisplay}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                              {request.type}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-600">
+                              {request.subject}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span
+                                className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                  request.status === "En attente"
+                                    ? "bg-yellow-100 text-yellow-800"
+                                    : request.status === "Approuvé"
+                                    ? "bg-green-100 text-green-800"
+                                    : request.status === "Refusé"
+                                    ? "bg-red-100 text-red-800"
+                                    : "bg-blue-100 text-blue-800"
+                                }`}
+                              >
+                                {request.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                              {request.attachments?.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {request.attachments.map((file, idx) => (
+                                    <a
+                                      key={idx}
+                                      href={file.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center text-blue-600 hover:text-blue-800 text-xs"
+                                      title={file.name}
+                                    >
+                                      <FiPaperclip className="mr-1 h-3 w-3" />
+                                      {file.name.length > 15
+                                        ? `${file.name.substring(0, 12)}...`
+                                        : file.name}
+                                    </a>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400">Aucune pièce jointe</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 bg-gray-50 rounded-lg">
+                    <FiInbox className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">Aucune demande</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Vous n'avez pas encore soumis de demande.
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
