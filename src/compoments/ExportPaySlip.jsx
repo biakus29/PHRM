@@ -24,6 +24,15 @@ const REQUIRED_FIELDS = [
 ];
 
 function getValue(obj, path) {
+  if (!path) return undefined;
+  if (!obj) return undefined;
+  
+  // Handle direct properties (no dots in path)
+  if (!path.includes('.')) {
+    return obj[path];
+  }
+  
+  // Handle nested paths
   return path.split('.').reduce((acc, part) => acc && acc[part], obj);
 }
 
@@ -69,8 +78,34 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
     }
     // Vérification des champs obligatoires
     const payslip = { employee, employer, salaryDetails, remuneration, deductions, payPeriod, generatedAt };
-    const missing = REQUIRED_FIELDS.filter(f => !getValue(payslip, f.key));
-    if (missing.length > 0) {
+    
+    // Debug: log les données reçues pour diagnostiquer
+    console.log('ExportPaySlip - Données reçues:', {
+      employee: employee?.name,
+      matricule: employee?.matricule,
+      baseSalary: salaryDetails?.baseSalary,
+      payPeriod: payPeriod,
+      payPeriodType: typeof payPeriod,
+      payPeriodValue: JSON.stringify(payPeriod)
+    });
+    
+    const missing = REQUIRED_FIELDS.filter(f => {
+      const value = getValue(payslip, f.key);
+      const isMissing = !value || value === '' || value === null || value === undefined;
+      if (isMissing) {
+        console.log(`Champ manquant: ${f.key} = ${value} (type: ${typeof value})`);
+      }
+      return isMissing;
+    });
+    
+    // Si seul payPeriod est manquant, le générer automatiquement
+    if (missing.length === 1 && missing[0].key === 'payPeriod') {
+      const generatedPayPeriod = new Date().toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+      console.log(`Génération automatique de la période de paie: ${generatedPayPeriod}`);
+      payslip.payPeriod = generatedPayPeriod;
+      // Mettre à jour la variable payPeriod locale
+      payPeriod = generatedPayPeriod;
+    } else if (missing.length > 0) {
       const msg = "Impossible de générer le PDF. Champs manquants :\n" + missing.map(f => `- ${f.label}`).join("\n");
       if (toast) toast.error(msg);
       else alert(msg);
