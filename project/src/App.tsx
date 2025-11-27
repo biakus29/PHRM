@@ -1280,7 +1280,7 @@ function App() {
           <div className="text-center mt-16 animate-fade-in-up animation-delay-500">
             <div className="bg-gradient-to-r from-phrm-dark to-phrm-dark rounded-2xl p-8 text-white">
               <h3 className="text-2xl font-bold mb-4">Prêt à découvrir PHRM ?</h3>
-              <p className="text-blue-100 mb-6">Testez toutes ces fonctionnalités gratuitement pendant 30 jours</p>
+              <p className="text-blue-500 mb-6">Testez toutes ces fonctionnalités gratuitement pendant 30 jours</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <a href="https://phrmapp.com/demo" className="bg-white text-phrm-dark px-8 py-4 rounded-lg hover:bg-phrm-light transition-all transform hover:scale-105 shadow-lg font-semibold inline-block text-center">
                   Démo interactive
@@ -1361,7 +1361,7 @@ function App() {
               </ul>
             </div>
           </div>
-          <div className="mt-8 p-6 bg-gradient-to-r from-phrm-dark to-phrm-dark rounded-xl text-white">
+          <div className="mt-8 p-6 bg-gradient-to-r from-phrm-dark to-phrm-dark rounded-xl text-black">
             <p className="text-lg text-center leading-relaxed">
               Avec PHRM, vos employés accèdent à toutes leurs informations salariales et données personnelles de manière numérique, <span className="font-semibold">sans avoir besoin de contacter le service RH</span>.
             </p>
@@ -1521,11 +1521,11 @@ function App() {
 
           {/* CTA Principal */}
           <div className="text-center animate-fade-in-up animation-delay-300">
-            <div className="bg-gradient-to-r from-phrm-dark to-blue-700 rounded-2xl p-8 md:p-12 text-white shadow-2xl">
+            <div className="bg-gradient-to-r from-phrm-dark to-blue-700 rounded-2xl p-8 md:p-12 text-black shadow-2xl">
               <h3 className="text-2xl md:text-3xl font-bold mb-4">
                 Explorez notre blog
               </h3>
-              <p className="text-blue-100 mb-8 text-lg max-w-2xl mx-auto">
+              <p className="text-blue-500 mb-8 text-lg max-w-2xl mx-auto">
                 Découvrez des articles régulièrement mis à jour sur la gestion des ressources humaines, 
                 la conformité CNPS, et bien plus encore.
               </p>
@@ -1858,7 +1858,7 @@ function App() {
             <h2 className="text-4xl font-bold text-white mb-6 animate-fade-in-up">
               Prêt à moderniser votre gestion RH ?
             </h2>
-            <p className="text-xl text-blue-100 mb-8 animate-fade-in-up animation-delay-200">
+            <p className="text-xl text-blue-500 mb-8 animate-fade-in-up animation-delay-200">
               Rejoignez les centaines d'entreprises camerounaises qui nous font confiance
             </p>
           </div>
@@ -1867,27 +1867,27 @@ function App() {
             {/* Contact Info Cards */}
             <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 text-center hover:bg-white/20 transition-all duration-300 hover:scale-105 group animate-fade-in-up">
               <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:animate-bounce">
-                <Mail className="w-8 h-8 text-white" />
+                <Mail className="w-8 h-8 text-blue-500" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-4">Email</h3>
+              <h3 className="text-xl font-bold text-blue-500 mb-4">Email</h3>
               <p className="text-blue-400 mb-4">sarphrm17@gmail.com</p>
               <p className="text-sm text-blue-300">Réponse sous 24h</p>
             </div>
 
             <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 text-center hover:bg-white/20 transition-all duration-300 hover:scale-105 group animate-fade-in-up animation-delay-100">
               <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:animate-bounce">
-                <Phone className="w-8 h-8 text-white" />
+                <Phone className="w-8 h-8 text-blue-500" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-4">Téléphone</h3>
+              <h3 className="text-xl font-bold text-blue-500 mb-4">Téléphone</h3>
               <p className="text-blue-400 mb-4">+237 6 91313674</p>
               <p className="text-sm text-blue-300">Lun - Ven: 8h00 - 18h00</p>
             </div>
 
             <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 text-center hover:bg-white/20 transition-all duration-300 hover:scale-105 group animate-fade-in-up animation-delay-200">
               <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:animate-bounce">
-                <MapPin className="w-8 h-8 text-white" />
+                <MapPin className="w-8 h-8 text-blue-500" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-4">Adresse</h3>
+              <h3 className="text-xl font-bold text-blue-500 mb-4">Adresse</h3>
               <p className="text-blue-400 mb-4">YaoundéCameroun</p>
               <p className="text-sm text-blue-300">Bureau principal</p>
             </div>

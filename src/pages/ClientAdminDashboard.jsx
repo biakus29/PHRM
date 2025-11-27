@@ -3,7 +3,6 @@ import TemplateSelector from "../components/TemplateSelector";
 import DocumentsManager from "../components/DocumentsManager";
 import { createRoot } from "react-dom/client";
 import { auth, db } from "../firebase";
-import { createUserWithEmailAndPassword } from "firebase/auth";
 import {
   doc,
   getDocs,
@@ -50,12 +49,6 @@ import {
   Upload,
   FileText,
   Trash,
-  Lock,
-  Key,
-  User,
-  Copy,
-  RefreshCw,
-  Database,
 } from "lucide-react";
 import {
   Chart as ChartJS,
@@ -116,7 +109,6 @@ import BadgeStudio from "../components/BadgeStudio";
 import Card from "../components/Card";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { formatDateOfBirthInput, validateDateOfBirth, convertFrenchDateToISO, ensureEmployeeFields } from "../utils/dateHelpers";
-import { generateInternalEmail, generateUniqueInternalEmail } from "../utils/emailUtils";
 import EmployeeSelector from "../components/EmployeeSelector";
 import LogoUploader from "../components/LogoUploader";
 import EmployeeForm from "../components/EmployeeForm";
@@ -155,8 +147,6 @@ const CompanyAdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  // Demandes professionnelles (admin)
-  const [requestProFilter, setRequestProFilter] = useState("Tous");
 
   const [newEmployee, setNewEmployee] = useState({
   name: "",
@@ -212,32 +202,6 @@ const CompanyAdminDashboard = () => {
   const [showPostCreateModal, setShowPostCreateModal] = useState(false);
   const [showBadgeForm, setShowBadgeForm] = useState(false);
   const [employeeForBadge, setEmployeeForBadge] = useState(null);
-  const [employeeDetailTab, setEmployeeDetailTab] = useState("info"); // "info" ou "credentials"
-
-  // Agréger les demandes professionnelles de tous les employés
-  const professionalRequestsAdmin = useMemo(() => {
-    const rows = [];
-    for (const emp of employees || []) {
-      const list = Array.isArray(emp.professionalRequests) ? emp.professionalRequests : [];
-      for (const r of list) {
-        rows.push({
-          id: r.id || `${emp.id}_${rows.length}`,
-          employeeId: emp.id,
-          employeeName: emp.name || emp.email || emp.id,
-          createdAt: r.createdAt,
-          createdAtDisplay: displayDate ? displayDate(r.createdAt) : (r.createdAt || ""),
-          type: r.type || "",
-          subject: r.subject || "",
-          description: r.description || "",
-          status: r.status || "En attente",
-          attachments: r.attachments || [],
-          _raw: r,
-        });
-      }
-    }
-    const filtered = requestProFilter === "Tous" ? rows : rows.filter(r => r.status === requestProFilter);
-    return filtered.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [employees, requestProFilter]);
   
   // Ajout des hooks pour suggestions
   const [allResidences, setAllResidences] = useState([]);
@@ -697,43 +661,6 @@ const addEmployee = async (e) => {
         Number(newEmployee.baseSalary) || 0
       );
       
-      // Générer un email interne pour l'employé (mode démo)
-      let internalEmail = null;
-      try {
-        internalEmail = generateInternalEmail(
-          newEmployee.name,
-          companyData.email || demoData?.originalEmail,
-          companyData.name || demoData?.companyName
-        );
-        
-        // Vérifier si l'email interne existe déjà dans Firestore
-        const checkEmailExists = async (email) => {
-          try {
-            const clientsSnapshot = await getDocs(collection(db, "clients"));
-            for (const clientDoc of clientsSnapshot.docs) {
-              const employeeQuery = query(
-                collection(db, "clients", clientDoc.id, "employees"),
-                where("internalEmail", "==", email)
-              );
-              const employeeSnapshot = await getDocs(employeeQuery);
-              if (!employeeSnapshot.empty) {
-                return true;
-              }
-            }
-            return false;
-          } catch (error) {
-            console.warn("Erreur lors de la vérification de l'email:", error);
-            return false;
-          }
-        };
-
-        // Générer un email unique si nécessaire
-        internalEmail = await generateUniqueInternalEmail(internalEmail, checkEmailExists);
-        console.log("Email interne généré pour l'employé (démo):", internalEmail);
-      } catch (emailError) {
-        console.warn("Erreur lors de la génération de l'email interne (démo):", emailError);
-      }
-      
       // Créer l'employé avec flag temporaire
       const employeeData = {
         ...newEmployee,
@@ -743,27 +670,7 @@ const addEmployee = async (e) => {
         createdAt: new Date().toISOString(),
         isTemporary: true, // Flag pour identifier les employés de démo
         demoExpiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 jours
-        // Informations de connexion - Stocker le mot de passe initial
-        initialPassword: newEmployee.initialPassword || "123456", // Mot de passe initial par défaut
-        currentPassword: newEmployee.initialPassword || "123456", // Mot de passe actuel (identique à l'initial au départ)
-        passwordChanged: false, // Indicateur si le mot de passe a été changé
-        // Email interne de l'entreprise
-        internalEmail: internalEmail || null,
       };
-      
-      // Créer un compte Firebase Auth pour l'employé avec l'email interne (mode démo)
-      if (internalEmail) {
-        try {
-          const password = newEmployee.initialPassword || "123456";
-          const userCredential = await createUserWithEmailAndPassword(auth, internalEmail, password);
-          employeeData.authUid = userCredential.user.uid;
-          console.log("Compte Firebase Auth créé pour l'employé (démo) avec l'email interne:", internalEmail);
-        } catch (authError) {
-          if (authError.code !== 'auth/email-already-in-use') {
-            console.warn("Impossible de créer un compte Firebase Auth pour l'employé (démo):", authError.message);
-          }
-        }
-      }
       
       // Sauvegarder dans Firestore
       await svcAddEmployee(db, companyData.id, employeeData);
@@ -838,45 +745,6 @@ const addEmployee = async (e) => {
         { seniority: newEmployee.seniority || 0 },
         Number(newEmployee.baseSalary) || 0
       );
-      // Générer un email interne pour l'employé
-      let internalEmail = null;
-      try {
-        internalEmail = generateInternalEmail(
-          newEmployee.name,
-          companyData.email,
-          companyData.name
-        );
-        
-        // Vérifier si l'email interne existe déjà dans Firestore
-        const checkEmailExists = async (email) => {
-          try {
-            // Vérifier dans tous les clients
-            const clientsSnapshot = await getDocs(collection(db, "clients"));
-            for (const clientDoc of clientsSnapshot.docs) {
-              const employeeQuery = query(
-                collection(db, "clients", clientDoc.id, "employees"),
-                where("internalEmail", "==", email)
-              );
-              const employeeSnapshot = await getDocs(employeeQuery);
-              if (!employeeSnapshot.empty) {
-                return true;
-              }
-            }
-            return false;
-          } catch (error) {
-            console.warn("Erreur lors de la vérification de l'email:", error);
-            return false;
-          }
-        };
-
-        // Générer un email unique si nécessaire
-        internalEmail = await generateUniqueInternalEmail(internalEmail, checkEmailExists);
-        console.log("Email interne généré pour l'employé:", internalEmail);
-      } catch (emailError) {
-        console.warn("Erreur lors de la génération de l'email interne:", emailError);
-        // Continuer sans email interne si la génération échoue
-      }
-
       const employeeData = {
         ...newEmployee,
         seniorityYears: seniorityData.years,
@@ -889,56 +757,10 @@ const addEmployee = async (e) => {
         payslips: [],
         createdAt: new Date().toISOString(),
         department: newEmployee.department,
-        // Informations de connexion - Stocker le mot de passe initial
-        initialPassword: newEmployee.initialPassword || "123456", // Mot de passe initial par défaut
-        currentPassword: newEmployee.initialPassword || "123456", // Mot de passe actuel (identique à l'initial au départ)
-        passwordChanged: false, // Indicateur si le mot de passe a été changé
-        // Email interne de l'entreprise
-        internalEmail: internalEmail || null,
       };
-      
-      // Créer un compte Firebase Auth pour l'employé avec l'email interne
-      let authUid = null;
-      if (internalEmail) {
-        try {
-          const password = newEmployee.initialPassword || "123456";
-          const userCredential = await createUserWithEmailAndPassword(auth, internalEmail, password);
-          authUid = userCredential.user.uid;
-          employeeData.authUid = authUid; // Stocker l'UID Firebase Auth
-          console.log("Compte Firebase Auth créé pour l'employé avec l'email interne:", internalEmail, authUid);
-          toast.success(`Compte créé avec l'email interne: ${internalEmail}`);
-        } catch (authError) {
-          // Si l'email est déjà utilisé, ce n'est pas grave (l'employé peut déjà avoir un compte)
-          if (authError.code === 'auth/email-already-in-use') {
-            console.log("L'email interne est déjà utilisé pour Firebase Auth, continuer sans créer de compte");
-            toast.warning("L'email interne existe déjà, l'employé pourra utiliser son email personnel pour se connecter");
-          } else {
-            console.warn("Impossible de créer un compte Firebase Auth pour l'employé:", authError.message);
-            toast.warning("Impossible de créer le compte Firebase Auth, l'employé utilisera la méthode de connexion standard");
-            // Continuer quand même - l'employé pourra utiliser la méthode legacy
-          }
-        }
-      } else {
-        // Si pas d'email interne, essayer avec l'email fourni
-        try {
-          const password = newEmployee.initialPassword || "123456";
-          const userCredential = await createUserWithEmailAndPassword(auth, newEmployee.email, password);
-          authUid = userCredential.user.uid;
-          employeeData.authUid = authUid;
-          console.log("Compte Firebase Auth créé pour l'employé avec l'email fourni:", newEmployee.email, authUid);
-        } catch (authError) {
-          if (authError.code === 'auth/email-already-in-use') {
-            console.log("L'email est déjà utilisé pour Firebase Auth, continuer sans créer de compte");
-          } else {
-            console.warn("Impossible de créer un compte Firebase Auth pour l'employé:", authError.message);
-          }
-        }
-      }
-      
       employeeId = await svcAddEmployee(db, companyData.id, employeeData);
       toast.success("Employé ajouté avec succès !");
     }
-    
     // Préparer les données pour le modal de choix de documents
     const today = new Date().toISOString().split('T')[0];
     const preparedContractDoc = {
@@ -1062,325 +884,6 @@ const addEmployee = async (e) => {
     setActionLoading(false);
   }
 };
-
-// Mettre à jour tous les emails internes existants vers le nouveau format
-const updateExistingInternalEmails = async () => {
-  if (!companyData?.id) {
-    toast.error("ID de l'entreprise manquant.");
-    return;
-  }
-
-  setActionLoading(true);
-  try {
-    // Filtrer les employés qui ont déjà un email interne (à mettre à jour)
-    const employeesWithInternalEmail = employees.filter(
-      emp => emp.internalEmail && emp.name
-    );
-
-    if (employeesWithInternalEmail.length === 0) {
-      toast.info("Aucun employé avec email interne à mettre à jour.");
-      setActionLoading(false);
-      return;
-    }
-
-    // Demander confirmation
-    if (!window.confirm(
-      `Vous allez mettre à jour ${employeesWithInternalEmail.length} email(s) interne(s) vers le nouveau format (nom@nomentreprise.com).\n\n` +
-      `Les anciens comptes Firebase Auth seront conservés mais les nouveaux emails seront créés.\n\n` +
-      `Continuer ?`
-    )) {
-      setActionLoading(false);
-      return;
-    }
-
-    // Fonction pour vérifier si un email existe déjà
-    const checkEmailExists = async (email, excludeEmployeeId = null) => {
-      try {
-        const clientsSnapshot = await getDocs(collection(db, "clients"));
-        for (const clientDoc of clientsSnapshot.docs) {
-          const employeeQuery = query(
-            collection(db, "clients", clientDoc.id, "employees"),
-            where("internalEmail", "==", email)
-          );
-          const employeeSnapshot = await getDocs(employeeQuery);
-          for (const empDoc of employeeSnapshot.docs) {
-            // Ignorer l'employé actuel si spécifié
-            if (excludeEmployeeId && empDoc.id === excludeEmployeeId) {
-              continue;
-            }
-            return true;
-          }
-        }
-        return false;
-      } catch (error) {
-        console.warn("Erreur lors de la vérification de l'email:", error);
-        return false;
-      }
-    };
-
-    let successCount = 0;
-    let errorCount = 0;
-    let skippedCount = 0;
-    const errors = [];
-
-    // Traiter chaque employé
-    for (const employee of employeesWithInternalEmail) {
-      try {
-        // Générer le nouvel email interne avec le nouveau format
-        let newInternalEmail = generateInternalEmail(
-          employee.name,
-          companyData.email,
-          companyData.name
-        );
-
-        // Vérifier si le nouvel email est différent de l'ancien
-        if (newInternalEmail === employee.internalEmail) {
-          skippedCount++;
-          continue; // L'email est déjà au bon format
-        }
-
-        // Générer un email unique si nécessaire (en excluant l'employé actuel)
-        newInternalEmail = await generateUniqueInternalEmail(
-          newInternalEmail, 
-          (email) => checkEmailExists(email, employee.id)
-        );
-
-        // Vérifier d'abord si un compte Firebase Auth existe déjà avec ce nouvel email
-        // en cherchant dans Firestore les employés qui ont déjà cet email interne
-        let authUid = employee.authUid || null;
-        let existingAuthUid = null;
-        
-        try {
-          // Chercher si un autre employé a déjà cet email interne
-          const clientsSnapshot = await getDocs(collection(db, "clients"));
-          for (const clientDoc of clientsSnapshot.docs) {
-            const employeeQuery = query(
-              collection(db, "clients", clientDoc.id, "employees"),
-              where("internalEmail", "==", newInternalEmail)
-            );
-            const employeeSnapshot = await getDocs(employeeQuery);
-            
-            for (const empDoc of employeeSnapshot.docs) {
-              // Ignorer l'employé actuel
-              if (empDoc.id !== employee.id) {
-                const empData = empDoc.data();
-                if (empData.authUid) {
-                  existingAuthUid = empData.authUid;
-                  console.log(`Un compte Firebase Auth existe déjà pour ${newInternalEmail} (employé: ${empData.name})`);
-                  break;
-                }
-              }
-            }
-            if (existingAuthUid) break;
-          }
-        } catch (error) {
-          console.warn("Erreur lors de la vérification de l'email existant:", error);
-        }
-
-        // Si un compte existe déjà, utiliser son authUid
-        if (existingAuthUid) {
-          authUid = existingAuthUid;
-          console.log(`Utilisation du compte Firebase Auth existant pour ${employee.name}: ${newInternalEmail}`);
-        } else {
-          // Sinon, essayer de créer un nouveau compte Firebase Auth
-          const password = employee.initialPassword || employee.currentPassword || "123456";
-          
-          try {
-            const userCredential = await createUserWithEmailAndPassword(auth, newInternalEmail, password);
-            authUid = userCredential.user.uid;
-            console.log(`Nouveau compte Firebase Auth créé pour ${employee.name}: ${newInternalEmail}`);
-          } catch (authError) {
-            if (authError.code === 'auth/email-already-in-use') {
-              console.log(`L'email ${newInternalEmail} est déjà utilisé pour Firebase Auth (mais pas trouvé dans Firestore)`);
-              // Ne pas créer de compte, garder l'ancien authUid si disponible
-              // L'email interne sera quand même mis à jour dans Firestore
-            } else {
-              console.warn(`Impossible de créer un compte Firebase Auth pour ${employee.name}:`, authError.message);
-              // Continuer avec l'ancien authUid si disponible
-            }
-          }
-        }
-
-        // Mettre à jour l'employé dans Firestore
-        const updateData = {
-          internalEmail: newInternalEmail,
-        };
-        
-        if (authUid) {
-          updateData.authUid = authUid;
-        }
-
-        await svcUpdateEmployee(db, companyData.id, employee.id, updateData);
-
-        // Mettre à jour localement
-        const updatedEmployees = employees.map(emp => 
-          emp.id === employee.id 
-            ? { ...emp, internalEmail: newInternalEmail, authUid: authUid || emp.authUid }
-            : emp
-        );
-        setEmployees(updatedEmployees);
-
-        successCount++;
-      } catch (error) {
-        console.error(`Erreur lors de la mise à jour de l'email pour ${employee.name}:`, error);
-        errorCount++;
-        errors.push(`${employee.name}: ${error.message}`);
-      }
-    }
-
-    // Afficher le résultat
-    if (successCount > 0) {
-      toast.success(
-        `✅ ${successCount} email${successCount > 1 ? 's' : ''} interne${successCount > 1 ? 's' : ''} mis${successCount > 1 ? '' : ''} à jour avec succès !`
-      );
-    }
-    
-    if (skippedCount > 0) {
-      toast.info(
-        `ℹ️ ${skippedCount} email${skippedCount > 1 ? 's' : ''} déjà au bon format, ignoré${skippedCount > 1 ? 's' : ''}.`
-      );
-    }
-    
-    if (errorCount > 0) {
-      toast.warning(
-        `⚠️ ${errorCount} erreur${errorCount > 1 ? 's' : ''} lors de la mise à jour. Voir la console pour plus de détails.`
-      );
-      console.error("Erreurs détaillées:", errors);
-    }
-
-  } catch (error) {
-    console.error("Erreur lors de la mise à jour des emails internes:", error);
-    toast.error(`Erreur lors de la mise à jour des emails internes : ${error.message}`);
-  } finally {
-    setActionLoading(false);
-  }
-};
-
-// Générer des emails internes pour les employés existants qui n'en ont pas
-const generateInternalEmailsForExistingEmployees = async () => {
-  if (!companyData?.id) {
-    toast.error("ID de l'entreprise manquant.");
-    return;
-  }
-
-  setActionLoading(true);
-  try {
-    // Filtrer les employés qui n'ont pas d'email interne
-    const employeesWithoutInternalEmail = employees.filter(
-      emp => !emp.internalEmail && emp.name
-    );
-
-    if (employeesWithoutInternalEmail.length === 0) {
-      toast.info("Tous les employés ont déjà un email interne.");
-      setActionLoading(false);
-      return;
-    }
-
-    // Fonction pour vérifier si un email existe déjà
-    const checkEmailExists = async (email) => {
-      try {
-        const clientsSnapshot = await getDocs(collection(db, "clients"));
-        for (const clientDoc of clientsSnapshot.docs) {
-          const employeeQuery = query(
-            collection(db, "clients", clientDoc.id, "employees"),
-            where("internalEmail", "==", email)
-          );
-          const employeeSnapshot = await getDocs(employeeQuery);
-          if (!employeeSnapshot.empty) {
-            return true;
-          }
-        }
-        return false;
-      } catch (error) {
-        console.warn("Erreur lors de la vérification de l'email:", error);
-        return false;
-      }
-    };
-
-    let successCount = 0;
-    let errorCount = 0;
-    const errors = [];
-
-    // Traiter chaque employé
-    for (const employee of employeesWithoutInternalEmail) {
-      try {
-        // Générer l'email interne
-        let internalEmail = generateInternalEmail(
-          employee.name,
-          companyData.email,
-          companyData.name
-        );
-
-        // Générer un email unique si nécessaire
-        internalEmail = await generateUniqueInternalEmail(internalEmail, checkEmailExists);
-
-        // Créer le compte Firebase Auth
-        let authUid = null;
-        const password = employee.initialPassword || employee.currentPassword || "123456";
-        
-        try {
-          const userCredential = await createUserWithEmailAndPassword(auth, internalEmail, password);
-          authUid = userCredential.user.uid;
-          console.log(`Compte Firebase Auth créé pour ${employee.name}: ${internalEmail}`);
-        } catch (authError) {
-          if (authError.code === 'auth/email-already-in-use') {
-            console.log(`L'email ${internalEmail} est déjà utilisé pour Firebase Auth`);
-            // Continuer quand même, on mettra à jour l'email interne
-          } else {
-            console.warn(`Impossible de créer un compte Firebase Auth pour ${employee.name}:`, authError.message);
-            // Continuer quand même
-          }
-        }
-
-        // Mettre à jour l'employé dans Firestore
-        const updateData = {
-          internalEmail: internalEmail,
-        };
-        
-        if (authUid) {
-          updateData.authUid = authUid;
-        }
-
-        await svcUpdateEmployee(db, companyData.id, employee.id, updateData);
-
-        // Mettre à jour localement
-        const updatedEmployees = employees.map(emp => 
-          emp.id === employee.id 
-            ? { ...emp, internalEmail, authUid: authUid || emp.authUid }
-            : emp
-        );
-        setEmployees(updatedEmployees);
-
-        successCount++;
-      } catch (error) {
-        console.error(`Erreur lors de la génération de l'email pour ${employee.name}:`, error);
-        errorCount++;
-        errors.push(`${employee.name}: ${error.message}`);
-      }
-    }
-
-    // Afficher le résultat
-    if (successCount > 0) {
-      toast.success(
-        `✅ ${successCount} email${successCount > 1 ? 's' : ''} interne${successCount > 1 ? 's' : ''} généré${successCount > 1 ? 's' : ''} avec succès !`
-      );
-    }
-    
-    if (errorCount > 0) {
-      toast.warning(
-        `⚠️ ${errorCount} erreur${errorCount > 1 ? 's' : ''} lors de la génération. Voir la console pour plus de détails.`
-      );
-      console.error("Erreurs détaillées:", errors);
-    }
-
-  } catch (error) {
-    console.error("Erreur lors de la génération des emails internes:", error);
-    toast.error(`Erreur lors de la génération des emails internes : ${error.message}`);
-  } finally {
-    setActionLoading(false);
-  }
-};
-
 const saveContract = async (contractData) => {
   setActionLoading(true);
   try {
@@ -1432,34 +935,6 @@ const saveContract = async (contractData) => {
       setActionLoading(false);
     }
   }, [companyData, employees, isDemoAccount]);
-
-  // Gérer les demandes professionnelles (Accepter / Refuser)
-  const handleProfessionalRequestAction = useCallback(async (employeeId, requestId, action) => {
-    try {
-      setActionLoading(true);
-      const employee = employees.find((e) => e.id === employeeId);
-      if (!employee) {
-        toast.error("Employé introuvable");
-        return;
-      }
-      const list = Array.isArray(employee.professionalRequests) ? employee.professionalRequests : [];
-      const idx = list.findIndex(r => r.id === requestId);
-      const indexToUpdate = idx >= 0 ? idx : list.findIndex((r) => r === requestId);
-      if (indexToUpdate < 0) {
-        toast.error("Demande introuvable");
-        return;
-      }
-      const updated = [...list];
-      updated[indexToUpdate] = { ...updated[indexToUpdate], status: action };
-      await updateEmployee(employeeId, { professionalRequests: updated });
-      toast.success(`Demande ${action.toLowerCase()}e`);
-    } catch (e) {
-      console.error("[handleProfessionalRequestAction]", e);
-      toast.error("Erreur lors de la mise à jour de la demande");
-    } finally {
-      setActionLoading(false);
-    }
-  }, [employees, updateEmployee]);
 
   // Gérer les demandes de congé
   const handleLeaveRequest = useCallback(async (employeeId, requestIndex, action) => {
@@ -2387,7 +1862,6 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
                 {activeTab === "reports" && "📈 Rapports"}
                 {activeTab === "notifications" && "🔔 Notifications"}
                 {activeTab === "settings" && "⚙️ Paramètres"}
-                {activeTab === "requests-pro" && "📥 Demandes Professionnelles"}
               </h1>
               
               {/* Boutons d'action mobile */}
@@ -2487,14 +1961,6 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
                     >
                       <Download className="w-5 h-5 text-white mb-1" />
                       <span className="text-xs text-white font-medium">Export</span>
-                    </button>
-
-                    <button
-                      onClick={() => setActiveTab("requests-pro")}
-                      className="flex flex-col items-center p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 hover:scale-105 backdrop-blur-sm"
-                    >
-                      <FileText className="w-5 h-5 text-white mb-1" />
-                      <span className="text-xs text-white font-medium">Demandes pro</span>
                     </button>
                   </div>
                 </div>
@@ -2968,110 +2434,6 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
               </Card>
             </div>
           )}
-
-          {activeTab === "requests-pro" && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold text-gray-900">Demandes Professionnelles</h1>
-                <div>
-                  <select
-                    value={requestProFilter}
-                    onChange={(e) => setRequestProFilter(e.target.value)}
-                    className="p-2 border border-gray-200 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  >
-                    <option value="Tous">Tous les statuts</option>
-                    <option value="En attente">En attente</option>
-                    <option value="Approuvé">Approuvé</option>
-                    <option value="Refusé">Refusé</option>
-                    <option value="En cours">En cours de traitement</option>
-                  </select>
-                </div>
-              </div>
-
-              <Card>
-                {professionalRequestsAdmin.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employé</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sujet</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pièces jointes</th>
-                          <th className="px-4 py-3"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {professionalRequestsAdmin.map((r) => (
-                          <tr key={`${r.employeeId}_${r.id}`} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{r.createdAtDisplay}</td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{r.employeeName}</td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{r.type}</td>
-                            <td className="px-4 py-3 text-sm text-gray-600">{r.subject}</td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              <span className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                r.status === "En attente"
-                                  ? "bg-yellow-100 text-yellow-800"
-                                  : r.status === "Approuvé"
-                                  ? "bg-green-100 text-green-800"
-                                  : r.status === "Refusé"
-                                  ? "bg-red-100 text-red-800"
-                                  : "bg-blue-100 text-blue-800"
-                              }`}>
-                                {r.status}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                              {r.attachments?.length > 0 ? (
-                                <div className="flex flex-wrap gap-1">
-                                  {r.attachments.map((f, idx) => (
-                                    <a key={idx} href={f.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 text-xs underline">
-                                      {f.name?.length > 18 ? `${f.name.slice(0,15)}...` : f.name}
-                                    </a>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span className="text-gray-400">Aucune PJ</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm">
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  onClick={() => handleProfessionalRequestAction(r.employeeId, r.id, "Approuvé")}
-                                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded"
-                                  disabled={actionLoading || r.status === "Approuvé"}
-                                >
-                                  <Check className="w-4 h-4" />
-                                  Approuver
-                                </Button>
-                                <Button
-                                  onClick={() => handleProfessionalRequestAction(r.employeeId, r.id, "Refusé")}
-                                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded"
-                                  disabled={actionLoading || r.status === "Refusé"}
-                                >
-                                  <XCircle className="w-4 h-4" />
-                                  Refuser
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="text-center py-8 bg-gray-50 rounded-lg">
-                    <div className="mx-auto h-12 w-12 text-gray-400">📭</div>
-                    <h3 className="mt-2 text-sm font-medium text-gray-900">Aucune demande</h3>
-                    <p className="mt-1 text-sm text-gray-500">Aucune demande professionnelle à afficher.</p>
-                  </div>
-                )}
-              </Card>
-            </div>
-          )}
-
 {activeTab === "employees" && (
   <div className="space-y-6">
     {/* En-tête amélioré avec actions rapides */}
@@ -3110,33 +2472,11 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
             <span className="hidden sm:inline">Exporter</span>
             <span className="sm:hidden">Export</span>
           </Button>
-          
-          <Button 
-            onClick={generateInternalEmailsForExistingEmployees}
-            disabled={actionLoading}
-            className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Générer des emails internes pour les employés existants"
-          >
-            <Key className="w-4 h-4" />
-            <span className="hidden sm:inline">Créer Emails Internes</span>
-            <span className="sm:hidden">Emails</span>
-          </Button>
-          
-          <Button 
-            onClick={updateExistingInternalEmails}
-            disabled={actionLoading}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Mettre à jour les emails internes existants vers le nouveau format (nom@nomentreprise.com)"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span className="hidden sm:inline">Mettre à Jour Emails</span>
-            <span className="sm:hidden">MàJ</span>
-          </Button>
         </div>
       </div>
       
       {/* Statistiques rapides */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mt-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
         <div className="bg-blue-50 rounded-lg p-3 text-center">
           <p className="text-2xl font-bold text-blue-600">{employees.length}</p>
           <p className="text-xs text-blue-600">Total</p>
@@ -3152,10 +2492,6 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
         <div className="bg-purple-50 rounded-lg p-3 text-center">
           <p className="text-2xl font-bold text-purple-600">{new Set(employees.map(emp => emp.department).filter(Boolean)).size}</p>
           <p className="text-xs text-purple-600">Départements</p>
-        </div>
-        <div className="bg-orange-50 rounded-lg p-3 text-center">
-          <p className="text-2xl font-bold text-orange-600">{employees.filter(emp => !emp.internalEmail && emp.name).length}</p>
-          <p className="text-xs text-orange-600">Sans Email Interne</p>
         </div>
       </div>
     </div>
@@ -3317,351 +2653,38 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
   setShowContract(false);
   setShowEmployeeModal(false);
   setPaySlipData(null);
-  setEmployeeDetailTab("info"); // Réinitialiser l'onglet
 }}>
   {selectedEmployee && (
     <div className="space-y-4">
       {console.log('[DEBUG] Affichage modal employé:', selectedEmployee)}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">Détails de l'Employé - {selectedEmployee.name || 'N/A'}</h2>
-        <img
-          src={selectedEmployee.profilePicture || "https://ui-avatars.com/api/?name=Inconnu&background=60A5FA&color=fff"}
-          alt={selectedEmployee.name || "Employé"}
-          className="w-16 h-16 rounded-full"
-          onError={(e) => (e.target.src = "https://ui-avatars.com/api/?name=Inconnu&background=60A5FA&color=fff")}
-        />
-      </div>
-
-      {/* Onglets */}
-      <div className="border-b border-gray-200 mb-4">
-        <nav className="flex space-x-4">
-          <button
-            onClick={() => setEmployeeDetailTab("info")}
-            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
-              employeeDetailTab === "info"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <User className="w-4 h-4" />
-              Informations
-            </div>
-          </button>
-          <button
-            onClick={() => setEmployeeDetailTab("credentials")}
-            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
-              employeeDetailTab === "credentials"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <Lock className="w-4 h-4" />
-              Informations de connexion
-            </div>
-          </button>
-        </nav>
-      </div>
-
-      {/* Contenu des onglets */}
-      {employeeDetailTab === "info" && (
-        <div className="space-y-3">
-          <p><strong>Nom:</strong> {selectedEmployee.name || "Non renseigné"}</p>
-          <p><strong>Email:</strong> {selectedEmployee.email || "Non renseigné"}</p>
-          <p><strong>Poste:</strong> {selectedEmployee.poste || "Non renseigné"}</p>
-          <p><strong>Departement:</strong> {typeof displayDepartment === 'function' ? displayDepartment(selectedEmployee.department) : (selectedEmployee.department || "Non renseigne")}</p>
-          <p><strong>Date d'embauche:</strong> {typeof displayDate === 'function' ? displayDate(selectedEmployee.hireDate) : (selectedEmployee.hireDate || "Non renseigné")}</p>
-          <p><strong>Statut:</strong> {selectedEmployee.status || "Non renseigné"}</p>
-          <p><strong>Numero CNPS:</strong> {typeof displayCNPSNumber === 'function' ? displayCNPSNumber(selectedEmployee.cnpsNumber) : (selectedEmployee.cnpsNumber || "Non renseigne")}</p>
-          <p><strong>Catégorie:</strong> {typeof displayProfessionalCategory === 'function' ? displayProfessionalCategory(selectedEmployee.professionalCategory) : (selectedEmployee.professionalCategory || "Non renseigné")}</p>
-          <p><strong>Salaire de base:</strong> {typeof displaySalary === 'function' ? displaySalary(selectedEmployee.baseSalary) : (selectedEmployee.baseSalary ? selectedEmployee.baseSalary.toLocaleString() : "Non renseigné")}</p>
-          <p><strong>Diplômes:</strong> {typeof displayDiplomas === 'function' ? displayDiplomas(selectedEmployee.diplomas) : (selectedEmployee.diplomas || "Non renseigné")}</p>
-          <p><strong>Échelon:</strong> {typeof displayEchelon === 'function' ? displayEchelon(selectedEmployee.echelon) : (selectedEmployee.echelon || "Non renseigné")}</p>
-          <p><strong>Service:</strong> {typeof displayService === 'function' ? displayService(selectedEmployee.service) : (selectedEmployee.service || "Non renseigné")}</p>
-          <p><strong>Superviseur:</strong> {typeof displaySupervisor === 'function' ? displaySupervisor(selectedEmployee.supervisor) : (selectedEmployee.supervisor || "Non renseigné")}</p>
-          <p><strong>Date de naissance:</strong> {typeof displayDateOfBirth === 'function' ? displayDateOfBirth(selectedEmployee.dateOfBirth) : (selectedEmployee.dateOfBirth || "Non renseigné")}</p>
-          <p><strong>Lieu de naissance:</strong> {typeof displayPlaceOfBirth === 'function' ? displayPlaceOfBirth(selectedEmployee.lieuNaissance) : (selectedEmployee.lieuNaissance || "Non renseigné")}</p>
-          <p><strong>Période d'essai:</strong> {selectedEmployee.hasTrialPeriod ? selectedEmployee.trialPeriodDuration || "Non renseignée" : "Non"}</p>
-          <p><strong>Matricule:</strong> {typeof displayMatricule === 'function' ? displayMatricule(selectedEmployee.matricule) : (selectedEmployee.matricule || "Non renseigné")}</p>
-        </div>
-      )}
-
-      {employeeDetailTab === "credentials" && (
-        <div className="space-y-4">
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-            <h3 className="text-lg font-semibold text-blue-900 mb-4 flex items-center gap-2">
-              <Key className="w-5 h-5" />
-              Informations de connexion
-            </h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email personnel (optionnel)
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={selectedEmployee.email || "Non renseigné"}
-                    readOnly
-                    className="flex-1 p-3 border border-gray-300 rounded-lg bg-white text-gray-800 font-mono text-sm"
-                  />
-                  {selectedEmployee.email && (
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(selectedEmployee.email || "");
-                        toast.success("Email copié dans le presse-papiers !");
-                      }}
-                      className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                      title="Copier l'email"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-                <p className="mt-1 text-xs text-gray-500">
-                  Email personnel de l'employé (peut être utilisé pour la connexion)
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email interne de l'entreprise
-                  {selectedEmployee.internalEmail ? (
-                    <span className="ml-2 text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
-                      ✓ Actif
-                    </span>
-                  ) : (
-                    <span className="ml-2 text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded">
-                      ⚠ Non généré
-                    </span>
-                  )}
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={selectedEmployee.internalEmail || "Aucun email interne généré"}
-                    readOnly
-                    className={`flex-1 p-3 border rounded-lg font-mono text-sm ${
-                      selectedEmployee.internalEmail
-                        ? "border-green-300 bg-green-50 text-gray-800"
-                        : "border-gray-300 bg-gray-50 text-gray-500"
-                    }`}
-                  />
-                  {selectedEmployee.internalEmail ? (
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(selectedEmployee.internalEmail || "");
-                        toast.success("Email interne copié dans le presse-papiers !");
-                      }}
-                      className="p-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                      title="Copier l'email interne"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={async () => {
-                        if (!selectedEmployee?.id || !companyData?.id) {
-                          toast.error("Erreur: Données manquantes.");
-                          return;
-                        }
-                        // Générer un email interne pour cet employé spécifique
-                        try {
-                          const checkEmailExists = async (email) => {
-                            try {
-                              const clientsSnapshot = await getDocs(collection(db, "clients"));
-                              for (const clientDoc of clientsSnapshot.docs) {
-                                const employeeQuery = query(
-                                  collection(db, "clients", clientDoc.id, "employees"),
-                                  where("internalEmail", "==", email)
-                                );
-                                const employeeSnapshot = await getDocs(employeeQuery);
-                                if (!employeeSnapshot.empty) {
-                                  return true;
-                                }
-                              }
-                              return false;
-                            } catch (error) {
-                              console.warn("Erreur lors de la vérification de l'email:", error);
-                              return false;
-                            }
-                          };
-
-                          let internalEmail = generateInternalEmail(
-                            selectedEmployee.name,
-                            companyData.email,
-                            companyData.name
-                          );
-                          internalEmail = await generateUniqueInternalEmail(internalEmail, checkEmailExists);
-
-                          const password = selectedEmployee.initialPassword || selectedEmployee.currentPassword || "123456";
-                          let authUid = null;
-
-                          try {
-                            const userCredential = await createUserWithEmailAndPassword(auth, internalEmail, password);
-                            authUid = userCredential.user.uid;
-                          } catch (authError) {
-                            if (authError.code !== 'auth/email-already-in-use') {
-                              console.warn("Impossible de créer un compte Firebase Auth:", authError.message);
-                            }
-                          }
-
-                          const updateData = { internalEmail };
-                          if (authUid) updateData.authUid = authUid;
-
-                          await svcUpdateEmployee(db, companyData.id, selectedEmployee.id, updateData);
-                          
-                          // Mettre à jour localement
-                          const updatedEmployees = employees.map(emp => 
-                            emp.id === selectedEmployee.id 
-                              ? { ...emp, internalEmail, authUid: authUid || emp.authUid }
-                              : emp
-                          );
-                          setEmployees(updatedEmployees);
-                          setSelectedEmployee({ ...selectedEmployee, internalEmail, authUid: authUid || selectedEmployee.authUid });
-                          
-                          toast.success(`Email interne généré : ${internalEmail}`);
-                        } catch (error) {
-                          console.error("Erreur lors de la génération de l'email interne:", error);
-                          toast.error(`Erreur : ${error.message}`);
-                        }
-                      }}
-                      className="p-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-                      title="Générer un email interne"
-                    >
-                      <Key className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-                <p className="mt-1 text-xs text-gray-500">
-                  {selectedEmployee.internalEmail 
-                    ? "Email interne généré automatiquement. L'employé peut se connecter avec cet email ou son email personnel."
-                    : "Cliquez sur le bouton pour générer un email interne pour cet employé."}
-                </p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Mot de passe actuel
-                  {selectedEmployee.passwordChanged ? (
-                    <span className="ml-2 text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded">
-                      (Mot de passe modifié par l'employé)
-                    </span>
-                  ) : (
-                    <span className="ml-2 text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
-                      (Mot de passe initial actif)
-                    </span>
-                  )}
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={selectedEmployee.currentPassword || selectedEmployee.initialPassword || "123456"}
-                    readOnly
-                    className="flex-1 p-3 border border-gray-300 rounded-lg bg-white text-gray-800 font-mono text-sm"
-                  />
-                  <button
-                    onClick={() => {
-                      const password = selectedEmployee.currentPassword || selectedEmployee.initialPassword || "123456";
-                      navigator.clipboard.writeText(password);
-                      toast.success("Mot de passe copié dans le presse-papiers !");
-                    }}
-                    className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    title="Copier le mot de passe"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                </div>
-                <p className="mt-2 text-xs text-gray-500">
-                  {selectedEmployee.passwordChanged 
-                    ? "✓ Ce mot de passe a été modifié par l'employé depuis son espace personnel."
-                    : "⚠️ Ce mot de passe est le mot de passe initial. L'employé peut le modifier depuis son espace."}
-                </p>
-              </div>
-
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <div className="flex items-start gap-2">
-                  <Bell className="w-5 h-5 text-yellow-600 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-yellow-900 mb-1">Note importante</p>
-                    <p className="text-xs text-yellow-700">
-                      L'employé peut modifier son mot de passe depuis son espace personnel. 
-                      Une fois modifié, ce mot de passe initial ne sera plus valide.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section réinitialisation du mot de passe par l'admin */}
-              <div className="border-t border-blue-200 pt-4 mt-4">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Réinitialiser le mot de passe</h4>
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <p className="text-xs text-red-700 mb-3">
-                    Vous pouvez réinitialiser le mot de passe de cet employé. Le nouveau mot de passe sera défini sur "123456" par défaut.
-                  </p>
-                  <Button
-                    onClick={async () => {
-                      if (!selectedEmployee?.id || !companyData?.id) {
-                        toast.error("Erreur: Données manquantes.");
-                        return;
-                      }
-
-                      if (!window.confirm(`Êtes-vous sûr de vouloir réinitialiser le mot de passe de ${selectedEmployee.name} ? Le nouveau mot de passe sera "123456".`)) {
-                        return;
-                      }
-
-                      try {
-                        setActionLoading(true);
-                        const employeeRef = doc(db, "clients", companyData.id, "employees", selectedEmployee.id);
-                        await updateDoc(employeeRef, {
-                          currentPassword: "123456",
-                          initialPassword: "123456",
-                          passwordChanged: false,
-                        });
-
-                        // Mettre à jour l'état local
-                        setSelectedEmployee((prev) => ({
-                          ...prev,
-                          currentPassword: "123456",
-                          initialPassword: "123456",
-                          passwordChanged: false,
-                        }));
-
-                        // Mettre à jour la liste des employés
-                        setEmployees((prev) =>
-                          prev.map((emp) =>
-                            emp.id === selectedEmployee.id
-                              ? { ...emp, currentPassword: "123456", initialPassword: "123456", passwordChanged: false }
-                              : emp
-                          )
-                        );
-
-                        toast.success("Mot de passe réinitialisé avec succès ! Le nouveau mot de passe est '123456'.");
-                      } catch (error) {
-                        console.error("Erreur réinitialisation mot de passe:", error);
-                        toast.error("Erreur lors de la réinitialisation: " + error.message);
-                      } finally {
-                        setActionLoading(false);
-                      }
-                    }}
-                    disabled={actionLoading}
-                    icon={RefreshCw}
-                    className="bg-red-600 hover:bg-red-700 text-white"
-                  >
-                    {actionLoading ? "Réinitialisation..." : "Réinitialiser le mot de passe"}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="flex gap-4 pt-4 border-t border-gray-200">
+      <h2 className="text-lg font-semibold">Détails de l'Employé - {selectedEmployee.name || 'N/A'}</h2>
+      <img
+        src={selectedEmployee.profilePicture || "https://ui-avatars.com/api/?name=Inconnu&background=60A5FA&color=fff"}
+        alt={selectedEmployee.name || "Employé"}
+        className="w-16 h-16 rounded-full mx-auto"
+        onError={(e) => (e.target.src = "https://ui-avatars.com/api/?name=Inconnu&background=60A5FA&color=fff")}
+      />
+              <p><strong>Nom:</strong> {selectedEmployee.name || "Non renseigné"}</p>
+        <p><strong>Email:</strong> {selectedEmployee.email || "Non renseigné"}</p>
+        <p><strong>Poste:</strong> {selectedEmployee.poste || "Non renseigné"}</p>
+      <p><strong>Departement:</strong> {typeof displayDepartment === 'function' ? displayDepartment(selectedEmployee.department) : (selectedEmployee.department || "Non renseigne")}</p>
+      <p><strong>Date d'embauche:</strong> {typeof displayDate === 'function' ? displayDate(selectedEmployee.hireDate) : (selectedEmployee.hireDate || "Non renseigné")}</p>
+      <p><strong>Statut:</strong> {selectedEmployee.status || "Non renseigné"}</p>
+      <p><strong>Numero CNPS:</strong> {typeof displayCNPSNumber === 'function' ? displayCNPSNumber(selectedEmployee.cnpsNumber) : (selectedEmployee.cnpsNumber || "Non renseigne")}</p>
+      <p><strong>Catégorie:</strong> {typeof displayProfessionalCategory === 'function' ? displayProfessionalCategory(selectedEmployee.professionalCategory) : (selectedEmployee.professionalCategory || "Non renseigné")}</p>
+      <p><strong>Salaire de base:</strong> {typeof displaySalary === 'function' ? displaySalary(selectedEmployee.baseSalary) : (selectedEmployee.baseSalary ? selectedEmployee.baseSalary.toLocaleString() : "Non renseigné")}</p>
+      <p><strong>Diplômes:</strong> {typeof displayDiplomas === 'function' ? displayDiplomas(selectedEmployee.diplomas) : (selectedEmployee.diplomas || "Non renseigné")}</p>
+      <p><strong>Échelon:</strong> {typeof displayEchelon === 'function' ? displayEchelon(selectedEmployee.echelon) : (selectedEmployee.echelon || "Non renseigné")}</p>
+      <p><strong>Service:</strong> {typeof displayService === 'function' ? displayService(selectedEmployee.service) : (selectedEmployee.service || "Non renseigné")}</p>
+      <p><strong>Superviseur:</strong> {typeof displaySupervisor === 'function' ? displaySupervisor(selectedEmployee.supervisor) : (selectedEmployee.supervisor || "Non renseigné")}</p>
+      <p><strong>Date de naissance:</strong> {typeof displayDateOfBirth === 'function' ? displayDateOfBirth(selectedEmployee.dateOfBirth) : (selectedEmployee.dateOfBirth || "Non renseigné")}</p>
+      <p><strong>Lieu de naissance:</strong> {typeof displayPlaceOfBirth === 'function' ? displayPlaceOfBirth(selectedEmployee.lieuNaissance) : (selectedEmployee.lieuNaissance || "Non renseigné")}</p>
+      <p><strong>Période d'essai:</strong> {selectedEmployee.hasTrialPeriod ? selectedEmployee.trialPeriodDuration || "Non renseignée" : "Non"}</p>
+      <p><strong>Matricule:</strong> {typeof displayMatricule === 'function' ? displayMatricule(selectedEmployee.matricule) : (selectedEmployee.matricule || "Non renseigné")}</p>
+      <div className="flex gap-4">
         <Button
           onClick={() => {
-            // Mettre à jour selectedEmployee avec les données les plus récentes
+            // Mettre Ã  jour selectedEmployee avec les données les plus récentes
             const updatedEmployee = employees.find(emp => emp.id === selectedEmployee.id);
             if (updatedEmployee) {
               setSelectedEmployee(updatedEmployee);
@@ -3694,6 +2717,7 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
         >
           {selectedEmployee.contract ? "Voir Contrat" : "Créer Contrat"}
         </Button>
+
       </div>
     </div>
   )}
@@ -4767,113 +3791,6 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
                   onCsv={generateCSVReport}
                   disabled={actionLoading}
                 />
-              </Card>
-              
-              {/* Migration des employés existants */}
-              <Card>
-                <div className="p-6">
-                  <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Database className="w-5 h-5" />
-                    Migration des données
-                  </h2>
-                  <div className="space-y-4">
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <p className="text-sm text-gray-700 mb-2">
-                        <strong>Mise à jour des informations de connexion</strong>
-                      </p>
-                      <p className="text-xs text-gray-600 mb-4">
-                        Cette fonction met à jour tous les employés existants pour ajouter les champs de mot de passe initial. 
-                        Les employés qui n'ont pas encore ces champs recevront le mot de passe par défaut "123456".
-                      </p>
-                      <Button
-                        onClick={async () => {
-                          if (!companyData?.id) {
-                            toast.error("Erreur: ID de l'entreprise manquant.");
-                            return;
-                          }
-                          
-                          try {
-                            setActionLoading(true);
-                            let updatedCount = 0;
-                            let skippedCount = 0;
-                            
-                            // Récupérer tous les employés
-                            const employeesRef = collection(db, "clients", companyData.id, "employees");
-                            const employeesSnapshot = await getDocs(employeesRef);
-                            
-                            if (employeesSnapshot.empty) {
-                              toast.info("Aucun employé à mettre à jour.");
-                              setActionLoading(false);
-                              return;
-                            }
-                            
-                            // Mettre à jour chaque employé qui n'a pas encore initialPassword
-                            let batch = writeBatch(db);
-                            let batchCount = 0;
-                            
-                            for (const docSnap of employeesSnapshot.docs) {
-                              const employeeData = docSnap.data();
-                              
-                              // Vérifier si l'employé a déjà initialPassword
-                              if (!employeeData.hasOwnProperty('initialPassword')) {
-                                const employeeRef = doc(db, "clients", companyData.id, "employees", docSnap.id);
-                                batch.update(employeeRef, {
-                                  initialPassword: "123456",
-                                  currentPassword: employeeData.currentPassword || "123456",
-                                  passwordChanged: employeeData.passwordChanged !== undefined ? employeeData.passwordChanged : false
-                                });
-                                batchCount++;
-                                updatedCount++;
-                                
-                                // Firestore limite les batches à 500 opérations
-                                if (batchCount >= 500) {
-                                  await batch.commit();
-                                  batch = writeBatch(db); // Créer un nouveau batch
-                                  batchCount = 0;
-                                }
-                              } else {
-                                skippedCount++;
-                              }
-                            }
-                            
-                            // Commit le reste des mises à jour
-                            if (batchCount > 0) {
-                              await batch.commit();
-                            }
-                            
-                            // Mettre à jour l'état local
-                            const updatedEmployees = employees.map(emp => {
-                              if (!emp.hasOwnProperty('initialPassword')) {
-                                return {
-                                  ...emp,
-                                  initialPassword: "123456",
-                                  currentPassword: emp.currentPassword || "123456",
-                                  passwordChanged: false
-                                };
-                              }
-                              return emp;
-                            });
-                            setEmployees(updatedEmployees);
-                            
-                            toast.success(
-                              `Migration terminée ! ${updatedCount} employé(s) mis à jour, ${skippedCount} déjà à jour.`
-                            );
-                          } catch (error) {
-                            console.error("Erreur migration employés:", error);
-                            toast.error(`Erreur lors de la migration: ${error.message}`);
-                          } finally {
-                            setActionLoading(false);
-                          }
-                        }}
-                        disabled={actionLoading}
-                        icon={RefreshCw}
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                      >
-                        {actionLoading ? "Migration en cours..." : "Mettre à jour les employés existants"}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
               </Card>
               <Card title="Badges Employes" className="mt-8">
                 <div className="mb-4 flex flex-col md:flex-row md:items-center gap-4">

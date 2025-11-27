@@ -27,7 +27,7 @@ function getValue(obj, path) {
   return path.split('.').reduce((acc, part) => acc && acc[part], obj);
 }
 
-const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, payPeriod, generatedAt, primes, indemnites, template = 'eneo', auto = false, onExported }) => {
+const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deductions, payPeriod, generatedAt, primes, indemnites, template = 'eneo', auto = false, onExported, isDemoAccount: isDemoAccountProp }) => {
   // Templates disponibles (alignés avec modeletemplate.js)
   const TEMPLATE_OPTIONS = [
     { value: 'eneo', label: 'ENEO (officiel)' },
@@ -37,8 +37,19 @@ const ExportPaySlip = ({ employee, employer, salaryDetails, remuneration, deduct
     { value: 'enterprise', label: 'Enterprise' },
   ];
 
-  // Détection mode démo
-  const { isDemoAccount } = useDemo();
+  // Utiliser la prop isDemoAccount si elle est fournie, sinon utiliser le contexte
+  // Cela permet au composant de fonctionner quand il est rendu hors du DemoProvider
+  let isDemoAccount = isDemoAccountProp;
+  try {
+    const demoContext = useDemo();
+    isDemoAccount = isDemoAccountProp !== undefined ? isDemoAccountProp : demoContext.isDemoAccount;
+  } catch (error) {
+    // Si useDemo lève une erreur (composant hors du DemoProvider), utiliser la prop
+    if (isDemoAccountProp === undefined) {
+      console.warn('ExportPaySlip: isDemoAccount prop not provided and component is outside DemoProvider');
+      isDemoAccount = false;
+    }
+  }
 
   // État local pour le modèle sélectionné dans ce composant
   const initialTemplate = (template || salaryDetails?.selectedTemplate || remuneration?.selectedTemplate || 'eneo');
