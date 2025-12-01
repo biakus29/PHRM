@@ -56,6 +56,7 @@ import {
   Copy,
   RefreshCw,
   Database,
+  MessageCircle,
 } from "lucide-react";
 import {
   Chart as ChartJS,
@@ -120,6 +121,7 @@ import { generateInternalEmail, generateUniqueInternalEmail } from "../utils/ema
 import EmployeeSelector from "../components/EmployeeSelector";
 import LogoUploader from "../components/LogoUploader";
 import EmployeeForm from "../components/EmployeeForm";
+import { sendCredentialsViaWhatsApp, formatPhoneNumberForWhatsApp, validateWhatsAppNumber } from "../utils/whatsappUtils";
 
 // Lazy-loaded heavy sections
 const ChartsSection = lazy(() => import("../components/ChartsSection"));
@@ -211,6 +213,7 @@ const CompanyAdminDashboard = () => {
   const [showBadgeForm, setShowBadgeForm] = useState(false);
   const [employeeForBadge, setEmployeeForBadge] = useState(null);
   const [employeeDetailTab, setEmployeeDetailTab] = useState("info"); // "info" ou "credentials"
+  const [whatsappNumber, setWhatsappNumber] = useState("");
   
   // Ajout des hooks pour suggestions
   const [allResidences, setAllResidences] = useState([]);
@@ -333,7 +336,35 @@ const CompanyAdminDashboard = () => {
     }
   }, [showPaySlipDetails]);
 
-  // Fonction pour afficher les détails d'une fiche de paie
+  // Fonction pour gérer l'envoi WhatsApp des informations de connexion
+  const handleSendWhatsAppCredentials = async () => {
+    if (!selectedEmployee || !companyData) {
+      toast.error("Erreur: Données manquantes.");
+      return;
+    }
+
+    if (!whatsappNumber.trim()) {
+      toast.error("Veuillez entrer un numéro WhatsApp.");
+      return;
+    }
+
+    const formattedNumber = formatPhoneNumberForWhatsApp(whatsappNumber);
+    
+    if (!validateWhatsAppNumber(formattedNumber)) {
+      toast.error("Numéro WhatsApp invalide. Format attendu: +2376XXXXXXXX");
+      return;
+    }
+
+    try {
+      sendCredentialsViaWhatsApp(selectedEmployee, companyData, formattedNumber);
+      toast.success(`Ouverture WhatsApp pour envoyer les informations de connexion à ${formattedNumber}`);
+    } catch (error) {
+      console.error("Erreur lors de l'envoi WhatsApp:", error);
+      toast.error(`Erreur: ${error.message}`);
+    }
+  };
+
+// Fonction pour afficher les détails d'une fiche de paie
   const showPaySlipDetailsModal = (payslip, employee) => {
     setSelectedPaySlip(payslip);
     setSelectedEmployee(employee);
@@ -3421,6 +3452,43 @@ const generateContractsForImportedEmployees = async (successfulEmployees, templa
                       L'employé peut modifier son mot de passe depuis son espace personnel. 
                       Une fois modifié, ce mot de passe initial ne sera plus valide.
                     </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section envoi WhatsApp */}
+              <div className="border-t border-blue-200 pt-4 mt-4">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Envoyer les informations via WhatsApp</h4>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <p className="text-xs text-green-700 mb-3">
+                    Envoyez les informations de connexion de l'employé directement via WhatsApp.
+                  </p>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Numéro WhatsApp du destinataire
+                      </label>
+                      <input
+                        type="text"
+                        value={whatsappNumber}
+                        onChange={(e) => setWhatsappNumber(e.target.value)}
+                        placeholder="+2376XXXXXXXX"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Format: +2376XXXXXXXX (indicatif pays requis)
+                      </p>
+                    </div>
+                    
+                    <Button
+                      onClick={handleSendWhatsAppCredentials}
+                      disabled={!whatsappNumber.trim() || !selectedEmployee}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      Envoyer via WhatsApp
+                    </Button>
                   </div>
                 </div>
               </div>
