@@ -54,6 +54,14 @@ service cloud.firestore {
       allow write: if isSuperAdmin();
     }
 
+    // Formations : lisibles publiquement, écriture par super admin
+    match /formations/{formationId} {
+      // lecture publique (site vitrine)
+      allow read: if true;
+      // écriture/modif/suppression réservées au super admin
+      allow write: if isSuperAdmin();
+    }
+
     // Clients et sous-collections
     match /clients/{clientId} {
       // Lecture: si authentifié ET (super admin OU admin du client)
@@ -114,4 +122,3 @@ service cloud.firestore {
   }
 
 }
-

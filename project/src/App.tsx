@@ -243,6 +243,7 @@ function App() {
             <div className="hidden lg:flex space-x-6 xl:space-x-8">
               <a href="#about" className="text-gray-700 hover:text-phrm-dark transition-colors">À propos</a>
               <a href="#features" className="text-gray-700 hover:text-phrm-dark transition-colors">Fonctionnalités</a>
+              <a href="https://phrmapp.com/offres" className="text-gray-700 hover:text-phrm-dark transition-colors ">Recrutement</a>
             <a href="#pricing" className="text-gray-700 hover:text-phrm-dark transition-colors">Tarifs</a>
             <a href="#testimonials" className="text-gray-700 hover:text-phrm-dark transition-colors">Témoignages</a>
             <a href="https://phrmapp.com/blog" className="text-gray-700 hover:text-phrm-dark transition-colors">Blog</a>
@@ -250,8 +251,8 @@ function App() {
               <a href="#contact" className="text-gray-700 hover:text-phrm-dark transition-colors">Contact</a>
             </div>
           <div className="flex items-center space-x-3 md:space-x-4">
-            <a href="https://phrmapp.com/demo" className="hidden md:inline-flex bg-phrm-dark text-white px-4 md:px-6 py-2 rounded-lg hover:brightness-90 transition-colors">
-              Essai gratuit 
+            <a href="https://phrmapp.com/client-admin-login" className="hidden md:inline-flex bg-phrm-dark text-white px-4 md:px-6 py-2 rounded-lg hover:brightness-90 transition-colors">
+              Se connecter 
             </a>
             <button
               className="lg:hidden text-gray-700 hover:text-phrm-dark transition-colors"
@@ -280,6 +281,7 @@ function App() {
               {[
                 { href: '#about', label: 'À propos' },
                 { href: '#features', label: 'Fonctionnalités' },
+                { href: '/offres', label: 'Recrutement' },
                 { href: '#testimonials', label: 'Témoignages' },
                 { href: 'https://phrmapp.com/blog', label: 'Blog' },
                 { href: '#faq', label: 'FAQ' },
@@ -288,24 +290,25 @@ function App() {
                 <a
                   key={link.href}
                   href={link.href}
-                  className="text-gray-800 hover:text-phrm-dark py-2"
+                  className="text-gray-800 hover:text-phrm-dark py-2 font-semibold"
+                  style={link.label === 'Recrutement' ? { color: '#2563eb' } : {}}
                   onClick={() => setMobileOpen(false)}
                 >
                   {link.label}
                 </a>
               ))}
               
-              {/* Bouton Voir la démo pour mobile */}
+              {/* Bouton Se connecter pour mobile */}
               <a 
-                href="https://phrmapp.com/demo"
+                href="https://phrmapp.com/client-admin-login"
                 className="bg-phrm-dark text-white px-4 py-2 rounded-lg hover:brightness-90 transition-colors text-center mt-3 block"
                 onClick={(e) => {
                   e.preventDefault();
                   setMobileOpen(false);
-                  window.location.href = 'https://phrmapp.com/demo';
+                  window.location.href = 'https://phrmapp.com/client-admin-login';
                 }}
               >
-                Voir la démo
+                Se connecter
               </a>
               
               {/* Bouton de déconnexion pour mobile/tablette */}
@@ -338,8 +341,8 @@ function App() {
                 Solution complète RH : conformité Paie-pays; Recrutement, Background check, Conseil, Libre-service Employés.
               </p>
             <div className="flex flex-col sm:flex-row gap-4 animate-fade-in-up animation-delay-400">
-              <a href="https://phrmapp.com/register-client" className="bg-phrm-dark text-white px-8 py-4 rounded-lg hover:brightness-90 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl inline-block text-center">
-                  S'inscrire 
+              <a href="https://phrmapp.com/client-admin-login" className="bg-phrm-dark text-white px-8 py-4 rounded-lg hover:brightness-90 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl inline-block text-center">
+                  Se connecter 
                 </a>
               <a href="https://phrmapp.com/demo" className="border-2 border-phrm-dark text-phrm-dark px-8 py-4 rounded-lg hover:bg-phrm-light transition-all transform hover:scale-105">
                   Voir la démo
@@ -1870,7 +1873,7 @@ function App() {
                 <Mail className="w-8 h-8 text-blue-500" />
               </div>
               <h3 className="text-xl font-bold text-blue-500 mb-4">Email</h3>
-              <p className="text-blue-400 mb-4">sarphrm17@gmail.com</p>
+              <p className="text-blue-400 mb-4">sarlphrm17@gmail.com</p>
               <p className="text-sm text-blue-300">Réponse sous 24h</p>
             </div>
 

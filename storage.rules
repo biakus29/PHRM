@@ -1,0 +1,54 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Candidates resumes - authenticated users can manage their own files
+    match /candidates/{candidateId}/resumes/{fileName} {
+      allow read: if isAuthenticated() && request.auth.uid == candidateId;
+      allow write: if isAuthenticated() && request.auth.uid == candidateId;
+      allow delete: if isAuthenticated() && request.auth.uid == candidateId;
+    }
+
+    // Employee documents - employees can access their own files
+    match /clients/{clientId}/employees/{employeeId}/{documentType}/{fileName} {
+      allow read: if isAuthenticated() && request.auth.uid == employeeId;
+      allow write: if isAuthenticated() && request.auth.uid == employeeId;
+      allow delete: if isAuthenticated() && request.auth.uid == employeeId;
+    }
+
+    // Client documents - admins only
+    match /clients/{clientId}/{documentType}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // Profile pictures and avatars
+    match /profiles/{userId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Temporary uploads (for forms, etc.)
+    match /temp/{userId}/{fileName} {
+      allow read, write, delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Public files (company logos, etc.)
+    match /public/{fileName} {
+      allow read: if true; // Public read access
+      allow write: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // Deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
