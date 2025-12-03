@@ -1,9 +1,7 @@
+@import './scroll-fix.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Import du fix pour le scroll */
-@import './scroll-fix.css';
 
 /* Animations personnalisées */
 @keyframes fadeInUp {
