@@ -338,7 +338,7 @@ function App() {
             Gestion automatisée des <span className="text-phrm-dark animate-pulse">RH</span> 
               </h1>
             <p className="text-xl text-gray-600 mb-8 animate-fade-in-up animation-delay-200">
-                Solution complète RH : conformité Paie-pays; Recrutement, Background check, Conseil, Libre-service Employés.
+                Solution complète RH : conformité Paie-pays; Recrutement, Vérification de CV, Conseil, Libre-service Employés.
               </p>
             <div className="flex flex-col sm:flex-row gap-4 animate-fade-in-up animation-delay-400">
               <a href="https://phrmapp.com/client-admin-login" className="bg-phrm-dark text-white px-8 py-4 rounded-lg hover:brightness-90 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl inline-block text-center">
@@ -355,7 +355,7 @@ function App() {
               </div>
               <div className="flex items-center space-x-2 hover:scale-110 transition-transform duration-200">
                 <Globe className="w-5 h-5 text-green-600 animate-bounce animation-delay-100" />
-                <span className="text-gray-600">Multi-tenant</span>
+                <span className="text-gray-600">Multi-utilisateurs</span>
               </div>
               <div className="flex items-center space-x-2 hover:scale-110 transition-transform duration-200">
                 <Zap className="w-5 h-5 text-green-600 animate-bounce animation-delay-200" />
@@ -745,7 +745,7 @@ function App() {
               <div className="w-12 h-12 bg-phrm-light rounded-lg flex items-center justify-center mb-4 group-hover:bg-phrm-light transition-colors duration-300 group-hover:scale-110">
                 <UserCheck className="w-6 h-6 text-phrm-dark group-hover:animate-bounce" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-phrm-dark transition-colors duration-300">Background Check</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-phrm-dark transition-colors duration-300">Vérification de CV</h3>
               <p className="text-gray-600 mb-4">
                 Vérification approfondie des antécédents de vos candidats et employés.
               </p>
@@ -1001,7 +1001,7 @@ function App() {
                     <BarChart3 className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-white">Analytics & Rapports</h3>
+                    <h3 className="text-xl font-bold text-white">Analyse des données & Rapports</h3>
                     <p className="text-blue-200">Données en temps réel</p>
                   </div>
                 </div>
@@ -1273,7 +1273,7 @@ function App() {
                 </div>
                 <div className="absolute top-1/2 -right-8 bg-purple-500 text-white px-3 py-1 rounded-full text-xs font-semibold animate-float animation-delay-400 flex items-center space-x-1">
                   <BarChart3 className="w-3 h-3" />
-                  <span>Analytics</span>
+                  <span>Analyse des données</span>
                 </div>
               </div>
             </div>
@@ -1695,7 +1695,7 @@ function App() {
                 </li>
                 <li className="flex items-center">
                   <CheckCircle className="w-5 h-5 text-green-500 mr-3" />
-                  <span className="text-gray-700">Background Check</span>
+                  <span className="text-gray-700">Vérification de CV</span>
                 </li>
                 <li className="flex items-center">
                   <CheckCircle className="w-5 h-5 text-green-500 mr-3" />
@@ -1724,7 +1724,7 @@ function App() {
                 </li>
                 <li className="flex items-center">
                   <CheckCircle className="w-5 h-5 text-green-500 mr-3" />
-                  <span className="text-gray-700">Multi-tenant</span>
+                  <span className="text-gray-700">Multi-utilisateurs</span>
                 </li>
                 <li className="flex items-center">
                   <CheckCircle className="w-5 h-5 text-green-500 mr-3" />

@@ -52,6 +52,7 @@ import SuperadminApplicationsPanel from "../components/SuperadminApplicationsPan
 import FiscalSettings from "../components/FiscalSettings";
 import BlogManagement from "../components/BlogManagement";
 import Modal from "../components/Modal";
+import { Briefcase, Users as UsersIcon } from "lucide-react";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -979,6 +980,8 @@ const SuperAdminDashboard = () => {
             {[
               { id: "dashboard", label: "Tableau de bord", icon: FiHome },
               { id: "gestion-clients", label: "Gestion des clients", icon: FiUsers },
+              { id: "offres", label: "Offres d'emploi", icon: Briefcase },
+              { id: "candidatures", label: "Candidatures", icon: UsersIcon },
               { id: "gestion-utilisateurs", label: "Utilisateurs", icon: FiUsers },
               { id: "gestion-roles", label: "Rôles et permissions", icon: FiShield },
               { id: "gestion-formations", label: "Formations", icon: FiBookOpen },
@@ -1033,6 +1036,8 @@ const SuperAdminDashboard = () => {
             <h1 className="text-2xl font-bold text-gray-900 animate-scale-in">
               {activeSection === "dashboard" && "Tableau de bord"}
               {activeSection === "gestion-clients" && "Gestion des clients"}
+              {activeSection === "offres" && "Offres d'emploi"}
+              {activeSection === "candidatures" && "Candidatures"}
               {activeSection === "gestion-utilisateurs" && "Utilisateurs"}
               {activeSection === "gestion-roles" && "Rôles et permissions"}
               {activeSection === "gestion-formations" && "Gestion des formations"}
@@ -1043,6 +1048,8 @@ const SuperAdminDashboard = () => {
             <p className="text-gray-600 text-sm animate-scale-in">
               {activeSection === "dashboard" && "Aperçu global de votre administration"}
               {activeSection === "gestion-clients" && "Liste complète de vos clients"}
+              {activeSection === "offres" && "Créez et validez les offres d'emploi"}
+              {activeSection === "candidatures" && "Gérez toutes les candidatures reçues"}
               {activeSection === "gestion-utilisateurs" && "Liste des utilisateurs"}
               {activeSection === "gestion-roles" && "Gestion des rôles et permissions"}
               {activeSection === "gestion-formations" && "Gestion des formations"}
@@ -1517,6 +1524,14 @@ const SuperAdminDashboard = () => {
           <Card title="Rôles et permissions">
             <p className="text-gray-600">Cette section permettra de configurer les rôles et permissions. (WIP)</p>
           </Card>
+        )}
+
+        {activeSection === "offres" && (
+          <SuperadminJobsPanel />
+        )}
+
+        {activeSection === "candidatures" && (
+          <SuperadminApplicationsPanel />
         )}
       </main>
     </div>

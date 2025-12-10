@@ -192,7 +192,7 @@ const handleSuccessfulAction = () => {
 
 ### Tableaux de bord recommandés
 - Dashboard admin pour suivre les demandes d'upgrade
-- Analytics du parcours démo
+- Analyse du parcours démo
 - Suivi des leads générés
 
 ## Maintenance

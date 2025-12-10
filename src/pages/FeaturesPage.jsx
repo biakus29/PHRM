@@ -16,7 +16,7 @@ const FeaturesPage = () => {
     { name: 'Paie mensuelle automatique', demo: false, pro: true, icon: Zap },
     { name: 'Génération de contrats', demo: false, pro: true, icon: FileText },
     { name: 'Gestion des congés', demo: false, pro: true, icon: Users },
-    { name: 'Rapports et analytics', demo: false, pro: true, icon: TrendingUp },
+    { name: 'Rapports et analyse des données', demo: false, pro: true, icon: TrendingUp },
     { name: 'Historique illimité', demo: false, pro: true, icon: TrendingUp },
     { name: 'Support prioritaire', demo: false, pro: true, icon: Headphones },
     { name: 'Sécurité renforcée', demo: false, pro: true, icon: Shield },
@@ -138,7 +138,7 @@ const FeaturesPage = () => {
               </li>
               <li className="flex items-center">
                 <Check className="w-5 h-5 text-green-300 mr-3 flex-shrink-0" />
-                <span className="font-medium">Rapports et analytics</span>
+                <span className="font-medium">Rapports et analyse des données</span>
               </li>
               <li className="flex items-center">
                 <Check className="w-5 h-5 text-green-300 mr-3 flex-shrink-0" />
