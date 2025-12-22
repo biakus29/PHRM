@@ -333,9 +333,7 @@ const BlogPage = () => {
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-8 sm:mb-12 animate-fade-in-up">
             <div className="flex items-center justify-center mb-4 sm:mb-6 relative">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Sparkles className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 text-yellow-300 opacity-30 animate-pulse-sparkle" />
-              </div>
+              
               <BookOpen className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 text-white relative z-10 animate-bounce-gentle" />
             </div>
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-3 sm:mb-4 animate-slide-in-left px-2 relative">

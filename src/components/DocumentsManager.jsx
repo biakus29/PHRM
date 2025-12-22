@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { FiFileText, FiDownload, FiPlus, FiEdit, FiTrash2, FiEye, FiSettings, FiSend, FiUser, FiUsers, FiX } from 'react-icons/fi';
 import { db, auth } from '../firebase';
-import { collection, addDoc, getDocs, doc, deleteDoc, updateDoc, query, where, orderBy } from 'firebase/firestore';
+import { collection, addDoc, getDocs, doc, deleteDoc, updateDoc, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import { useDemo } from '../contexts/DemoContext';
 import DemoLimitModal from './DemoLimitModal';
@@ -26,7 +26,7 @@ import {
   DIPLOMES,
   SERVICES
 } from '../utils/constants';
-import { createJob } from '../services/jobs';
+// import { createJob } from '../services/jobs'; // Service intégré directement
 import { upgradeService } from '../services/upgradeService';
 
 const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, employees = [] }) => {
@@ -848,7 +848,15 @@ const DocumentsManager = ({ companyId, userRole = 'admin', companyData = null, e
           contactsEntretiens: [],
           processusEntreprise: ''
         };
-        const jobId = await createJob(companyId, payload, auth.currentUser?.uid || null);
+        // Création job intégrée directement
+        const jobRef = await addDoc(collection(db, 'jobs'), {
+          ...payload,
+          companyId,
+          createdBy: auth.currentUser?.uid || null,
+          createdAt: serverTimestamp(),
+          status: 'draft'
+        });
+        const jobId = jobRef.id;
         await updateDoc(doc(db, 'documents', offerDoc.id), { submittedJobId: jobId, submittedAt: new Date() });
         toast.success('Offre soumise au SuperAdmin. Elle apparaîtra dans Offres à valider.');
       } catch (e) {

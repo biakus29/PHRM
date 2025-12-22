@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../firebase';
-import { collection, addDoc, doc, getDoc, getDocs, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
-import { listSubmittedJobs, publishJob, rejectJob } from '../services/jobs';
+import { collection, addDoc, doc, getDoc, getDocs, query, where, orderBy, serverTimestamp, updateDoc } from 'firebase/firestore';
+// Services jobs intégrés directement
 import { FiCheck, FiX, FiRefreshCw, FiExternalLink, FiPlus } from 'react-icons/fi';
 import emailjs from '@emailjs/browser';
 
@@ -59,6 +59,22 @@ const SuperadminJobsPanel = () => {
     load();
     loadCompanies();
   }, []);
+
+  // Services jobs intégrés
+  const publishJob = async (jobId) => {
+    await updateDoc(doc(db, 'jobs', jobId), {
+      status: 'published',
+      publishedAt: serverTimestamp()
+    });
+  };
+
+  const rejectJob = async (jobId, reason) => {
+    await updateDoc(doc(db, 'jobs', jobId), {
+      status: 'rejected',
+      rejectedReason: reason,
+      rejectedAt: serverTimestamp()
+    });
+  };
 
   const sendMail = async (email, subject, htmlContent) => {
     try {

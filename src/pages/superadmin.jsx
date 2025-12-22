@@ -48,7 +48,7 @@ import {
 } from "react-icons/fi";
 import { buildCommonOptions } from "../utils/chartConfig";
 import SuperadminJobsPanel from "../components/SuperadminJobsPanel";
-import SuperadminApplicationsPanel from "../components/SuperadminApplicationsPanel";
+import SuperadminApplicationsPanel from "../modules/application/SuperadminApplicationsPanel";
 import FiscalSettings from "../components/FiscalSettings";
 import BlogManagement from "../components/BlogManagement";
 import Modal from "../components/Modal";
